@@ -11,4 +11,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: leanprover/lean-action@v1
+        with:
+          test: false
