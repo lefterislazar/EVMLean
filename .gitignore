@@ -1,0 +1,8 @@
+*.olean
+.lake/
+vc/.stack-work/*
+__pycache__/
+sha2/
+blake2/
+keccak256/
+out_*
