@@ -218,7 +218,6 @@ def call (fuel : Nat)
         result with machineState := μ'incomplete
       }
       .ok (x, result)
-termination_by fuel
 
 def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) := .none)
   : EVM.Transformer
@@ -698,7 +697,96 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
       | .SWAP14 => swap 14 evmStateCharged
       | .SWAP15 => swap 15 evmStateCharged
       | .SWAP16 => swap 16 evmStateCharged
-termination_by fuel
+
+
+-- Exceptional halting (158)
+def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
+    : Except EVM.ExecutionException (State × ℕ) :=
+  let W (w : Operation) (s : Stack UInt256) : Bool :=
+    w ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2, .LOG3, .LOG4, .TSTORE] ∨
+    (w = .CALL ∧ s[2]? ≠ some ⟨0⟩)
+  if δ w = none then
+    .error .InvalidInstruction
+  else if evmState.machineState.stack.length < (δ w).getD 0 then
+    .error .StackUnderflow
+  else
+    let cost₁ := memoryExpansionCost evmState w
+    if evmState.machineState.gasAvailable.toNat < cost₁ then
+      .error .OutOfGass
+    else
+      let gasAvailable := evmState.machineState.gasAvailable - .ofNat cost₁
+      let evmState := { evmState with machineState.gasAvailable := gasAvailable}
+      let cost₂ := C' evmState w
+      if evmState.machineState.gasAvailable.toNat < cost₂ then
+        .error .OutOfGass
+      else
+        let invalidJump := notIn evmState.machineState.stack[0]? validJumps
+        if w = .JUMP ∧ invalidJump then
+          .error .BadJumpDestination
+        else if w = .JUMPI ∧ (evmState.machineState.stack[1]? ≠ some ⟨0⟩) ∧ invalidJump then
+          .error .BadJumpDestination
+        else if w = .RETURNDATACOPY ∧ (evmState.machineState.stack.getD 1 ⟨0⟩).toNat + (evmState.machineState.stack.getD 2 ⟨0⟩).toNat > evmState.machineState.returnData.size then
+          .error .InvalidMemoryAccess
+        else if evmState.machineState.stack.length - (δ w).getD 0 + (α w).getD 0 > 1024 then
+          .error .StackOverflow
+        else if (¬ evmState.executionEnv.perm) ∧ W w evmState.machineState.stack then
+          .error .StaticModeViolation
+        else if (w = .SSTORE) ∧ evmState.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend then
+          .error .OutOfGass
+        else if w.isCreate ∧ evmState.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩ then
+          .error .OutOfGass
+        else
+          .ok (evmState, cost₂)
+ where
+  belongs (o : Option UInt256) (l : Array UInt256) : Bool :=
+    match o with
+      | none => false
+      | some n => l.contains n
+  notIn (o : Option UInt256) (l : Array UInt256) : Bool := not (belongs o l)
+
+
+def Xstep (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
+  : Except EVM.ExecutionException (State × Option (Bool × ByteArray))
+:=
+  match fuel with
+    | 0 => .error .OutOfFuel
+    | .succ f => do
+  let evmState0 := evmState
+  let I_b := evmState.executionEnv.code
+  let instr@(w, _) := decode I_b evmState.machineState.pc |>.getD (.STOP, .none)
+  let H (μ : MachineState) (w : Operation) : Option ByteArray :=
+    if w ∈ [.RETURN, .REVERT] then
+      some <| μ.H_return
+    else
+      if w ∈ [.STOP, .SELFDESTRUCT] then
+        some .empty
+      else none
+  match Z validJumps w evmState with
+    | .error e =>
+      .error e
+    | some (evmState, cost₂) =>
+      -- depth reassignement bellow is ugly, but so is trying to prove that step does not change depth probably..
+      let evmState' ← step f cost₂ instr {evmState with executionEnv.depth := evmState0.executionEnv.depth}
+      let evmState' := { evmState' with executionEnv := evmState0.executionEnv }
+      -- Maybe we should restructure in a way such that it is more meaningful to compute
+      -- gas independently, but the model has not been set up thusly and it seems
+      -- that neither really was the YP.
+      -- Similarly, we cannot reach a situation in which the stack elements are not available
+      -- on the stack because this is guarded above. As such, `C` can be pure here.
+      match H evmState'.machineState w with -- The YP does this in a weird way.
+        | none => .ok ⟨evmState', .none⟩ -- X f validJumps evmState'
+        | some o =>
+          if w == .REVERT then
+            /-
+              The Yellow Paper says we don't call the "iterator function" "O" for `REVERT`,
+              but we actually have to call the semantics of `REVERT` to pass the test
+              EthereumTests/BlockchainTests/GeneralStateTests/stReturnDataTest/returndatacopy_after_revert_in_staticcall.json
+              And the EEL spec does so too.
+            -/
+            .ok <| ⟨evmState', .some ⟨false, o⟩⟩
+          else
+            -- .ok <| .success evmState' o
+            .ok <| ⟨evmState', .some ⟨true, o⟩⟩
 
 /--
   Iterative progression of `step`
@@ -709,93 +797,13 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
   match fuel with
     | 0 => .error .OutOfFuel
     | .succ f =>
-      let I_b := evmState.executionEnv.code
-      let instr@(w, _) := decode I_b evmState.machineState.pc |>.getD (.STOP, .none)
-      -- (159)
-      let W (w : Operation) (s : Stack UInt256) : Bool :=
-        w ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2, .LOG3, .LOG4, .TSTORE] ∨
-        (w = .CALL ∧ s[2]? ≠ some ⟨0⟩)
-      -- Exceptional halting (158)
-      let Z (evmState : State) : Except EVM.ExecutionException (State × ℕ) := do
-        if δ w = none then
-          .error .InvalidInstruction
-
-        if evmState.machineState.stack.length < (δ w).getD 0 then
-          .error .StackUnderflow
-
-        let cost₁ := memoryExpansionCost evmState w
-        if evmState.machineState.gasAvailable.toNat < cost₁ then
-          .error .OutOfGass
-        let machineState.gasAvailable := evmState.machineState.gasAvailable - .ofNat cost₁
-        let evmState := { evmState with machineState.gasAvailable := machineState.gasAvailable}
-        let cost₂ := C' evmState w
-
-        if evmState.machineState.gasAvailable.toNat < cost₂ then
-          .error .OutOfGass
-
-        let invalidJump := notIn evmState.machineState.stack[0]? validJumps
-
-        if w = .JUMP ∧ invalidJump then
-          .error .BadJumpDestination
-
-        if w = .JUMPI ∧ (evmState.machineState.stack[1]? ≠ some ⟨0⟩) ∧ invalidJump then
-          .error .BadJumpDestination
-
-        if w = .RETURNDATACOPY ∧ (evmState.machineState.stack.getD 1 ⟨0⟩).toNat + (evmState.machineState.stack.getD 2 ⟨0⟩).toNat > evmState.machineState.returnData.size then
-          .error .InvalidMemoryAccess
-
-        if evmState.machineState.stack.length - (δ w).getD 0 + (α w).getD 0 > 1024 then
-          .error .StackOverflow
-
-        if (¬ evmState.executionEnv.perm) ∧ W w evmState.machineState.stack then
-          .error .StaticModeViolation
-
-        if (w = .SSTORE) ∧ evmState.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend then
-          .error .OutOfGass
-
-        if
-          w.isCreate ∧ evmState.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
-        then
-          .error .OutOfGass
-
-        pure (evmState, cost₂)
-      let H (μ : MachineState) (w : Operation) : Option ByteArray :=
-        if w ∈ [.RETURN, .REVERT] then
-          some <| μ.H_return
-        else
-          if w ∈ [.STOP, .SELFDESTRUCT] then
-            some .empty
-          else none
-      match Z evmState with
-        | .error e =>
-          .error e
-        | some (evmState, cost₂) =>
-          let evmState' ← step f cost₂ instr evmState
-          -- Maybe we should restructure in a way such that it is more meaningful to compute
-          -- gas independently, but the model has not been set up thusly and it seems
-          -- that neither really was the YP.
-          -- Similarly, we cannot reach a situation in which the stack elements are not available
-          -- on the stack because this is guarded above. As such, `C` can be pure here.
-          match H evmState'.machineState w with -- The YP does this in a weird way.
-            | none => X f validJumps evmState'
-            | some o =>
-              if w == .REVERT then
-                /-
-                  The Yellow Paper says we don't call the "iterator function" "O" for `REVERT`,
-                  but we actually have to call the semantics of `REVERT` to pass the test
-                  EthereumTests/BlockchainTests/GeneralStateTests/stReturnDataTest/returndatacopy_after_revert_in_staticcall.json
-                  And the EEL spec does so too.
-                -/
-                .ok <| .revert evmState'.machineState.gasAvailable o
-              else
-                .ok <| .success evmState' o
-termination_by fuel
- where
-  belongs (o : Option UInt256) (l : Array UInt256) : Bool :=
-    match o with
-      | none => false
-      | some n => l.contains n
-  notIn (o : Option UInt256) (l : Array UInt256) : Bool := not (belongs o l)
+      let ⟨evmState',ret⟩ ← Xstep f validJumps evmState
+      match ret with -- The YP does this in a weird way.
+        | none => X f validJumps {evmState' with executionEnv.depth := evmState.executionEnv.depth}
+        | some ⟨false, o⟩ =>
+          .ok <| .revert evmState'.machineState.gasAvailable o
+        | some ⟨true, o⟩ =>
+          .ok <| .success evmState' o
 
 /--
   The code execution function
@@ -836,7 +844,6 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
           let finalGas := evmState'.machineState.gasAvailable
           .ok (ExecutionResult.success (evmState'.createdAccounts, evmState'.accountMap, finalGas, evmState'.substate) o)
         | .revert g' o => .ok (ExecutionResult.revert g' o)
-termination_by fuel
 
 def Lambda
   (fuel : ℕ)
@@ -964,7 +971,6 @@ def Lambda
       -- (117)
       let z := not F
       .ok (a, createdAccounts', σ', .ofNat g', A', z, .empty) -- (93)
-termination_by fuel
  where
   L_A (s : AccountAddress) (n : UInt256) (ζ : Option ByteArray) (i : ByteArray) :
     Option ByteArray
@@ -1093,7 +1099,6 @@ def Θ (fuel : Nat)
 
   -- Equation (119)
   .ok (createdAccounts, σ', g', A', z, out)
-termination_by fuel
 
 end
 
