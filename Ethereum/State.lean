@@ -1,7 +1,6 @@
 import Batteries.Data.RBMap
 import Mathlib.Data.Finset.Basic
 
-import Ethereum.MachineState
 import Ethereum.State.ExecutionEnv
 import Ethereum.State.Substate
 import Ethereum.State.Account
@@ -31,7 +30,14 @@ structure State where
   transactionReceipts  : Array TransactionReceipt
   substate            : Substate
   executionEnv        : ExecutionEnv
-  machineState        : MachineState
+  pc                  : UInt256
+  stack               : Stack UInt256
+  execLength          : ℕ
+  gasAvailable        : UInt256
+  activeWords         : UInt256
+  memory              : ByteArray
+  returnData          : ByteArray
+  H_return            : ByteArray
   blocks              : ProcessedBlocks
   genesisBlockHeader  : BlockHeader
   createdAccounts     : Batteries.RBSet AccountAddress compare

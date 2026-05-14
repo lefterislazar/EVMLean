@@ -180,10 +180,10 @@ end Storage
 section Instructions
 
 def incrPC (I : State) (pcΔ : ℕ := 1) : State :=
-  { I with machineState.pc := I.machineState.pc + .ofNat pcΔ }
+  { I with pc := I.pc + .ofNat pcΔ }
 
 def replaceStackAndIncrPC (I : State) (s : Stack UInt256) (pcΔ : ℕ := 1) : State :=
-  incrPC { I with machineState.stack := s } pcΔ
+  incrPC { I with stack := s } pcΔ
 
 end Instructions
 
@@ -208,21 +208,102 @@ end Keccak
 section Memory
 
 def writeWord (self : State) (addr v : UInt256) : State :=
-  { self with machineState := self.machineState.writeWord addr v }
+  let numOctets := 32
+  let source : ByteArray := v.toByteArray
+  { self with memory := source.write 0 self.memory addr.toNat numOctets }
+
+def lookupMemory (self : State) (addr : UInt256) : UInt256 :=
+  if addr.toNat ≥ self.memory.size ∨ addr ≥ self.activeWords * ⟨32⟩ then ⟨0⟩ else
+    let bytes := self.memory.readWithPadding addr.toNat 32
+    let val := fromByteArrayBigEndian bytes
+    .ofNat val
+
+def msize (self : State) : UInt256 :=
+  self.activeWords * ⟨32⟩
+
+def mload (self : State) (spos : UInt256) : UInt256 × State :=
+  let val := lookupMemory self spos
+  let self :=
+    { self with
+      activeWords := .ofNat (MachineState.M self.activeWords.toNat spos.toNat 32)
+    }
+  (val, self)
+
+def mstore (self : State) (spos sval : UInt256) : State :=
+  let self := writeWord self spos sval
+  { self with
+    activeWords := .ofNat (MachineState.M self.activeWords.toNat spos.toNat 32)
+  }
+
+def mstore8 (self : State) (spos sval : UInt256) : State :=
+  let self := { self with memory := (⟨#[UInt8.ofNat sval.toNat]⟩ : ByteArray).write 0 self.memory spos.toNat 1 }
+  { self with
+    activeWords := .ofNat (MachineState.M self.activeWords.toNat spos.toNat 1)
+  }
+
+def mcopy (self : State) (writeStart readStart s : UInt256) : State :=
+  let self := { self with memory := self.memory.write readStart.toNat self.memory writeStart.toNat s.toNat }
+  { self with
+    activeWords :=
+      .ofNat (MachineState.M self.activeWords.toNat (max writeStart.toNat readStart.toNat) s.toNat)
+  }
+
+def gas (self : State) : UInt256 :=
+  self.gasAvailable
+
+def setReturnData (self : State) (r : ByteArray) : State :=
+  { self with returnData := r }
+
+def setHReturn (self : State) (r : ByteArray) : State :=
+  { self with H_return := r }
+
+def returndatasize (self : State) : UInt256 :=
+  .ofNat self.returnData.size
+
+def returndataat (self : State) (pos : UInt256) : UInt8 :=
+  self.returnData.data.getD pos.toNat 0
+
+def returndatacopy (self : State) (mstart rstart size : UInt256) : State :=
+  let self := { self with memory := self.returnData.write rstart.toNat self.memory mstart.toNat size.toNat }
+  { self with
+    activeWords :=
+      .ofNat (MachineState.M self.activeWords.toNat mstart.toNat size.toNat)
+  }
+
+def evmReturn (self : State) (mstart s : UInt256) : State :=
+  { self with
+    H_return := self.memory.readWithPadding mstart.toNat s.toNat
+    activeWords :=
+      .ofNat <| MachineState.M self.activeWords.toNat mstart.toNat s.toNat
+  }
+
+def evmRevert (self : State) (mstart s : UInt256) : State :=
+  let self := evmReturn self mstart s
+  { self with
+    activeWords :=
+      .ofNat <| MachineState.M self.activeWords.toNat mstart.toNat s.toNat
+  }
+
+def keccak256 (self : State) (mstart s : UInt256) : UInt256 × State :=
+  let bytes := self.memory.readWithPadding mstart.toNat s.toNat
+  let kec := ffi.KEC bytes
+  let newState :=
+    { self with activeWords := .ofNat (MachineState.M self.activeWords.toNat mstart.toNat s.toNat) }
+  (.ofNat (fromByteArrayBigEndian kec), newState)
 
 
 def calldatacopy (self : State) (mstart datastart size : UInt256) : State :=
   { self with
-    machineState.memory := self.executionEnv.calldata.write datastart.toNat self.machineState.memory mstart.toNat size.toNat
-    machineState.activeWords :=
-      .ofNat (MachineState.M self.machineState.activeWords.toNat mstart.toNat size.toNat)
+    memory := self.executionEnv.calldata.write datastart.toNat self.memory mstart.toNat size.toNat
+    activeWords :=
+      .ofNat (MachineState.M self.activeWords.toNat mstart.toNat size.toNat)
   }
 
 def codeCopy  (self : State) (mstart cstart size : UInt256) : State :=
   { self with
-    machineState.memory := self.executionEnv.code.write cstart.toNat self.machineState.memory mstart.toNat size.toNat
-    machineState.activeWords :=
-      .ofNat (MachineState.M self.machineState.activeWords.toNat mstart.toNat size.toNat)
+    memory := self.executionEnv.code.write cstart.toNat self.memory mstart.toNat size.toNat
+    activeWords :=
+      .ofNat (MachineState.M self.activeWords.toNat mstart.toNat size.toNat)
   }
 
 def extCodeCopy' (self : State) (acc mstart cstart size : UInt256) : State :=
@@ -232,20 +313,20 @@ def extCodeCopy' (self : State) (acc mstart cstart size : UInt256) : State :=
   let addr := AccountAddress.ofUInt256 acc
   let b : ByteArray := self.lookupAccount addr |>.option .empty (·.code)
   { self with
-    machineState.memory := b.write cstart self.machineState.memory mstart size
+    memory := b.write cstart self.memory mstart size
     substate := .addAccessedAccount self.substate addr
-    machineState.activeWords :=
-      .ofNat (MachineState.M self.machineState.activeWords.toNat mstart size)
+    activeWords :=
+      .ofNat (MachineState.M self.activeWords.toNat mstart size)
   }
 
 end Memory
 
 def logOp (μ₀ μ₁ : UInt256) (t : Array UInt256) (sState : State) : State :=
   let Iₐ := sState.executionEnv.codeOwner
-  let mem := sState.machineState.memory.readWithPadding μ₀.toNat μ₁.toNat
+  let mem := sState.memory.readWithPadding μ₀.toNat μ₁.toNat
   { sState with
     substate.logSeries := sState.substate.logSeries.push ⟨Iₐ, t, mem⟩
-    machineState.activeWords := .ofNat (MachineState.M sState.machineState.activeWords.toNat μ₀.toNat μ₁.toNat)
+    activeWords := .ofNat (MachineState.M sState.activeWords.toNat μ₀.toNat μ₁.toNat)
   }
 
 end Ethereum

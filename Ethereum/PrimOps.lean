@@ -12,7 +12,7 @@ def Transformer := State → Except EVM.ExecutionException State
 
 def execUnOp (f : Primop.Unary) : Transformer :=
   λ s ↦
-    match s.machineState.stack.pop with
+    match s.stack.pop with
       | some ⟨stack, μ₀⟩ => Id.run do
         .ok <| s.replaceStackAndIncrPC (stack.push <| f μ₀)
       | _ =>
@@ -20,7 +20,7 @@ def execUnOp (f : Primop.Unary) : Transformer :=
 
 def execBinOp (f : Primop.Binary) : Transformer :=
   λ s ↦
-    match s.machineState.stack.pop2 with
+    match s.stack.pop2 with
       | some ⟨stack, μ₀, μ₁⟩ => Id.run do
         let result := f μ₀ μ₁
         .ok <| s.replaceStackAndIncrPC (stack.push result)
@@ -29,7 +29,7 @@ def execBinOp (f : Primop.Binary) : Transformer :=
 
 def execTriOp (f : Primop.Ternary) : Transformer :=
   λ s ↦
-    match s.machineState.stack.pop3 with
+    match s.stack.pop3 with
       | some ⟨stack, μ₀, μ₁, μ₂⟩ => Id.run do
         .ok <| s.replaceStackAndIncrPC (stack.push <| f μ₀ μ₁ μ₂)
       | _ =>
@@ -37,7 +37,7 @@ def execTriOp (f : Primop.Ternary) : Transformer :=
 
 def execQuadOp (f : Primop.Quaternary) : Transformer :=
   λ s ↦
-    match s.machineState.stack.pop4 with
+    match s.stack.pop4 with
       | some ⟨ stack , μ₀ , μ₁ , μ₂, μ₃ ⟩ => Id.run do
         .ok <| s.replaceStackAndIncrPC (stack.push <| f μ₀ μ₁ μ₂ μ₃)
       | _ =>
@@ -47,56 +47,53 @@ def executionEnvOp (op : ExecutionEnv → UInt256) : Transformer :=
   λ evmState ↦ Id.run do
     let result := op evmState.executionEnv
     .ok <|
-      evmState.replaceStackAndIncrPC (evmState.machineState.stack.push result)
+      evmState.replaceStackAndIncrPC (evmState.stack.push result)
 
 def unaryExecutionEnvOp (op : ExecutionEnv → UInt256 → UInt256) : Transformer :=
   λ evmState ↦
-    match evmState.machineState.stack.pop with
+    match evmState.stack.pop with
     | some ⟨ s , μ₀⟩ => Id.run do
       let result := op evmState.executionEnv μ₀
       .ok <|
         evmState.replaceStackAndIncrPC (s.push result)
     | _ => .error .StackUnderflow
 
-def machineStateOp (op : MachineState → UInt256) : Transformer :=
+def stateReadOp (op : State → UInt256) : Transformer :=
   λ evmState ↦ Id.run do
-    let result := op evmState.machineState
+    let result := op evmState
     .ok <|
-      evmState.replaceStackAndIncrPC (evmState.machineState.stack.push result)
+      evmState.replaceStackAndIncrPC (evmState.stack.push result)
 
 def binaryMachineStateOp
-  (op : MachineState → UInt256 → UInt256 → MachineState)
+  (op : State → UInt256 → UInt256 → State)
     :
   Transformer
 := λ evmState ↦
-  match evmState.machineState.stack.pop2 with
+  match evmState.stack.pop2 with
     | some ⟨ s , μ₀, μ₁ ⟩ => Id.run do
-      let mState' := op evmState.machineState μ₀ μ₁
-      let evmState' := {evmState with machineState := mState'}
+      let evmState' := op evmState μ₀ μ₁
       .ok <| evmState'.replaceStackAndIncrPC s
     | _ => .error .StackUnderflow
 
 def binaryMachineStateOp'
-  (op : MachineState → UInt256 → UInt256 → UInt256 × MachineState)
+  (op : State → UInt256 → UInt256 → UInt256 × State)
     :
   Transformer
 := λ evmState ↦
-  match evmState.machineState.stack.pop2 with
+  match evmState.stack.pop2 with
     | some ⟨ s , μ₀, μ₁ ⟩ => Id.run do
-      let (val, mState') := op evmState.machineState μ₀ μ₁
-      let evmState' := {evmState with machineState := mState'}
+      let (val, evmState') := op evmState μ₀ μ₁
       .ok <| evmState'.replaceStackAndIncrPC (s.push val)
     | _ => .error .StackUnderflow
 
 def ternaryMachineStateOp
-  (op : MachineState → UInt256 → UInt256 → UInt256 → MachineState)
+  (op : State → UInt256 → UInt256 → UInt256 → State)
     :
   Transformer
 := λ evmState ↦
-  match evmState.machineState.stack.pop3 with
+  match evmState.stack.pop3 with
     | some ⟨ s , μ₀, μ₁, μ₂ ⟩ => Id.run do
-      let mState' := op evmState.machineState μ₀ μ₁ μ₂
-      let evmState' := {evmState with machineState := mState'}
+      let evmState' := op evmState μ₀ μ₁ μ₂
       .ok <| evmState'.replaceStackAndIncrPC s
     | _ => .error .StackUnderflow
 
@@ -105,7 +102,7 @@ def binaryStateOp
     :
   Transformer
 := λ evmState ↦
-  match evmState.machineState.stack.pop2 with
+  match evmState.stack.pop2 with
     | some ⟨ s , μ₀, μ₁ ⟩ => Id.run do
       let evmState' := op evmState μ₀ μ₁
       .ok <| evmState'.replaceStackAndIncrPC s
@@ -114,14 +111,14 @@ def binaryStateOp
 def stateOp (op : Ethereum.State → UInt256) : Transformer :=
   λ evmState ↦ Id.run do
     .ok <|
-      evmState.replaceStackAndIncrPC (evmState.machineState.stack.push <| op evmState)
+      evmState.replaceStackAndIncrPC (evmState.stack.push <| op evmState)
 
 def unaryStateOp
   (op : Ethereum.State → UInt256 → Ethereum.State × UInt256)
     :
   Transformer
 := λ evmState ↦
-      match evmState.machineState.stack.pop with
+      match evmState.stack.pop with
         | some ⟨stack' , μ₀ ⟩ => Id.run do
           let (evmState', b) := op evmState μ₀
           .ok <| evmState'.replaceStackAndIncrPC (stack'.push b)
@@ -132,7 +129,7 @@ def ternaryCopyOp
     :
   Transformer
 := λ evmState ↦
-  match evmState.machineState.stack.pop3 with
+  match evmState.stack.pop3 with
     | some ⟨ stack' , μ₀, μ₁, μ₂⟩ => Id.run do
       let evmState' := op evmState μ₀ μ₁ μ₂
       .ok <| evmState'.replaceStackAndIncrPC stack'
@@ -143,7 +140,7 @@ def quaternaryCopyOp
     :
   Transformer
 :=  λ evmState ↦
-      match evmState.machineState.stack.pop4 with
+      match evmState.stack.pop4 with
         | some ⟨ stack' , μ₀, μ₁, μ₂, μ₃⟩ => Id.run do
           let evmState' := op evmState μ₀ μ₁ μ₂ μ₃
           .ok <| evmState'.replaceStackAndIncrPC stack'
@@ -155,7 +152,7 @@ private def evmLogOp (evmState : State) (μ₀ μ₁ : UInt256) (t : Array UInt2
 
 def log0Op : Transformer :=
   λ evmState ↦
-    match evmState.machineState.stack.pop2 with
+    match evmState.stack.pop2 with
       | some ⟨stack', μ₀, μ₁⟩ => Id.run do
         let evmState' := evmLogOp evmState μ₀ μ₁ #[]
         .ok <| evmState'.replaceStackAndIncrPC stack'
@@ -163,7 +160,7 @@ def log0Op : Transformer :=
 
 def log1Op : Transformer :=
   λ evmState ↦
-    match evmState.machineState.stack.pop3 with
+    match evmState.stack.pop3 with
       | some ⟨stack', μ₀, μ₁, μ₂⟩ => Id.run do
         let evmState' := evmLogOp evmState μ₀ μ₁ #[μ₂]
         .ok <| evmState'.replaceStackAndIncrPC stack'
@@ -171,7 +168,7 @@ def log1Op : Transformer :=
 
 def log2Op : Transformer :=
   λ evmState ↦
-    match evmState.machineState.stack.pop4 with
+    match evmState.stack.pop4 with
       | some ⟨stack', μ₀, μ₁, μ₂, μ₃⟩ => Id.run do
         let evmState' := evmLogOp evmState μ₀ μ₁ #[μ₂, μ₃]
         .ok <| evmState'.replaceStackAndIncrPC stack'
@@ -179,7 +176,7 @@ def log2Op : Transformer :=
 
 def log3Op : Transformer :=
   λ evmState ↦
-    match evmState.machineState.stack.pop5 with
+    match evmState.stack.pop5 with
       | some ⟨stack', μ₀, μ₁, μ₂, μ₃, μ₄⟩ => Id.run do
         let evmState' := evmLogOp evmState μ₀ μ₁ #[μ₂, μ₃, μ₄]
         .ok <| evmState'.replaceStackAndIncrPC stack'
@@ -187,7 +184,7 @@ def log3Op : Transformer :=
 
 def log4Op : Transformer :=
   λ evmState ↦
-    match evmState.machineState.stack.pop6 with
+    match evmState.stack.pop6 with
       | some ⟨stack', μ₀, μ₁, μ₂, μ₃, μ₄, μ₅⟩ => Id.run do
         let evmState' := evmLogOp evmState μ₀ μ₁ #[μ₂, μ₃, μ₄, μ₅]
         .ok <| evmState'.replaceStackAndIncrPC stack'

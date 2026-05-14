@@ -119,16 +119,16 @@ def byteAt (μ₀ μ₁ : UInt256) : UInt256 :=
 
 def dup (n : ℕ) : Transformer :=
   λ s ↦
-  let top := s.machineState.stack.take n
+  let top := s.stack.take n
   if top.length = n then
-    .ok <| s.replaceStackAndIncrPC (top.getLast! :: s.machineState.stack)
+    .ok <| s.replaceStackAndIncrPC (top.getLast! :: s.stack)
   else
     .error .StackUnderflow
 
 def swap (n : ℕ) : Transformer :=
   λ s ↦
-  let top := s.machineState.stack.take (n + 1)
-  let bottom := s.machineState.stack.drop (n + 1)
+  let top := s.stack.take (n + 1)
+  let bottom := s.stack.drop (n + 1)
   if List.length top = (n + 1) then
     .ok <| s.replaceStackAndIncrPC (top.getLast! :: top.tail!.dropLast ++ [top.head!] ++ bottom)
   else
@@ -157,10 +157,10 @@ def call (fuel : Nat)
       let Iₐ := evmState.executionEnv.codeOwner
       let σ := evmState.accountMap
       let Iₑ := evmState.executionEnv.depth
-      let callgas := Ccallgas t recipient value gas σ evmState.machineState evmState.substate
-      let evmState := {evmState with machineState.gasAvailable := evmState.machineState.gasAvailable - UInt256.ofNat gasCost}
+      let callgas := Ccallgas t recipient value gas σ evmState.gasAvailable evmState.substate
+      let evmState := {evmState with gasAvailable := evmState.gasAvailable - UInt256.ofNat gasCost}
       -- m[μs[3] . . . (μs[3] + μs[4] − 1)]
-      let i := evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
+      let i := evmState.memory.readWithPadding inOffset.toNat inSize.toNat
       let A' := evmState.addAccessedAccount t |>.substate
       let (cA, σ', g', A', z, o) ← do
         if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
@@ -193,30 +193,29 @@ def call (fuel : Nat)
       -- n ≡ min({μs[6], ‖o‖})
       let n : UInt256 := min outSize (.ofNat o.size)
 
-      let μ'ₘ := writeBytes o 0 evmState.machineState outOffset.toNat n.toNat -- μ′_m[μs[5]  ... (μs[5] + n − 1)] = o[0 ... (n − 1)]
+      let μ'ₘ := o.write 0 evmState.memory outOffset.toNat n.toNat -- μ′_m[μs[5]  ... (μs[5] + n − 1)] = o[0 ... (n − 1)]
       let μ'ₒ := o -- μ′o = o
-      let μ'_g := μ'ₘ.gasAvailable + g' -- Ccall is subtracted in X as part of C
+      let μ'_g := evmState.gasAvailable + g' -- Ccall is subtracted in X as part of C
 
       let codeExecutionFailed   : Bool := !z
       let notEnoughFunds        : Bool := value > (σ.find? evmState.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) -- TODO - Unify condition with CREATE.
       let callDepthLimitReached : Bool := evmState.executionEnv.depth == 1024
       let x : UInt256 := if codeExecutionFailed || notEnoughFunds || callDepthLimitReached then ⟨0⟩ else ⟨1⟩ -- where x = 0 if the code execution for this operation failed, or if μs[2] > σ[Ia]b (not enough funds) or Ie = 1024 (call depth limit reached); x = 1 otherwise.
 
-      -- NB. `MachineState` here does not contain the `Stack` nor the `PC`, thus incomplete.
-      let μ'incomplete : MachineState :=
-        { μ'ₘ with
-            returnData   := μ'ₒ
+      let activeWords :=
+        let m : ℕ:= MachineState.M evmState.activeWords.toNat inOffset.toNat inSize.toNat
+        .ofNat <| MachineState.M m outOffset.toNat outSize.toNat
+
+      let result : State :=
+        { evmState with
+            accountMap := σ'
+            substate := A'
+            createdAccounts := cA
+            memory := μ'ₘ
+            returnData := μ'ₒ
             gasAvailable := μ'_g
-            activeWords :=
-              let m : ℕ:= MachineState.M evmState.machineState.activeWords.toNat inOffset.toNat inSize.toNat
-              .ofNat <| MachineState.M m outOffset.toNat outSize.toNat
-
+            activeWords := activeWords
         }
-
-      let result : State := { evmState with accountMap := σ', substate := A', createdAccounts := cA }
-      let result := {
-        result with machineState := μ'incomplete
-      }
       .ok (x, result)
 termination_by fuel
 
@@ -231,16 +230,16 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
     -- That said, we sometimes want a `step : EVM.Transformer` and as such, we can decode on demand.
     let (instr, arg) ←
       match instr with
-        | .none => fetchInstr evmState.executionEnv evmState.machineState.pc
+        | .none => fetchInstr evmState.executionEnv evmState.pc
         | .some (instr, arg) => pure (instr, arg)
-    let evmState := { evmState with machineState.execLength := evmState.machineState.execLength + 1 }
-    let evmStateCharged := {evmState with machineState.gasAvailable := evmState.machineState.gasAvailable - UInt256.ofNat gasCost}
+    let evmState := { evmState with execLength := evmState.execLength + 1 }
+    let evmStateCharged := {evmState with gasAvailable := evmState.gasAvailable - UInt256.ofNat gasCost}
     match instr with
       | .CREATE =>
         let evmState := evmStateCharged
-        match evmState.machineState.stack.pop3 with
+        match evmState.stack.pop3 with
           | some ⟨stack, μ₀, μ₁, μ₂⟩ => do
-            let i := evmState.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat
+            let i := evmState.memory.readWithPadding μ₁.toNat μ₂.toNat
             let ζ := none
             let I := evmState.executionEnv
             let Iₐ := evmState.executionEnv.codeOwner
@@ -253,7 +252,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
             let (a, evmState', g', z, o)
                   : (AccountAddress × State × UInt256 × Bool × ByteArray)
               :=
-              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty) else
+              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.gasAvailable.toNat), False, .empty) else
               if μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
                 let Λ :=
                   Lambda f
@@ -266,7 +265,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                     evmState.substate
                     Iₐ
                     Iₒ
-                    (.ofNat <| L evmState.machineState.gasAvailable.toNat)
+                    (.ofNat <| L evmState.gasAvailable.toNat)
                     (.ofNat I.gasPrice)
                     μ₀
                     i
@@ -288,19 +287,19 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                     )
                   | _ => (0, {evmState with accountMap := ∅}, ⟨0⟩, False, .empty)
               else
-                (0, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty)
+                (0, evmState, .ofNat (L evmState.gasAvailable.toNat), False, .empty)
             let x : UInt256 :=
               let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
                 if z = false ∨ Iₑ = 1024 ∨ μ₀ > balance ∨ i.size > 49152 then ⟨0⟩ else .ofNat a
             let newReturnData : ByteArray := if z then .empty else o
-            if (evmState.machineState.gasAvailable + g').toNat < L (evmState.machineState.gasAvailable.toNat) then
+            if (evmState.gasAvailable + g').toNat < L (evmState.gasAvailable.toNat) then
               .error .OutOfGass
             let evmState' :=
               { evmState' with
-                  machineState.activeWords := .ofNat <| MachineState.M evmState.machineState.activeWords.toNat μ₁.toNat μ₂.toNat
-                  machineState.returnData := newReturnData
-                  machineState.gasAvailable :=
-                    .ofNat <| evmState.machineState.gasAvailable.toNat - L (evmState.machineState.gasAvailable.toNat) + g'.toNat
+                  activeWords := .ofNat <| MachineState.M evmState.activeWords.toNat μ₁.toNat μ₂.toNat
+                  returnData := newReturnData
+                  gasAvailable :=
+                    .ofNat <| evmState.gasAvailable.toNat - L (evmState.gasAvailable.toNat) + g'.toNat
               }
             .ok <| evmState'.replaceStackAndIncrPC (stack.push x)
           | _ =>
@@ -308,9 +307,9 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
       | .CREATE2 =>
         -- Exactly equivalent to CREATE except ζ ≡ μₛ[3]
         let evmState := evmStateCharged
-        match evmState.machineState.stack.pop4 with
+        match evmState.stack.pop4 with
           | some ⟨stack, μ₀, μ₁, μ₂, μ₃⟩ => do
-            let i := evmState.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat
+            let i := evmState.memory.readWithPadding μ₁.toNat μ₂.toNat
             let ζ := Ethereum.UInt256.toByteArray μ₃
             let I := evmState.executionEnv
             let Iₐ := evmState.executionEnv.codeOwner
@@ -320,7 +319,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
             let σ_Iₐ : Account := σ.find? Iₐ |>.getD default
             let σStar := σ.insert Iₐ {σ_Iₐ with nonce := σ_Iₐ.nonce + ⟨1⟩}
             let (a, evmState', g', z, o) : (AccountAddress × State × UInt256 × Bool × ByteArray) :=
-              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty) else
+              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.gasAvailable.toNat), False, .empty) else
               if μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
                 let Λ :=
                   Lambda f
@@ -333,7 +332,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                     evmState.substate
                     Iₐ
                     Iₒ
-                    (.ofNat <| L evmState.machineState.gasAvailable.toNat)
+                    (.ofNat <| L evmState.gasAvailable.toNat)
                     (.ofNat I.gasPrice)
                     μ₀
                     i
@@ -346,18 +345,18 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                     (a, {evmState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
                   | _ => (0, {evmState with accountMap := ∅}, ⟨0⟩, False, .empty)
               else
-                (0, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty)
+                (0, evmState, .ofNat (L evmState.gasAvailable.toNat), False, .empty)
             let x : UInt256 :=
               let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
                 if z = false ∨ Iₑ = 1024 ∨ μ₀ > balance ∨ i.size > 49152 then ⟨0⟩ else .ofNat a
             let newReturnData : ByteArray := if z then .empty else o
-            if (evmState.machineState.gasAvailable + g').toNat < L evmState.machineState.gasAvailable.toNat then
+            if (evmState.gasAvailable + g').toNat < L evmState.gasAvailable.toNat then
               .error .OutOfGass
             let evmState' :=
               { evmState' with
-                machineState.activeWords := .ofNat <| MachineState.M evmState.machineState.activeWords.toNat μ₁.toNat μ₂.toNat
-                machineState.returnData := newReturnData
-                machineState.gasAvailable := .ofNat <| evmState.machineState.gasAvailable.toNat - L (evmState.machineState.gasAvailable.toNat) + g'.toNat
+                activeWords := .ofNat <| MachineState.M evmState.activeWords.toNat μ₁.toNat μ₂.toNat
+                returnData := newReturnData
+                gasAvailable := .ofNat <| evmState.gasAvailable.toNat - L (evmState.gasAvailable.toNat) + g'.toNat
               }
             .ok <| evmState'.replaceStackAndIncrPC (stack.push x)
           | _ =>
@@ -371,7 +370,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₄ - inSize
         -- μ₅ - outOffsize
         -- μ₆ - outSize
-        let (stack, μ₀, μ₁, μ₂, μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop7
+        let (stack, μ₀, μ₁, μ₂, μ₃, μ₄, μ₅, μ₆) ← evmState.stack.pop7
         let (x, state') ←
           call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₁ μ₂ μ₂ μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
@@ -387,7 +386,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₄ - inSize
         -- μ₅ - outOffsize
         -- μ₆ - outSize
-        let (stack, μ₀, μ₁, μ₂, μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop7
+        let (stack, μ₀, μ₁, μ₂, μ₃, μ₄, μ₅, μ₆) ← evmState.stack.pop7
         let (x, state') ←
           call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₂ μ₂ μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
@@ -402,7 +401,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₄ - inSize
         -- μ₅ - outOffsize
         -- μ₆ - outSize
-        let (stack, μ₀, μ₁, /-μ₂,-/ μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop6
+        let (stack, μ₀, μ₁, /-μ₂,-/ μ₃, μ₄, μ₅, μ₆) ← evmState.stack.pop6
         let (x, state') ←
           call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.source) (.ofNat evmState.executionEnv.codeOwner) μ₁ ⟨0⟩ evmState.executionEnv.weiValue μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
@@ -418,14 +417,14 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₄ - inSize
         -- μ₅ - outOffsize
         -- μ₆ - outSize
-        let (stack, μ₀, μ₁, /- μ₂, -/ μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop6
+        let (stack, μ₀, μ₁, /- μ₂, -/ μ₃, μ₄, μ₅, μ₆) ← evmState.stack.pop6
         let (x, state') ←
           call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₁ ⟨0⟩ ⟨0⟩ μ₃ μ₄ μ₅ μ₆ false evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
         let evmState' := state'.replaceStackAndIncrPC μ'ₛ
         .ok evmState'
       | .STOP =>
-          .ok <| {evmStateCharged with machineState := evmStateCharged.machineState.setReturnData .empty}
+          .ok <| setReturnData evmStateCharged .empty
       | .ADD =>
         execBinOp UInt256.add evmStateCharged
       | .MUL =>
@@ -478,7 +477,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         execBinOp UInt256.sar evmStateCharged
 
       | .KECCAK256 =>
-        binaryMachineStateOp' MachineState.keccak256 evmStateCharged
+        binaryMachineStateOp' keccak256 evmStateCharged
 
       | .ADDRESS =>
         executionEnvOp (.ofNat ∘ Fin.val ∘ ExecutionEnv.codeOwner) evmStateCharged
@@ -507,12 +506,11 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
       | .EXTCODECOPY =>
         quaternaryCopyOp Ethereum.extCodeCopy' evmStateCharged
       | .RETURNDATASIZE =>
-        machineStateOp Ethereum.MachineState.returndatasize evmStateCharged
+        stateReadOp returndatasize evmStateCharged
       | .RETURNDATACOPY =>
-          match evmStateCharged.machineState.stack.pop3 with
+          match evmStateCharged.stack.pop3 with
             | some ⟨stack', μ₀, μ₁, μ₂⟩ => do
-              let mState' := evmStateCharged.machineState.returndatacopy μ₀ μ₁ μ₂
-              let evmState' := {evmStateCharged with machineState := mState'}
+              let evmState' := returndatacopy evmStateCharged μ₀ μ₁ μ₂
               .ok <| evmState'.replaceStackAndIncrPC stack'
             | _ => .error .StackUnderflow
       | .EXTCODEHASH =>
@@ -532,40 +530,39 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
       | .BLOBHASH => unaryExecutionEnvOp blobhash evmStateCharged
       | .BLOBBASEFEE => executionEnvOp Ethereum.ExecutionEnv.getBlobGasprice evmStateCharged
       | .POP =>
-        match evmStateCharged.machineState.stack.pop with
+        match evmStateCharged.stack.pop with
           | some ⟨ s , _ ⟩ => .ok <| evmStateCharged.replaceStackAndIncrPC s
           | _ => .error .StackUnderflow
 
       | .MLOAD => 
-        match evmStateCharged.machineState.stack.pop with
+        match evmStateCharged.stack.pop with
           | some ⟨ s , μ₀ ⟩ => Id.run do
-            let (v, mState') := evmStateCharged.machineState.mload μ₀
-            let evmState' := {evmStateCharged with machineState := mState'}
+            let (v, evmState') := mload evmStateCharged μ₀
             .ok <| evmState'.replaceStackAndIncrPC (s.push v)
           | _ => .error .StackUnderflow
       | .MSTORE =>
-        binaryMachineStateOp MachineState.mstore evmStateCharged
-      | .MSTORE8 => binaryMachineStateOp MachineState.mstore8 evmStateCharged
+        binaryMachineStateOp mstore evmStateCharged
+      | .MSTORE8 => binaryMachineStateOp mstore8 evmStateCharged
       | .SLOAD =>
         unaryStateOp Ethereum.State.sload evmStateCharged
       | .SSTORE =>
         binaryStateOp Ethereum.State.sstore evmStateCharged
       | .TLOAD => unaryStateOp Ethereum.State.tload evmStateCharged
       | .TSTORE => binaryStateOp Ethereum.State.tstore evmStateCharged
-      | .MSIZE => machineStateOp MachineState.msize evmStateCharged
+      | .MSIZE => stateReadOp msize evmStateCharged
       | .GAS =>
-        machineStateOp MachineState.gas evmStateCharged
-      | .MCOPY => ternaryMachineStateOp MachineState.mcopy evmStateCharged
+        stateReadOp gas evmStateCharged
+      | .MCOPY => ternaryMachineStateOp mcopy evmStateCharged
 
       | .LOG0 => log0Op evmStateCharged
       | .LOG1 => log1Op evmStateCharged
       | .LOG2 => log2Op evmStateCharged
       | .LOG3 => log3Op evmStateCharged
       | .LOG4 => log4Op evmStateCharged
-      | .RETURN => binaryMachineStateOp MachineState.evmReturn evmStateCharged
-      | .REVERT => binaryMachineStateOp MachineState.evmRevert evmStateCharged
+      | .RETURN => binaryMachineStateOp evmReturn evmStateCharged
+      | .REVERT => binaryMachineStateOp evmRevert evmStateCharged
       | .SELFDESTRUCT =>
-          match evmStateCharged.machineState.stack.pop with
+          match evmStateCharged.stack.pop with
             | some ⟨ s , μ₁ ⟩ =>
               let Iₐ := evmStateCharged.executionEnv.codeOwner
               let r : AccountAddress := AccountAddress.ofUInt256 μ₁
@@ -647,24 +644,24 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
       | .INVALID => .error .InvalidInstruction
       | .Push .PUSH0 =>
           .ok <|
-            evmStateCharged.replaceStackAndIncrPC (evmStateCharged.machineState.stack.push ⟨0⟩)
+            evmStateCharged.replaceStackAndIncrPC (evmStateCharged.stack.push ⟨0⟩)
       | .Push _ => do
           let some (arg, argWidth) := arg | .error .StackUnderflow
-          .ok <| evmStateCharged.replaceStackAndIncrPC (evmStateCharged.machineState.stack.push arg) (pcΔ := argWidth.succ)
+          .ok <| evmStateCharged.replaceStackAndIncrPC (evmStateCharged.stack.push arg) (pcΔ := argWidth.succ)
       | .JUMP =>
-          match evmStateCharged.machineState.stack.pop with
+          match evmStateCharged.stack.pop with
             | some ⟨stack , μ₀⟩ =>
               let newPc := μ₀
-              .ok <| {evmStateCharged with machineState.pc := newPc, machineState.stack := stack}
+              .ok <| {evmStateCharged with pc := newPc, stack := stack}
             | _ => .error .StackUnderflow
       | .JUMPI =>
-          match evmStateCharged.machineState.stack.pop2 with
+          match evmStateCharged.stack.pop2 with
             | some ⟨stack , μ₀, μ₁⟩ =>
-              let newPc := if μ₁ != ⟨0⟩ then μ₀ else evmStateCharged.machineState.pc + ⟨1⟩
-              .ok <| {evmStateCharged with machineState.pc := newPc, machineState.stack := stack}
+              let newPc := if μ₁ != ⟨0⟩ then μ₀ else evmStateCharged.pc + ⟨1⟩
+              .ok <| {evmStateCharged with pc := newPc, stack := stack}
             | _ => .error .StackUnderflow
       | .PC => 
-          .ok <| evmStateCharged.replaceStackAndIncrPC (evmStateCharged.machineState.stack.push evmStateCharged.machineState.pc)
+          .ok <| evmStateCharged.replaceStackAndIncrPC (evmStateCharged.stack.push evmStateCharged.pc)
       | .JUMPDEST => .ok <| evmStateCharged.incrPC
       | .DUP1 => dup 1 evmStateCharged
       | .DUP2 => dup 2 evmStateCharged
@@ -710,7 +707,7 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
     | 0 => .error .OutOfFuel
     | .succ f =>
       let I_b := evmState.executionEnv.code
-      let instr@(w, _) := decode I_b evmState.machineState.pc |>.getD (.STOP, .none)
+      let instr@(w, _) := decode I_b evmState.pc |>.getD (.STOP, .none)
       -- (159)
       let W (w : Operation) (s : Stack UInt256) : Bool :=
         w ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2, .LOG3, .LOG4, .TSTORE] ∨
@@ -720,48 +717,48 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
         if δ w = none then
           .error .InvalidInstruction
 
-        if evmState.machineState.stack.length < (δ w).getD 0 then
+        if evmState.stack.length < (δ w).getD 0 then
           .error .StackUnderflow
 
         let cost₁ := memoryExpansionCost evmState w
-        if evmState.machineState.gasAvailable.toNat < cost₁ then
+        if evmState.gasAvailable.toNat < cost₁ then
           .error .OutOfGass
-        let machineState.gasAvailable := evmState.machineState.gasAvailable - .ofNat cost₁
-        let evmState := { evmState with machineState.gasAvailable := machineState.gasAvailable}
+        let gasAvailable := evmState.gasAvailable - .ofNat cost₁
+        let evmState := { evmState with gasAvailable := gasAvailable}
         let cost₂ := C' evmState w
 
-        if evmState.machineState.gasAvailable.toNat < cost₂ then
+        if evmState.gasAvailable.toNat < cost₂ then
           .error .OutOfGass
 
-        let invalidJump := notIn evmState.machineState.stack[0]? validJumps
+        let invalidJump := notIn evmState.stack[0]? validJumps
 
         if w = .JUMP ∧ invalidJump then
           .error .BadJumpDestination
 
-        if w = .JUMPI ∧ (evmState.machineState.stack[1]? ≠ some ⟨0⟩) ∧ invalidJump then
+        if w = .JUMPI ∧ (evmState.stack[1]? ≠ some ⟨0⟩) ∧ invalidJump then
           .error .BadJumpDestination
 
-        if w = .RETURNDATACOPY ∧ (evmState.machineState.stack.getD 1 ⟨0⟩).toNat + (evmState.machineState.stack.getD 2 ⟨0⟩).toNat > evmState.machineState.returnData.size then
+        if w = .RETURNDATACOPY ∧ (evmState.stack.getD 1 ⟨0⟩).toNat + (evmState.stack.getD 2 ⟨0⟩).toNat > evmState.returnData.size then
           .error .InvalidMemoryAccess
 
-        if evmState.machineState.stack.length - (δ w).getD 0 + (α w).getD 0 > 1024 then
+        if evmState.stack.length - (δ w).getD 0 + (α w).getD 0 > 1024 then
           .error .StackOverflow
 
-        if (¬ evmState.executionEnv.perm) ∧ W w evmState.machineState.stack then
+        if (¬ evmState.executionEnv.perm) ∧ W w evmState.stack then
           .error .StaticModeViolation
 
-        if (w = .SSTORE) ∧ evmState.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend then
+        if (w = .SSTORE) ∧ evmState.gasAvailable.toNat ≤ GasConstants.Gcallstipend then
           .error .OutOfGass
 
         if
-          w.isCreate ∧ evmState.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
+          w.isCreate ∧ evmState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
         then
           .error .OutOfGass
 
         pure (evmState, cost₂)
-      let H (μ : MachineState) (w : Operation) : Option ByteArray :=
+      let H (evmState : State) (w : Operation) : Option ByteArray :=
         if w ∈ [.RETURN, .REVERT] then
-          some <| μ.H_return
+          some <| evmState.H_return
         else
           if w ∈ [.STOP, .SELFDESTRUCT] then
             some .empty
@@ -776,7 +773,7 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
           -- that neither really was the YP.
           -- Similarly, we cannot reach a situation in which the stack elements are not available
           -- on the stack because this is guarded above. As such, `C` can be pure here.
-          match H evmState'.machineState w with -- The YP does this in a weird way.
+          match H evmState' w with -- The YP does this in a weird way.
             | none => X f validJumps evmState'
             | some o =>
               if w == .REVERT then
@@ -786,7 +783,7 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
                   EthereumTests/BlockchainTests/GeneralStateTests/stReturnDataTest/returndatacopy_after_revert_in_staticcall.json
                   And the EEL spec does so too.
                 -/
-                .ok <| .revert evmState'.machineState.gasAvailable o
+                .ok <| .revert evmState'.gasAvailable o
               else
                 .ok <| .success evmState' o
 termination_by fuel
@@ -826,14 +823,14 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
             executionEnv := I
             substate := A
             createdAccounts := createdAccounts
-            machineState.gasAvailable := g
+            gasAvailable := g
             blocks := blocks
             genesisBlockHeader := genesisBlockHeader
         }
       let result ← X f (D_J I.code ⟨0⟩) freshEvmState
       match result with
         | .success evmState' o =>
-          let finalGas := evmState'.machineState.gasAvailable
+          let finalGas := evmState'.gasAvailable
           .ok (ExecutionResult.success (evmState'.createdAccounts, evmState'.accountMap, finalGas, evmState'.substate) o)
         | .revert g' o => .ok (ExecutionResult.revert g' o)
 termination_by fuel

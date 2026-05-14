@@ -96,7 +96,7 @@ with the definition of `C_<>` functions that are described inline along with the
 It would be worth restructing everything to obtain cleaner separation of concerns.
 -/
 def Csstore (s : State) : ℕ :=
-  let { machineState.stack := μₛ, accountMap := σ, σ₀ := σ₀, executionEnv.codeOwner := Iₐ, .. } := s
+  let { stack := μₛ, accountMap := σ, σ₀ := σ₀, executionEnv.codeOwner := Iₐ, .. } := s
   let { storage := σ_Iₐ, .. } := σ.find! Iₐ
   let storeAddr := μₛ[0]!
   let v₀ :=
@@ -136,7 +136,7 @@ CURRENT SOLUTION -
 We take `EVM.State`.
 -/
 def Cselfdestruct (s : State) : ℕ :=
-  let r := AccountAddress.ofUInt256 s.machineState.stack[0]!
+  let r := AccountAddress.ofUInt256 s.stack[0]!
   let { substate.accessedAccounts := Aₐ, accountMap := σ, executionEnv.codeOwner := Iₐ, .. } := s
   let c_cold := if Aₐ.contains r then 0 else Gcoldaccountaccess
   let c_new :=
@@ -146,7 +146,7 @@ def Cselfdestruct (s : State) : ℕ :=
   Gselfdestruct + c_cold + c_new
 
 /--
-NB Assumes.machineState.stack coherency.
+NB Assumes.stack coherency.
 -/
 def Csload (μₛ : Stack UInt256) (A : Substate) (I : ExecutionEnv) : ℕ :=
   if A.accessedStorageKeys.contains (I.codeOwner, μₛ[0]!)
@@ -170,22 +170,22 @@ def Cxfer (val : UInt256) : ℕ :=
 def Cextra (t r : AccountAddress) (val : UInt256) (σ : AccountMap) (A : Substate) : ℕ :=
   Caccess t A + Cxfer val + Cnew r val σ
 
-def Cgascap (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) :=
-  if μ.gasAvailable.toNat >= Cextra t r val σ A then
-    min (L <| (μ.gasAvailable.toNat - Cextra t r val σ A)) g.toNat
+def Cgascap (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (gasAvailable : UInt256) (A : Substate) :=
+  if gasAvailable.toNat >= Cextra t r val σ A then
+    min (L <| (gasAvailable.toNat - Cextra t r val σ A)) g.toNat
   else
     g.toNat
 
-def Ccallgas (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
+def Ccallgas (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (gasAvailable : UInt256) (A : Substate) : ℕ :=
   match val with
-    | ⟨0⟩ => Cgascap t r val g σ μ A
-    | _ => Cgascap t r val g σ μ A + GasConstants.Gcallstipend
+    | ⟨0⟩ => Cgascap t r val g σ gasAvailable A
+    | _ => Cgascap t r val g σ gasAvailable A + GasConstants.Gcallstipend
 
 /--
-NB Assumes.machineState.stack coherence.
+NB Assumes.stack coherence.
 -/
-def Ccall (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
-  Cgascap t r val g σ μ A + Cextra t r val σ A
+def Ccall (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (gasAvailable : UInt256) (A : Substate) : ℕ :=
+  Cgascap t r val g σ gasAvailable A + Cextra t r val σ A
 
 /--
 (65)
@@ -222,8 +222,7 @@ NB Stack accesses are assumed guarded here and we access with `!`.
 This is for keeping in sync with the way the YP is structures, at least for the time being.
 -/
 def C' (s : State) (instr : Operation) : ℕ :=
-  let { accountMap := σ, substate := A, machineState := μ, executionEnv := I, ..} := s
-  let { stack := μₛ, .. } := μ
+  let { accountMap := σ, substate := A, executionEnv := I, stack := μₛ, gasAvailable := g, ..} := s
   match instr with
     | .SSTORE => Csstore s
     | .TSTORE => Ctstore
@@ -247,10 +246,10 @@ def C' (s : State) (instr : Operation) : ℕ :=
       not what happens to be on the stack at index 2. Therefore it is 0 for
       `DELEGATECALL` and `STATICCALL`.
     -/
-    | .CALL =>         Ccall (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!) μₛ[2]! μₛ[0]! σ μ A
-    | .CALLCODE =>     Ccall (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner μₛ[2]! μₛ[0]! σ μ A
-    | .DELEGATECALL => Ccall (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner    ⟨0⟩ μₛ[0]! σ μ A
-    | .STATICCALL =>   Ccall (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!)    ⟨0⟩ μₛ[0]! σ μ A
+    | .CALL =>         Ccall (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!) μₛ[2]! μₛ[0]! σ g A
+    | .CALLCODE =>     Ccall (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner μₛ[2]! μₛ[0]! σ g A
+    | .DELEGATECALL => Ccall (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner    ⟨0⟩ μₛ[0]! σ g A
+    | .STATICCALL =>   Ccall (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!)    ⟨0⟩ μₛ[0]! σ g A
     | .BLOBHASH => HASH_OPCODE_GAS
     | w =>
       if w ∈ Wcopy then Gverylow + Gcopy * ((μₛ[2]!.toNat + 31) / 32) else
@@ -271,28 +270,28 @@ NB this differs ever so slightly from how it is defined in the YP, please refer 
 -/
 
 def memoryExpansionCost (s : State) (instr : Operation) : ℕ :=
-  Cₘ μᵢ' - Cₘ s.machineState.activeWords
+  Cₘ μᵢ' - Cₘ s.activeWords
  where
   μᵢ' : UInt256 :=
     match instr with
-      | .KECCAK256 => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat s.machineState.stack[1]!.toNat
-      | .CALLDATACOPY | .CODECOPY => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat s.machineState.stack[2]!.toNat
-      | .MCOPY => .ofNat <| MachineState.M s.machineState.activeWords.toNat (max s.machineState.stack[0]!.toNat s.machineState.stack[1]!.toNat) s.machineState.stack[2]!.toNat
-      | .EXTCODECOPY => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[1]!.toNat s.machineState.stack[3]!.toNat
-      | .RETURNDATACOPY => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat s.machineState.stack[2]!.toNat
-      | .MLOAD | .MSTORE => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat 32
-      | .MSTORE8 => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat 1
+      | .KECCAK256 => .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat s.stack[1]!.toNat
+      | .CALLDATACOPY | .CODECOPY => .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat s.stack[2]!.toNat
+      | .MCOPY => .ofNat <| MachineState.M s.activeWords.toNat (max s.stack[0]!.toNat s.stack[1]!.toNat) s.stack[2]!.toNat
+      | .EXTCODECOPY => .ofNat <| MachineState.M s.activeWords.toNat s.stack[1]!.toNat s.stack[3]!.toNat
+      | .RETURNDATACOPY => .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat s.stack[2]!.toNat
+      | .MLOAD | .MSTORE => .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat 32
+      | .MSTORE8 => .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat 1
       | .LOG0 | .LOG1 | .LOG2 | .LOG3 | .LOG4 =>
-        .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat s.machineState.stack[1]!.toNat
-      | .CREATE | .CREATE2 => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[1]!.toNat s.machineState.stack[2]!.toNat
+        .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat s.stack[1]!.toNat
+      | .CREATE | .CREATE2 => .ofNat <| MachineState.M s.activeWords.toNat s.stack[1]!.toNat s.stack[2]!.toNat
       | .CALL | .CALLCODE =>
-        let m : ℕ := MachineState.M s.machineState.activeWords.toNat s.machineState.stack[3]!.toNat s.machineState.stack[4]!.toNat
-        .ofNat <| MachineState.M m s.machineState.stack[5]!.toNat s.machineState.stack[6]!.toNat
+        let m : ℕ := MachineState.M s.activeWords.toNat s.stack[3]!.toNat s.stack[4]!.toNat
+        .ofNat <| MachineState.M m s.stack[5]!.toNat s.stack[6]!.toNat
       | .DELEGATECALL | .STATICCALL =>
-        let m : ℕ:= MachineState.M s.machineState.activeWords.toNat s.machineState.stack[2]!.toNat s.machineState.stack[3]!.toNat
-        .ofNat <| MachineState.M m s.machineState.stack[4]!.toNat s.machineState.stack[5]!.toNat
-      | .RETURN | .REVERT => .ofNat <| MachineState.M s.machineState.activeWords.toNat s.machineState.stack[0]!.toNat s.machineState.stack[1]!.toNat
-      | _ => s.machineState.activeWords
+        let m : ℕ:= MachineState.M s.activeWords.toNat s.stack[2]!.toNat s.stack[3]!.toNat
+        .ofNat <| MachineState.M m s.stack[4]!.toNat s.stack[5]!.toNat
+      | .RETURN | .REVERT => .ofNat <| MachineState.M s.activeWords.toNat s.stack[0]!.toNat s.stack[1]!.toNat
+      | _ => s.activeWords
 
 end Gas
 
