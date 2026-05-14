@@ -118,10 +118,8 @@ def executeTransaction
   (header : BlockHeader)
   : Except EVM.Exception State
 := do
-  let _fuel : ℕ := s.accountMap.find? sender |>.elim ⟨0⟩ (·.balance) |>.toNat
-
   let (ypState, substate, statusCode, totalGasUsed) ←
-  EVM.Υ _fuel
+  EVM.Υ
       s.accountMap
       header.baseFeePerGas
       header
@@ -520,10 +518,9 @@ def processBlocks
         | none => pure s₀
         | some roots =>
           let beaconRootsAddressCode := roots.code
-          let _fuel := 2^14
           -- the call does not count against the block’s gas limit
           let beaconCallResult :=
-          EVM.Θ _fuel
+          EVM.Θ
               []
               .empty
               s₀.genesisBlockHeader

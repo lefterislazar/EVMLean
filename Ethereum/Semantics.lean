@@ -139,7 +139,7 @@ local instance : MonadLift Option (Except EVM.ExecutionException) :=
 
 mutual
 
-def call (fuel : Nat)
+def call
   (gasCost : Nat)
   (blobVersionedHashes : List ByteArray)
   (gas source recipient t value value' inOffset inSize outOffset outSize : UInt256)
@@ -148,9 +148,6 @@ def call (fuel : Nat)
     :
   Except EVM.ExecutionException (UInt256 × State)
 := do
-  match fuel with
-    | 0 => .error .OutOfFuel
-    | .succ f =>
       let t : AccountAddress := AccountAddress.ofUInt256 t
       let recipient : AccountAddress := AccountAddress.ofUInt256 recipient
       let source : AccountAddress := AccountAddress.ofUInt256 source
@@ -165,8 +162,7 @@ def call (fuel : Nat)
       let (cA, σ', g', A', z, o) ← do
         if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
           let resultOfΘ ←
-            Θ (fuel := f)
-              blobVersionedHashes
+            Θ blobVersionedHashes
               (createdAccounts := evmState.createdAccounts)
               (genesisBlockHeader := evmState.genesisBlockHeader)
               (blocks := evmState.blocks)
@@ -218,13 +214,13 @@ def call (fuel : Nat)
         result with machineState := μ'incomplete
       }
       .ok (x, result)
+  termination_by (1024 - evmState.executionEnv.depth.val, 0, 0)
+  decreasing_by
+    omega
 
-def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) := .none)
+def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) := .none)
   : EVM.Transformer
 :=
-  match fuel with
-    | 0 => λ _ ↦ .error .OutOfFuel
-    | .succ f =>
     λ (evmState : State) ↦ do
     -- This will normally be called from `Ξ` (or `X`) with `fetchInstr` already having been called.
     -- That said, we sometimes want a `step : EVM.Transformer` and as such, we can decode on demand.
@@ -253,9 +249,9 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                   : (AccountAddress × State × UInt256 × Bool × ByteArray)
               :=
               if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty) else
-              if μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
+              if hDepth : μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
                 let Λ :=
-                  Lambda f
+                  Lambda
                     evmState.executionEnv.blobVersionedHashes
                     evmState.createdAccounts
                     evmState.genesisBlockHeader
@@ -269,7 +265,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                     (.ofNat I.gasPrice)
                     μ₀
                     i
-                    (.ofNat <| Iₑ + 1)
+                    ⟨Iₑ.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
                     ζ
                     I.header
                     I.perm
@@ -320,9 +316,9 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
             let σStar := σ.insert Iₐ {σ_Iₐ with nonce := σ_Iₐ.nonce + ⟨1⟩}
             let (a, evmState', g', z, o) : (AccountAddress × State × UInt256 × Bool × ByteArray) :=
               if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty) else
-              if μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
+              if hDepth : μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
                 let Λ :=
-                  Lambda f
+                  Lambda
                     evmState.executionEnv.blobVersionedHashes
                     evmState.createdAccounts
                     evmState.genesisBlockHeader
@@ -336,7 +332,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
                     (.ofNat I.gasPrice)
                     μ₀
                     i
-                    (.ofNat <| Iₑ + 1)
+                    ⟨Iₑ.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
                     ζ
                     I.header
                     I.perm
@@ -372,7 +368,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₆ - outSize
         let (stack, μ₀, μ₁, μ₂, μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop7
         let (x, state') ←
-          call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₁ μ₂ μ₂ μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
+          call gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₁ μ₂ μ₂ μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
         let evmState' := state'.replaceStackAndIncrPC μ'ₛ
         .ok evmState'
@@ -388,7 +384,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₆ - outSize
         let (stack, μ₀, μ₁, μ₂, μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop7
         let (x, state') ←
-          call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₂ μ₂ μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
+          call gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₂ μ₂ μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
         let evmState' := state'.replaceStackAndIncrPC μ'ₛ
         .ok evmState'
@@ -403,7 +399,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₆ - outSize
         let (stack, μ₀, μ₁, /-μ₂,-/ μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop6
         let (x, state') ←
-          call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.source) (.ofNat evmState.executionEnv.codeOwner) μ₁ ⟨0⟩ evmState.executionEnv.weiValue μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
+          call gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.source) (.ofNat evmState.executionEnv.codeOwner) μ₁ ⟨0⟩ evmState.executionEnv.weiValue μ₃ μ₄ μ₅ μ₆ evmState.executionEnv.perm evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
         let evmState' := state'.replaceStackAndIncrPC μ'ₛ
         .ok evmState'
@@ -419,7 +415,7 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
         -- μ₆ - outSize
         let (stack, μ₀, μ₁, /- μ₂, -/ μ₃, μ₄, μ₅, μ₆) ← evmState.machineState.stack.pop6
         let (x, state') ←
-          call f gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₁ ⟨0⟩ ⟨0⟩ μ₃ μ₄ μ₅ μ₆ false evmState
+          call gasCost evmState.executionEnv.blobVersionedHashes μ₀ (.ofNat evmState.executionEnv.codeOwner) μ₁ μ₁ ⟨0⟩ ⟨0⟩ μ₃ μ₄ μ₅ μ₆ false evmState
         let μ'ₛ := stack.push x -- μ′s[0] ≡ x
         let evmState' := state'.replaceStackAndIncrPC μ'ₛ
         .ok evmState'
@@ -697,6 +693,16 @@ def step (fuel : ℕ) (gasCost : ℕ) (instr : Option (Operation × Option (UInt
       | .SWAP14 => swap 14 evmStateCharged
       | .SWAP15 => swap 15 evmStateCharged
       | .SWAP16 => swap 16 evmStateCharged
+    termination_by evmState => (1024 - evmState.executionEnv.depth.val, 1, 0)
+    decreasing_by
+      all_goals
+        first
+        | apply Prod.Lex.left
+          change 1024 - (Iₑ.val + 1) < 1024 - Iₑ.val
+          omega
+        | apply Prod.Lex.right
+          apply Prod.Lex.left
+          omega
 
 
 -- Exceptional halting (158)
@@ -745,12 +751,9 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
   notIn (o : Option UInt256) (l : Array UInt256) : Bool := not (belongs o l)
 
 
-def Xstep (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
+def Xstep (validJumps : Array UInt256) (evmState : State)
   : Except EVM.ExecutionException (State × Option (Bool × ByteArray))
-:=
-  match fuel with
-    | 0 => .error .OutOfFuel
-    | .succ f => do
+:= do
   let evmState0 := evmState
   let I_b := evmState.executionEnv.code
   let instr@(w, _) := decode I_b evmState.machineState.pc |>.getD (.STOP, .none)
@@ -766,7 +769,7 @@ def Xstep (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
       .error e
     | some (evmState, cost₂) =>
       -- depth reassignement bellow is ugly, but so is trying to prove that step does not change depth probably..
-      let evmState' ← step f cost₂ instr {evmState with executionEnv.depth := evmState0.executionEnv.depth}
+      let evmState' ← step cost₂ instr {evmState with executionEnv.depth := evmState0.executionEnv.depth}
       let evmState' := { evmState' with executionEnv := evmState0.executionEnv }
       -- Maybe we should restructure in a way such that it is more meaningful to compute
       -- gas independently, but the model has not been set up thusly and it seems
@@ -787,6 +790,11 @@ def Xstep (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
           else
             -- .ok <| .success evmState' o
             .ok <| ⟨evmState', .some ⟨true, o⟩⟩
+            termination_by (1024 - evmState.executionEnv.depth.val, 2, 0)
+            decreasing_by
+              apply Prod.Lex.right
+              apply Prod.Lex.left
+              omega
 
 /--
   Iterative progression of `step`
@@ -797,19 +805,28 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
   match fuel with
     | 0 => .error .OutOfFuel
     | .succ f =>
-      let ⟨evmState',ret⟩ ← Xstep f validJumps evmState
+      let ⟨evmState',ret⟩ ← Xstep validJumps evmState
       match ret with -- The YP does this in a weird way.
         | none => X f validJumps {evmState' with executionEnv.depth := evmState.executionEnv.depth}
         | some ⟨false, o⟩ =>
           .ok <| .revert evmState'.machineState.gasAvailable o
         | some ⟨true, o⟩ =>
           .ok <| .success evmState' o
+          termination_by (1024 - evmState.executionEnv.depth.val, 3, fuel)
+          decreasing_by
+            all_goals
+              first
+              | apply Prod.Lex.right
+                apply Prod.Lex.left
+                omega
+              | apply Prod.Lex.right
+                apply Prod.Lex.right
+                omega
 
 /--
   The code execution function
 -/
 def Ξ -- Type `Ξ` using `\GX` or `\Xi`
-  (fuel : ℕ)
   (createdAccounts : Batteries.RBSet AccountAddress compare)
   (genesisBlockHeader : BlockHeader)
   (blocks : ProcessedBlocks)
@@ -823,9 +840,6 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
     EVM.ExecutionException
     (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))
 := do
-  match fuel with
-    | 0 => .error .OutOfFuel
-    | .succ f =>
       let defState : State := default
       let freshEvmState : State :=
         { defState with
@@ -838,15 +852,19 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
             blocks := blocks
             genesisBlockHeader := genesisBlockHeader
         }
-      let result ← X f (D_J I.code ⟨0⟩) freshEvmState
+      let result ← X (UInt256.toNat g + 1) (D_J I.code ⟨0⟩) freshEvmState
       match result with
         | .success evmState' o =>
           let finalGas := evmState'.machineState.gasAvailable
           .ok (ExecutionResult.success (evmState'.createdAccounts, evmState'.accountMap, finalGas, evmState'.substate) o)
         | .revert g' o => .ok (ExecutionResult.revert g' o)
+    termination_by (1024 - I.depth.val, 4, 0)
+    decreasing_by
+      apply Prod.Lex.right
+      apply Prod.Lex.left
+      omega
 
 def Lambda
-  (fuel : ℕ)
   (blobVersionedHashes : List ByteArray)
   (createdAccounts : Batteries.RBSet AccountAddress compare) -- needed for EIP-6780
   (genesisBlockHeader : BlockHeader)
@@ -860,7 +878,7 @@ def Lambda
   (p : UInt256)          -- gas price
   (v : UInt256)          -- endowment
   (i : ByteArray)        -- the initialisation EVM code
-  (e : UInt256)          -- depth of the message-call/contract-creation stack
+  (e : Fin 1025)          -- depth of the message-call/contract-creation stack
   (ζ : Option ByteArray) -- the salt (92)
   (H : BlockHeader)      -- "I_H has no special treatment and is determined from the blockchain"
   (w : Bool)             -- permission to make modifications to the state
@@ -875,10 +893,7 @@ def Lambda
     × ByteArray
     )
 :=
-  match fuel with
-    | 0 => .error .OutOfFuel
-    | .succ f => do
-
+  do
   -- EIP-3860 (includes EIP-170)
   -- https://eips.ethereum.org/EIPS/eip-3860
 
@@ -933,11 +948,11 @@ def Lambda
     , code      := i
     , gasPrice  := p.toNat
     , header    := H
-    , depth     := e.toNat
+    , depth     := e
     , perm      := w
     , blobVersionedHashes := blobVersionedHashes
     }
-  match Ξ f createdAccounts genesisBlockHeader blocks σStar σ₀ g AStar exEnv with
+  match Ξ createdAccounts genesisBlockHeader blocks σStar σ₀ g AStar exEnv with
     | .error e =>
       if e == .OutOfFuel then throw .OutOfFuel
       .ok (a, createdAccounts, σ, ⟨0⟩, AStar, false, .empty)
@@ -971,6 +986,11 @@ def Lambda
       -- (117)
       let z := not F
       .ok (a, createdAccounts', σ', .ofNat g', A', z, .empty) -- (93)
+      termination_by (1024 - e.val, 5, 0)
+      decreasing_by
+        apply Prod.Lex.right
+        apply Prod.Lex.left
+        omega
  where
   L_A (s : AccountAddress) (n : UInt256) (ζ : Option ByteArray) (i : ByteArray) :
     Option ByteArray
@@ -1000,8 +1020,7 @@ Message cal
 NB - This is implemented using the 'boolean' fragment with ==, <=, ||, etc.
      The 'prop' version will come next once we have the comutable one.
 -/
-def Θ (fuel : Nat)
-      (blobVersionedHashes : List ByteArray)
+def Θ (blobVersionedHashes : List ByteArray)
       (createdAccounts : Batteries.RBSet AccountAddress compare)
       (genesisBlockHeader : BlockHeader)
       (blocks : ProcessedBlocks)
@@ -1017,15 +1036,12 @@ def Θ (fuel : Nat)
       (v  : UInt256)
       (v' : UInt256)
       (d  : ByteArray)
-      (e  : Nat)
+      (e  : Fin 1025)
       (H : BlockHeader)
       (w  : Bool)
         :
       Except EVM.ExecutionException (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × Bool × ByteArray)
-:=
-  match fuel with
-    | 0 => .error .OutOfFuel
-    | fuel + 1 => do
+:= do
 
   -- (124) (125) (126)
   let σ'₁ :=
@@ -1082,7 +1098,7 @@ def Θ (fuel : Nat)
           | 10 => .ok <| (∅, Ξ_PointEval σ₁ g A I)
           | _ => default
       | ToExecute.Code _ =>
-        match Ξ fuel createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I with
+        match Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I with
           | .error e =>
             if e == .OutOfFuel then throw .OutOfFuel
             pure (createdAccounts, false, σ, ⟨0⟩, A, .empty)
@@ -1099,6 +1115,11 @@ def Θ (fuel : Nat)
 
   -- Equation (119)
   .ok (createdAccounts, σ', g', A', z, out)
+  termination_by (1024 - e.val, 5, 0)
+  decreasing_by
+    apply Prod.Lex.right
+    apply Prod.Lex.left
+    omega
 
 end
 
@@ -1106,7 +1127,7 @@ open Batteries (RBMap RBSet)
 
 
 -- Type Υ using \Upsilon or \GU
-def Υ (fuel : ℕ)
+def Υ
   (σ : AccountMap)
   (H_f : ℕ)
   (H : BlockHeader)
@@ -1166,7 +1187,7 @@ def Υ (fuel : ℕ)
     match T.base.recipient with
       | none => do
         match
-          Lambda fuel
+          Lambda
             T.blobVersionedHashes
             createdAccounts
             genesisBlockHeader
@@ -1180,7 +1201,7 @@ def Υ (fuel : ℕ)
             p
             T.base.value
             T.base.data
-            ⟨0⟩
+            0
             none
             H
             true
@@ -1190,8 +1211,7 @@ def Υ (fuel : ℕ)
       | some t =>
         -- Proposition (71) suggests the recipient can be inexistent
         match
-          Θ fuel
-            T.blobVersionedHashes
+          Θ T.blobVersionedHashes
             createdAccounts
             genesisBlockHeader
             blocks

@@ -26,7 +26,7 @@ structure ExecutionEnv where
   code      : ByteArray
   gasPrice  : ℕ
   header    : BlockHeader
-  depth     : ℕ
+  depth     : Fin 1025
   perm      : Bool
   blobVersionedHashes : List ByteArray
   deriving BEq, Inhabited, Repr
