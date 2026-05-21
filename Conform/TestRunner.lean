@@ -542,8 +542,7 @@ def processBlocks
               true
           let σ ←
             match beaconCallResult with
-              | .ok (_, σ, _, _, _ /- can't fail-/, _) => pure σ
-              | .error e => throw <| .ExecutionException e
+              | (_, σ, _, _, _ /- can't fail-/, _) => pure σ
           let s := {s₀ with accountMap := σ}
           pure s
 
