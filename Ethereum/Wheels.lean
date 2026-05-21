@@ -5,6 +5,13 @@ import Ethereum.FFI.ffi
 -- (195)
 def BE : ℕ → ByteArray := List.toByteArray ∘ Ethereum.toBytesBigEndian
 
+-- | If n < 2⁸ᵏ, then (BE n).length ≤ k.
+lemma BE_le {k n : ℕ} (h : n < 2 ^ (8 * k)) : (BE n).size ≤ k := by
+  simp [BE]
+  exact Ethereum.toBytesBigEndian_le h
+
+axiom ByteArray_zeroes_size : ∀ n, (ffi.ByteArray.zeroes n).size = n.toNat
+
 namespace Ethereum
 
 def chainId : ℕ := 1
@@ -12,6 +19,31 @@ def chainId : ℕ := 1
 def UInt256.toByteArray (val : UInt256) : ByteArray :=
   let b := BE val.toNat
   ffi.ByteArray.zeroes ⟨32 - b.size⟩ ++ b
+
+def UInt256.toByteArrayWithSizeProof (val : UInt256) : { b : ByteArray // b.size = 32 } :=
+  let b := BE val.toNat
+  let pad := ffi.ByteArray.zeroes ⟨32 - b.size⟩
+  ⟨pad ++ b,
+    by
+      simp
+      simp [pad]
+      rw [ByteArray_zeroes_size]
+      have hb : b.size ≤ 32 := by
+        have ha : (val.toNat : ℕ) < 2 ^ (8 * 32) := by
+          simp [UInt256.size, UInt256.toNat]
+        simpa [b, BE] using toBytesBigEndian_le (k := 32) ha
+      have h32 : 32 < USize.size := by
+        rcases System.Platform.numBits_eq with h | h <;> rw [USize.size, h] <;> norm_num
+      have h32' : (OfNat.ofNat 32 : USize).toNat = 32 := by
+        exact USize.toNat_ofNat_of_le_of_lt (n := 32) (i := 32) h32 le_rfl
+      have hbsize : (OfNat.ofNat b.size : USize).toNat = b.size := by
+        exact USize.toNat_ofNat_of_le_of_lt (n := 32) (i := b.size) h32 hb
+      rw [USize.toNat_sub_of_le]
+      · rw [h32', hbsize]
+        omega
+      · rw [USize.le_iff_toNat_le, h32', hbsize]
+        exact hb
+      ⟩
 
 abbrev Literal := UInt256
 
@@ -37,6 +69,31 @@ instance {n : Nat} : OfNat AccountAddress n := ⟨Fin.ofNat _ n⟩
 def toByteArray (a : AccountAddress) : ByteArray :=
   let b := BE a
   ffi.ByteArray.zeroes ⟨20 - b.size⟩ ++ b
+
+def toByteArrayWithSizeProof (a : AccountAddress) : { b : ByteArray // b.size = 20 }  :=
+  let b := BE a
+  let pad := ffi.ByteArray.zeroes ⟨20 - b.size⟩
+  ⟨pad ++ b,
+    by
+      simp
+      simp [pad]
+      rw [ByteArray_zeroes_size]
+      have hb : b.size ≤ 20 := by
+        have ha : (a : ℕ) < 2 ^ (8 * 20) := by
+          simp [AccountAddress.size]
+        simpa [b, BE] using toBytesBigEndian_le (k := 20) ha
+      have h20_lt_usize : 20 < USize.size := by
+        rcases System.Platform.numBits_eq with h | h <;> rw [USize.size, h] <;> norm_num
+      have h20 : (OfNat.ofNat 20 : USize).toNat = 20 := by
+        exact USize.toNat_ofNat_of_le_of_lt (n := 20) (i := 20) h20_lt_usize le_rfl
+      have hbsize : (OfNat.ofNat b.size : USize).toNat = b.size := by
+        exact USize.toNat_ofNat_of_le_of_lt (n := 20) (i := b.size) h20_lt_usize hb
+      rw [USize.toNat_sub_of_le]
+      · rw [h20, hbsize]
+        omega
+      · rw [USize.le_iff_toNat_le, h20, hbsize]
+        exact hb
+      ⟩
 
 end AccountAddress
 
@@ -214,6 +271,11 @@ inductive 𝕋 where
   | 𝕃 : (List 𝕋) → 𝕋
   deriving Repr, BEq
 
+inductive 𝕋_safe where
+  | 𝔹 : (b : ByteArray) → (h : b.size < 2^64) → 𝕋_safe
+  | 𝕃 : (List 𝕋_safe) → 𝕋_safe
+  deriving Repr
+
 
 def lengthRLP (rlp : ByteArray) : Option ℕ :=
   let len := rlp.size
@@ -341,6 +403,41 @@ def RLP (t : 𝕋) : Option ByteArray :=
     | .𝕃 l => R_l l
 
 end
+
+private def R_b_safe (x : ByteArray) (_ : x.size < 2^64) : ByteArray :=
+  if x.size = 1 ∧ x.get! 0 < 128 then x
+  else
+    if x.size < 56 then [⟨128 + x.size⟩].toByteArray ++ x
+    else
+      let be := BE x.size
+      [⟨183 + be.size⟩].toByteArray ++ be ++ x
+
+mutual
+
+private def s_safe (l : List 𝕋_safe) : ByteArray :=
+  match l with
+    | [] => .empty
+    | t :: ts =>
+      match RLP_safe t, s_safe ts with
+        | rlpₗ, rlpᵣ => rlpₗ ++ rlpᵣ
+
+def R_l_safe (l : List 𝕋_safe) : ByteArray :=
+  match s_safe l with
+    | s_x =>
+      if s_x.size < 56 then
+        [⟨192 + s_x.size⟩].toByteArray ++ s_x
+      else
+        let be := BE s_x.size
+        [⟨247 + be.size⟩].toByteArray ++ be ++ s_x
+
+
+def RLP_safe (t : 𝕋_safe) : ByteArray :=
+  match t with
+    | .𝔹 ba h => R_b_safe ba h
+    | .𝕃 l => R_l_safe l
+
+end
+
 
 def myByteArray : ByteArray := ⟨#[1, 2, 3]⟩
 

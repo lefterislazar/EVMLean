@@ -317,6 +317,11 @@ private lemma toBytes'_le {k : ℕ} (h : n < 2 ^ (8 * k)) : (toBytes' n).length 
       rw [Nat.mul_succ, Nat.pow_add] at h
       linarith
 
+-- | If n < 2⁸ᵏ, then (toBytesBigEndian n).length ≤ k.
+lemma toBytesBigEndian_le {k : ℕ} (h : n < 2 ^ (8 * k)) : (toBytesBigEndian n).length ≤ k := by
+  simp [toBytesBigEndian]
+  exact toBytes'_le h
+
 -- | If n < 2²⁵⁶, then (toBytes' n).length ≤ 32.
 private lemma toBytes'_UInt256_le (h : n < UInt256.size) : (toBytes' n).length ≤ 32 := toBytes'_le h
 
