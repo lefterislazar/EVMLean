@@ -989,9 +989,24 @@ def Lambda
     ByteArray
   := -- (96)
     let ⟨s,hs⟩ := s.toByteArrayWithSizeProof
-    let ⟨n,hn⟩ := n.toByteArrayWithSizeProof
+    let ⟨n',hn⟩ := BEwithSizeProof n.val
+    let hn' : (n'.size < 2 ^ 64) := by
+      simp
+      have h_lt : (n.val < UInt256.size) := by exact n.1.2
+      apply Nat.le_of_lt at h_lt
+      apply Nat.log_mono_right (b := 2) at h_lt
+      rw [← Nat.log2_eq_log_two] at h_lt
+      apply Nat.div_le_div_right (c := 8) at h_lt
+      simp [UInt256.size] at h_lt
+      simp [Nat.log, Nat.log.go] at h_lt
+      apply Nat.add_le_add_right (k := 1) at h_lt
+      apply Nat.lt_of_le_of_lt (m := 32 + 1)
+      · apply le_trans (a := n'.size) (b := (n.val).log2 / 8 + 1)
+        · assumption
+        · assumption
+      · simp
     match ζ with
-      | none   => RLP_safe <| .𝕃 [.𝔹 s (by simp [hs]), .𝔹 n (by simp [hn])]
+      | none   => RLP_safe <| .𝕃 [.𝔹 s (by simp [hs]), .𝔹 n' hn']
       | some ζ => BE 255 ++ s ++ ζ ++ ffi.KEC i
 
 /--

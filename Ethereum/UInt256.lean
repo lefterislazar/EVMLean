@@ -288,7 +288,7 @@ private lemma fromBytes'_UInt256_le (h : bs.length = 32) : fromBytes' bs < 2^256
     exact h'
 
 -- | Convert a natural number into a list of bytes.
-private def toBytes' : ℕ → List UInt8
+def toBytes' : ℕ → List UInt8
   | 0 => []
   | n@(.succ n') =>
     let byte : UInt8 := ⟨Nat.mod n UInt8.size, Nat.mod_lt _ (by linarith)⟩

@@ -10,6 +10,23 @@ lemma BE_le {k n : ℕ} (h : n < 2 ^ (8 * k)) : (BE n).size ≤ k := by
   simp [BE]
   exact Ethereum.toBytesBigEndian_le h
 
+-- | If n < 2⁸ᵏ, then (BE n).length ≤ k.
+lemma BE_le' {n : ℕ} : (BE n).size ≤ ((Nat.log2 n)/8) + 1 := by
+  by_cases h :  (n ≠ 0)
+  · apply BE_le
+    rw [← Nat.log2_lt]
+    · rw [Nat.left_distrib]
+      rw [Nat.mul_div_self_eq_mod_sub_self]
+      omega
+    · assumption
+  · rw [not_ne_iff] at h
+    have bemp : (BE 0).size = 0 := by
+      simp [BE, Ethereum.toBytesBigEndian, Ethereum.toBytes']
+    simp [h, bemp]
+
+def BEwithSizeProof (n : ℕ) : { b : ByteArray // b.size ≤ ((Nat.log2 n)/8) + 1 } :=
+  ⟨BE n, BE_le'⟩
+
 axiom ByteArray_zeroes_size : ∀ n, (ffi.ByteArray.zeroes n).size = n.toNat
 
 namespace Ethereum
