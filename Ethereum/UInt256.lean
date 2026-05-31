@@ -268,7 +268,7 @@ variable {bs : List UInt8}
          {n : ℕ}
 
 -- | A bound for the natural number value of a list of bytes.
-private lemma fromBytes'_le : fromBytes' bs < 2^(8 * bs.length) := by
+lemma fromBytes'_le : fromBytes' bs < 2^(8 * bs.length) := by
   induction bs with
   | nil => unfold fromBytes'; simp
   | cons b bs ih =>
@@ -282,7 +282,7 @@ private lemma fromBytes'_le : fromBytes' bs < 2^(8 * bs.length) := by
     linarith
 
 -- | The natural number value of a length 32 list of bytes is < 2^256.
-private lemma fromBytes'_UInt256_le (h : bs.length = 32) : fromBytes' bs < 2^256 := by
+lemma fromBytes'_UInt256_le (h : bs.length = 32) : fromBytes' bs < 2^256 := by
     have h' := @fromBytes'_le bs
     rw [h] at h'
     exact h'
@@ -301,7 +301,7 @@ def toBytes' : ℕ → List UInt8
 def toBytesBigEndian : ℕ → List UInt8 := List.reverse ∘ toBytes'
 
 -- | If n < 2⁸ᵏ, then (toBytes' n).length ≤ k.
-private lemma toBytes'_le {k : ℕ} (h : n < 2 ^ (8 * k)) : (toBytes' n).length ≤ k := by
+lemma toBytes'_le {k : ℕ} (h : n < 2 ^ (8 * k)) : (toBytes' n).length ≤ k := by
   induction k generalizing n with
   | zero =>
     simp at h
@@ -323,7 +323,7 @@ lemma toBytesBigEndian_le {k : ℕ} (h : n < 2 ^ (8 * k)) : (toBytesBigEndian n)
   exact toBytes'_le h
 
 -- | If n < 2²⁵⁶, then (toBytes' n).length ≤ 32.
-private lemma toBytes'_UInt256_le (h : n < UInt256.size) : (toBytes' n).length ≤ 32 := toBytes'_le h
+lemma toBytes'_UInt256_le (h : n < UInt256.size) : (toBytes' n).length ≤ 32 := toBytes'_le h
 
 -- | Zero-pad a list of bytes up to some length, adding the zeroes on the right.
 private def zeroPadBytes (n : ℕ) (bs : List UInt8) : List UInt8 :=

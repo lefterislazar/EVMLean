@@ -149,7 +149,7 @@ def quaternaryCopyOp
           .ok <| evmState'.replaceStackAndIncrPC stack'
         | _ => .error .StackUnderflow
 
-private def evmLogOp (evmState : State) (μ₀ μ₁ : UInt256) (t : Array UInt256) : State :=
+def evmLogOp (evmState : State) (μ₀ μ₁ : UInt256) (t : Array UInt256) : State :=
   let evmState' := logOp μ₀ μ₁ t evmState
   evmState'
 
