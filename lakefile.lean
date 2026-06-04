@@ -9,7 +9,7 @@ package «evmlean» {
   moreServerOptions := #[⟨`autoImplicit, false⟩]
 }
 
-def cloneWithCache (pkg : NPackage _package.name) (dirname url : String) : FetchM (Job GitRepo) := do
+def cloneWithCache (pkg : NPackage _name) (dirname url : String) : FetchM (Job GitRepo) := do
   let repoDir : GitRepo := ⟨pkg.dir / dirname⟩
   if !(← repoDir.dir.pathExists) then dbg_trace s!"Cloning: {url}"; GitRepo.clone url repoDir
   return pure repoDir
@@ -71,3 +71,6 @@ lean_lib «Ethereum»
 @[test_driver]
 lean_exe «conform» where
   root := `Conform.Main
+
+lean_exe «gigahorse» where
+  root := `Gigahorse.Main
