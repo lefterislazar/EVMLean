@@ -469,10 +469,17 @@ def concretizeAssertion
       let b' : Nat := concretizeExpr concrete b (by simp [Assertion.consumeStack] at hstack; exact hstack.right)
       a' > b'
 
+def belongs (o : Option UInt256) (l : Array UInt256) : Bool :=
+  match o with
+    | none => false
+    | some n => l.contains n
+
+def notIn (o : Option UInt256) (l : Array UInt256) : Bool := not (belongs o l)
 
 def checkCondition
     {consumes binds : Nat}
     (concrete : Ethereum.State)
+    (validJumps : Array UInt256)
     (cond : Condition consumes binds)
     (hstack : consumes ≤ concrete.machineState.stack.length) :
     Except ExecutionException (PLift <| binds ≤ concrete.machineState.stack.length) :=
@@ -495,26 +502,39 @@ def checkCondition
   | .stackLT n =>
       if concrete.machineState.stack.length ≥ n then throw .StackOverflow
       else .ok ⟨hstack⟩
+  | .jumpValid d => do
+      let d_concr ← pure $ concretizeExpr concrete d hstack
+      if notIn (.some d_concr) validJumps then .ok ⟨by simp⟩
+      else  throw .BadJumpDestination
+  | .jumpiValid d jc => do
+      let d_concr ← pure $ concretizeExpr concrete d (by apply le_of_max_le_left at hstack; assumption)
+      let jc_concr ← pure $ concretizeExpr concrete jc (by apply le_of_max_le_right at hstack; assumption)
+      if notIn (.some d_concr) validJumps then .ok ⟨by simp⟩
+      else  throw .BadJumpDestination
+  | .staticMode =>
+      if concrete.executionEnv.perm then .ok ⟨hstack⟩
+      else throw .StaticModeViolation
 
 def checkConditions
     {n : Nat}
     (concrete : Ethereum.State)
+    (validJumps : Array UInt256)
     (conds : ConditionChain n) :
     Except ExecutionException (PLift <| n ≤ concrete.machineState.stack.length) :=
   match conds with
-  | .nil cond => checkCondition concrete cond (by simp)
+  | .nil cond => checkCondition concrete validJumps cond (by simp)
   | .cons tail sufficientBindings hmax cond => do
-      let ⟨condsProofs⟩ ← checkConditions concrete tail 
-      let ⟨condProof⟩ ← checkCondition concrete cond (by
+      let ⟨condsProofs⟩ ← checkConditions concrete validJumps tail 
+      let ⟨condProof⟩ ← checkCondition concrete validJumps cond (by
         exact (Nat.le_trans sufficientBindings condsProofs))
       .ok ⟨by rw [hmax, Nat.max_def]
               split 
               · exact condsProofs
               · exact condProof⟩
 
-def concretizeSym (concrete : Ethereum.State) (sym : SymState) : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray)):= do
+def concretizeSym (concrete : Ethereum.State) (validJumps : Array UInt256) (sym : SymState) : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray)):= do
   -- let uninterps := sym.calls.foldl (concretizeUninterp concrete) []
-  let ⟨conds_bindings_proofs⟩ ← checkConditions concrete sym.conditions
+  let ⟨conds_bindings_proofs⟩ ← checkConditions concrete validJumps sym.conditions
   let bindings_sufficient : sym.evm.consumeStack ≤ sym.n := by
     apply le_trans sym.hevm (by rfl)
   Except.ok <| (concretizeState concrete sym.evm (le_trans bindings_sufficient conds_bindings_proofs), .none)
@@ -522,10 +542,10 @@ def concretizeSym (concrete : Ethereum.State) (sym : SymState) : Except Executio
 
 
 def models (syms : SymState) (s : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray))) : Prop :=
-  ∃ concrete, concretizeSym concrete syms = s
+  ∃ concrete, concretizeSym concrete (D_J concrete.executionEnv.code ⟨0⟩) syms = s
 
-lemma if_concretizeOk_then_state {concrete : Ethereum.State} {symstate : SymState} {state : Ethereum.State} {o : Option (Bool × ByteArray)} :
-  concretizeSym concrete symstate = .ok (state, o) 
+lemma if_concretizeOk_then_state {validJumps} {concrete : Ethereum.State} {symstate : SymState} {state : Ethereum.State} {o : Option (Bool × ByteArray)} :
+  concretizeSym concrete validJumps symstate = .ok (state, o) 
   → ∃ hs, concretizeState concrete symstate.evm hs = state := by
     intro h
     simp [concretizeSym, bind, Except.bind] at h
@@ -535,10 +555,10 @@ lemma if_concretizeOk_then_state {concrete : Ethereum.State} {symstate : SymStat
       simp at h
       exact ⟨le_trans symstate.hevm hproofLifted.1, h.1⟩
 
-lemma if_checkCondsOk_then_checkCondOk {n} {conds : ConditionChain n} {consumes binds} {concrete : Ethereum.State}
+lemma if_checkCondsOk_then_checkCondOk {n validJumps} {conds : ConditionChain n} {consumes binds} {concrete : Ethereum.State}
   {hs : PLift (n ≤ List.length concrete.machineState.stack)} :
-  (checkConditions concrete conds).isOk = true →
-  ∀ (c : Condition consumes binds) hs, InChain c conds → (checkCondition concrete c hs).isOk = true := by
+  (checkConditions concrete validJumps conds).isOk = true →
+  ∀ (c : Condition consumes binds) hs, InChain c conds → (checkCondition concrete validJumps c hs).isOk = true := by
     intro h -- c hs hin
     induction conds with
     | nil =>
@@ -559,23 +579,23 @@ lemma if_checkCondsOk_then_checkCondOk {n} {conds : ConditionChain n} {consumes 
            · rename_i heq _ _ _ ; simp [heq,Except.isOk,Except.toBool]
            · assumption
 
-lemma if_concretizeOk_then_noexcept {consumes binds} {concrete : Ethereum.State} {symstate : SymState} {state : Ethereum.State} {o : Option (Bool × ByteArray)} :
-  concretizeSym concrete symstate = .ok (state, o) 
-  → ∀ (c : Condition consumes binds) hs, InChain c symstate.conditions → (checkCondition concrete c hs).isOk = true := by
+lemma if_concretizeOk_then_noexcept {consumes binds validJumps} {concrete : Ethereum.State} {symstate : SymState} {state : Ethereum.State} {o : Option (Bool × ByteArray)} :
+  concretizeSym concrete validJumps symstate = .ok (state, o) 
+  → ∀ (c : Condition consumes binds) hs, InChain c symstate.conditions → (checkCondition concrete validJumps c hs).isOk = true := by
     intro h
     simp [concretizeSym, bind, Except.bind] at h
     split at h
     · simp at h
     · rename_i hcondsOk
-      have hcondsIsOk : ((checkConditions concrete symstate.conditions).isOk = true) := by
+      have hcondsIsOk : ((checkConditions concrete validJumps symstate.conditions).isOk = true) := by
         simp [Except.isOk, Except.toBool, hcondsOk]
       apply if_checkCondsOk_then_checkCondOk hcondsIsOk
       assumption
       
 
-lemma if_noexcept_then_concrete_state {A} {sinit : A} {concrete : Ethereum.State} {symstate : SymState} {consumes state binds o h} :  ∀ (l : List (Assertion × Failure)),
-  (∀ (c : Condition consumes binds) hs, InChain c symstate.conditions → (checkCondition concrete c hs).isOk = true) →
+lemma if_noexcept_then_concrete_state {A} {sinit : A} {validJumps} {concrete : Ethereum.State} {symstate : SymState} {consumes state binds o h} :  ∀ (l : List (Assertion × Failure)),
+  (∀ (c : Condition consumes binds) hs, InChain c symstate.conditions → (checkCondition concrete validJumps c hs).isOk = true) →
   concretizeState concrete symstate.evm h = state →
-  concretizeSym concrete symstate = .ok ⟨state, o⟩
+  concretizeSym concrete validJumps symstate = .ok ⟨state, o⟩
   := by
     sorry

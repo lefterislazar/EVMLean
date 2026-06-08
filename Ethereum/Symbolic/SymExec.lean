@@ -15,12 +15,6 @@ inductive SymbolicError where
   | InvalidInstruction
   | StackUnderflow
 
-def belongs (o : Option UInt256) (l : Array UInt256) : Bool :=
-  match o with
-    | none => false
-    | some n => l.contains n
-
-def notIn (o : Option UInt256) (l : Array UInt256) : Bool := not (belongs o l)
 
 def SymState.knownStack (sym : SymState) : List (Expr .word) :=
   match sym.evm.machineState.stack with
@@ -215,8 +209,7 @@ def symCsstore (sym : SymState) : Except SymbolicError { e : Expr .num // e.cons
   let s0 ← sym.stackAt 0
   let v' ← sym.stackAt 1
   let v := 
-    Expr.SLoad s0 (.AbstractStore .Address 0)
-   --  : Expr .word → Expr .buf → Expr .word
+    Expr.SLoad s0 (.AbstractStore .Address 0) -- TODO: note actual call number
   pure <| ⟨.Csstore v v' s0 sym.evm.substate.accessedStorageKeys,
     by simp [Expr.consumeStack]
        constructor
@@ -350,9 +343,12 @@ where
     ⟩
 
 
-def symZ (code : ByteArray) (validJumps : Array UInt256) (w : Operation) (sym : SymState)
+def symZ (w : Operation) (sym : SymState)
   : Except SymbolicError (Expr .num × SymState) :=
   do 
+  let W (w : Operation) (sym : SymState) : Except SymbolicError Bool := do
+    let s2 ← sym.stackAt 2
+    pure (Bool.or (Decidable.decide (w ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2, .LOG3, .LOG4, .TSTORE])) (Decidable.decide (w = .CALL) ∧ (not $ s2 == Expr.Lit ⟨0⟩)))
   if δ w = none then
     .error .InvalidInstruction -- Should I give something else?
   let sym :=
@@ -377,11 +373,63 @@ def symZ (code : ByteArray) (validJumps : Array UInt256) (w : Operation) (sym : 
             apply And.intro (gasAvailable_consumption sym)
             cases cost₁? <;> simp [Option.option, Expr.consumeStack]
             rename_i x; exact x.2)
-  let cost₂? ← symC' sym w
-
-
-
-
+  let cost₂ ← symC' sym w
+  let sym :=
+    let assertion := Assertion.PGEq sym.evm.machineState.gasAvailable (Expr.ofNat cost₂.1)
+    let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
+    addCondition sym c
+      (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+          exact ⟨gasAvailable_consumption sym, cost₂.2⟩)
+  let sym ← do
+    if w = Operation.JUMP then
+      let dest ← sym.stackAt 0
+      let c : Condition dest.1.consumeStack 0 := .jumpValid dest.1
+      pure <| addCondition sym c dest.2
+    else pure sym
+  let sym : SymState ← do
+    if w = Operation.JUMPI then
+      let dest ← sym.stackAt 0
+      let jcond ← sym.stackAt 1
+      let c : Condition (max (dest.1.consumeStack) (jcond.1.consumeStack)) 0 := .jumpiValid dest.1 jcond.1
+      pure <| addCondition sym c (max_le dest.2 jcond.2)
+    else pure sym
+  let sym ← do
+    let s1 ← sym.stackAt 1
+    let s2 ← sym.stackAt 2
+    let assertion := Assertion.PLEq (Expr.Add s1 s2) (Expr.BufLength (Expr.RetBuf 0)) -- TODO: note actual call number
+    let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .InvalidMemoryAccess)
+    pure <| addCondition sym c
+      (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+          exact ⟨s1.2, s2.2⟩)
+  let sym :=
+    -- TODO: track max stack size so that we can avoid this often
+    let diff := 1024 - sym.knownStack.length + (δ w).getD 0 - (α w).getD 0
+    let c := (.stackLT diff)
+    addCondition sym c (by simp)
+  let sym ← do
+    let w_res ← W w sym
+    if w_res then
+      let c := .staticMode
+      pure <| addCondition sym c (by simp)
+    else pure sym
+  let sym :=
+    if (w = .SSTORE) then
+      let assertion := Assertion.PGEqnat sym.evm.machineState.gasAvailable.toNat (Expr.NatLit GasConstants.Gcallstipend)
+      let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
+      addCondition sym c
+        (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+            exact gasAvailable_consumption sym)
+    else sym
+  let sym ← do
+    let s2 ← sym.stackAt 2
+    if (w = .CREATE ∨ w = .CREATE2) then
+      let assertion := Assertion.PLEq s2 (Expr.Lit ⟨49152⟩)
+      let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
+      pure $ addCondition sym c
+        (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+            exact s2.2)
+    else pure sym
+  pure (cost₂, sym)
 
 def symstep (code : ByteArray) (validJumps : Array UInt256) (sym : SymState) : Option SymState :=
   match sym.evm.machineState.pc with
@@ -490,11 +538,6 @@ lemma list_len_ge_2_to_match :
       | _ :: [] => simp at h
       | a :: b :: t => simp
 
--- lemma UInt256_ofNat_n_eq_val_n : ∀ n (h : n < UInt256.size), { val := { val := n, isLt := h}} = UInt256.ofNat n := by
---   intro n h
---   simp [UInt256.ofNat, Id.run, cast]
---   rfl
-
 lemma list_get_dropped : a :: t = List.drop n l → l[n]? = .some a := by
   intro h
   rw [List.drop_eq_getElem_cons] at h
@@ -504,6 +547,21 @@ lemma list_get_dropped : a :: t = List.drop n l → l[n]? = .some a := by
   rw [List.some_getElem_eq_getElem?_iff]
   · simp
   · apply List.length_lt_of_drop_ne_nil; simp [← h]
+
+theorem sumZ_Z_consistent {state : Ethereum.State} {xres : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray))}
+  {concrete : Ethereum.State} {symstate symstate' : SymState} {o : Option (Bool × ByteArray)}
+  {w : Operation} :
+  let bytecode := state.executionEnv.code
+  let validJumps := D_J bytecode { val := 0 }
+  Z validJumps w state = zres →
+
+  concretizeSym concrete validJumps symstate = .ok (state, o) →
+  symZ w symstate = .ok (cost₂, symstate') →
+  match zres with
+  | .error e => concretizeSym concrete validJumps symstate' = .error e
+  | .ok (state,_) => concretizeSym concrete validJumps symstate' = .ok (state,o)
+  := by
+    sorry
 
 theorem sumStep_Xstep_consistent {state : Ethereum.State} {xres : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray))}
   {concrete : Ethereum.State} {symstate symstate' : SymState} {o : Option (Bool × ByteArray)}

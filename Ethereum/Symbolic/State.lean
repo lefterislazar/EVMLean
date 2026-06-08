@@ -222,6 +222,9 @@ inductive Condition : (consumes : Nat) → (binds : Nat) → Type where
   | assert {n} : ConsumingAssertion n → Failure → Condition n 0
   | stackGE : (n : Nat) → Condition 0 n
   | stackLT : Nat → Condition 0 0
+  | jumpValid : (e : Expr .word) → Condition e.consumeStack 0
+  | jumpiValid : (e : Expr .word) → (jc : Expr .word) → Condition (max e.consumeStack jc.consumeStack) 0
+  | staticMode : Condition 0 0
 
 inductive ConditionChain : (binds : Nat) → Type where
   | nil {b} : Condition 0 b → ConditionChain b -- TODO: rename nil to last or smth
