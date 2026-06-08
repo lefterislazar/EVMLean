@@ -199,14 +199,15 @@ def call
       let μ'incomplete : MachineState :=
         { μ'ₘ with
             returnData   := μ'ₒ
-            -- gasAvailable := μ'_g
+            gasAvailable := evmState.machineState.gasAvailable - (gasCost - g'.toNat)
+            hgasBound := lt_of_le_of_lt (b := evmState.machineState.gasAvailable) (by simp) evmState.machineState.hgasBound
             activeWords :=
               let m : ℕ:= MachineState.M evmState.machineState.activeWords.toNat inOffset.toNat inSize.toNat
               .ofNat <| MachineState.M m outOffset.toNat outSize.toNat
 
         }
 
-      let result : State := { evmState with accountMap := σ', substate := A', createdAccounts := cA }.subtractGas (gasCost - g'.toNat)
+      let result : State := { evmState with accountMap := σ', substate := A', createdAccounts := cA }
       let result := {
         result with machineState := μ'incomplete
       }
