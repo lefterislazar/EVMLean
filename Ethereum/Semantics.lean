@@ -137,6 +137,10 @@ def swap (n : ℕ) : Transformer :=
 local instance : MonadLift Option (Except EVM.ExecutionException) :=
   ⟨Option.option (.error .StackUnderflow) .ok⟩
 
+inductive HaltCause where
+  | success
+  | revert
+
 mutual
 
 def call
@@ -215,16 +219,13 @@ def call
   decreasing_by
     omega
 
-def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) := .none)
+def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
   : EVM.Transformer
 :=
     λ (evmState : State) ↦ do
     -- This will normally be called from `Ξ` (or `X`) with `fetchInstr` already having been called.
     -- That said, we sometimes want a `step : EVM.Transformer` and as such, we can decode on demand.
-    let (instr, arg) ←
-      match instr with
-        | .none => fetchInstr evmState.executionEnv evmState.machineState.pc
-        | .some (instr, arg) => pure (instr, arg)
+    let (instr, arg) := (instr.1, instr.2)
     let evmState := { evmState with machineState.execLength := evmState.machineState.execLength + 1 }
     let evmStateCharged := {evmState with machineState.gasAvailable := evmState.machineState.gasAvailable - UInt256.ofNat gasCost}
     match instr with
@@ -745,9 +746,8 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
       | some n => l.contains n
   notIn (o : Option UInt256) (l : Array UInt256) : Bool := not (belongs o l)
 
-
 def Xstep (validJumps : Array UInt256) (evmState : State)
-  : Except EVM.ExecutionException (State × Option (Bool × ByteArray))
+  : Except EVM.ExecutionException (State × Option (HaltCause × ByteArray))
 := do
   let evmState0 := evmState
   let I_b := evmState.executionEnv.code
@@ -781,10 +781,9 @@ def Xstep (validJumps : Array UInt256) (evmState : State)
               EthereumTests/BlockchainTests/GeneralStateTests/stReturnDataTest/returndatacopy_after_revert_in_staticcall.json
               And the EEL spec does so too.
             -/
-            .ok <| ⟨evmState', .some ⟨false, o⟩⟩
+            .ok <| ⟨evmState', .some ⟨.revert, o⟩⟩
           else
-            -- .ok <| .success evmState' o
-            .ok <| ⟨evmState', .some ⟨true, o⟩⟩
+            .ok <| ⟨evmState', .some ⟨.success, o⟩⟩
             termination_by (1024 - evmState.executionEnv.depth.val, 2, 0)
             decreasing_by
               apply Prod.Lex.right
@@ -803,9 +802,9 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
       let ⟨evmState',ret⟩ ← Xstep validJumps evmState
       match ret with -- The YP does this in a weird way.
         | none => X f validJumps {evmState' with executionEnv.depth := evmState.executionEnv.depth}
-        | some ⟨false, o⟩ =>
+        | some ⟨.revert, o⟩ =>
           .ok <| .revert evmState'.machineState.gasAvailable o
-        | some ⟨true, o⟩ =>
+        | some ⟨.success, o⟩ =>
           .ok <| .success evmState' o
           termination_by (1024 - evmState.executionEnv.depth.val, 3, fuel)
           decreasing_by

@@ -10,6 +10,9 @@ import Ethereum.Wheels
 import Ethereum.EllipticCurves
 import Ethereum.PerformIO
 
+import Ethereum.Theory.ProgressLemmas
+import Ethereum.Theory.NoOutOfFuel
+
 import Ethereum.SHA256
 import Ethereum.RIP160
 import Ethereum.BN_ADD
