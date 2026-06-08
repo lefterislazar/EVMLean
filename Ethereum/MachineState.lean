@@ -25,12 +25,26 @@ structure MachineState where
   pc                  : UInt256
   stack       : Stack UInt256
   execLength          : ℕ
-  gasAvailable        : UInt256
+  gasAvailable        : ℕ
+  hgasBound           : gasAvailable < UInt256.size
   activeWords         : UInt256
   memory              : ByteArray
   returnData          : ByteArray
   H_return            : ByteArray
-  deriving Inhabited
+  -- deriving Inhabited
+
+instance machineStateInhabited : Inhabited MachineState where
+  default :=
+    { pc := default (α := UInt256)
+      stack := default (α := Stack UInt256)
+      execLength := default (α := ℕ)
+      gasAvailable := default (α := ℕ)
+      hgasBound := (by simp [UInt256.size]) 
+      activeWords := default (α := UInt256)
+      memory := default (α := ByteArray)
+      returnData := default (α := ByteArray)
+      H_return := default (α := ByteArray)
+    }
 
 -- inductive WordSize := | Standard | Single
 

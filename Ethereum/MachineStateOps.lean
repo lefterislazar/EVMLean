@@ -74,7 +74,7 @@ def mcopy (self : MachineState) (writeStart readStart s : UInt256) : MachineStat
   }
 
 def gas (self : MachineState) : UInt256 :=
-  self.gasAvailable
+  ⟨self.gasAvailable, self.hgasBound⟩
 
 section ReturnData
 
@@ -120,14 +120,6 @@ def keccak256 (self : MachineState) (mstart s : UInt256) : UInt256 × MachineSta
   let newMachineState :=
     { self with activeWords := .ofNat (M self.activeWords.toNat mstart.toNat s.toNat) }
   (.ofNat (fromByteArrayBigEndian kec), newMachineState)
-
-section Gas
-
-def mkNewWithGas (gas : ℕ) : MachineState :=
-  let init : MachineState := default
-  { init with gasAvailable := .ofNat gas }
-
-end Gas
 
 section Storage
 
