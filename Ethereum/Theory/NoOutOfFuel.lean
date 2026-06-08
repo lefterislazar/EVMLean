@@ -315,7 +315,7 @@ lemma Xstep_no_OutOfFuel {state} validJumps :
 
 lemma Xstep_of_gas_reduce_gt_1 {state state' o} validJumps :
   Xstep validJumps state = .ok (state', o) →
-  state.machineState.gasAvailable.toNat - state'.machineState.gasAvailable.toNat > 1 := by sorry
+  state.machineState.gasAvailable.toNat - state'.machineState.gasAvailable.toNat ≥ 1 := by sorry
 
 lemma X_no_OufOfFuel_of_gas_lt_fuel {f s} validJumps : 
   s.machineState.gasAvailable.toNat < f →
