@@ -225,6 +225,7 @@ inductive Condition : (consumes : Nat) → (binds : Nat) → Type where
   | jumpValid : (e : Expr .word) → Condition e.consumeStack 0
   | jumpiValid : (e : Expr .word) → (jc : Expr .word) → Condition (max e.consumeStack jc.consumeStack) 0
   | staticMode : Condition 0 0
+  | staticModeIfNonzero : (e : Expr .word) → Condition e.consumeStack 0
 
 inductive ConditionChain : (binds : Nat) → Type where
   | nil {b} : Condition 0 b → ConditionChain b -- TODO: rename nil to last or smth

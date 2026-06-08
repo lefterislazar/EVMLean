@@ -30,6 +30,7 @@ inductive EType where
 --   | storeVar : Nat → GVar .storage
 --   deriving Repr
 
+set_option maxHeartbeats 800000
 mutual
 
   /-- Runtime bytecode, allowing symbolic bytes for code with symbolic pushdata. -/
@@ -42,6 +43,16 @@ mutual
     | unknown : Expr .addr → ContractCode
     | init : ByteArray → Expr .buf → ContractCode
     | runtime : RuntimeCode → ContractCode
+
+  /--
+  The account information needed by gas-cost expressions.
+
+  This deliberately omits storage and transient storage. The current symbolic
+  gas expressions only need balances and account-deadness checks, so this keeps
+  them from carrying an entire account map.
+  -/
+  inductive AccountSummary where
+    | mk : Expr .word → Expr .word → Bool → AccountSummary
 
   /--
   An abstract representation of EVM terms, analogous to hevm's `Expr`.
@@ -204,6 +215,7 @@ mutual
   -- | Success : List Assertion → Expr .buf → List (Expr .addr × Expr .contract) → List (Expr .log) → Expr .end_
 
   -- GAS
+  | BufLengthNat : Expr .buf → Expr .num
   | toNat : Expr .word → Expr .num
   | ofNat : Expr .num → Expr .word
   | SubNat : Expr .num → Expr .num → Expr .num
@@ -216,16 +228,23 @@ mutual
             → Expr .num
   | Cexp : Expr .word → Expr .num
   | CwordCost : Nat → Nat → Expr .word → Expr .num
+  | CbyteCost : Nat → Nat → Expr .word → Expr .num
   | Caccess : Expr .addr → List (Expr .addr) → Expr .num
-  | Cselfdestruct : Expr .word → List (Expr .addr) → Expr .num
+  | AccountDead : AccountSummary → Expr .word
+  | Cselfdestruct :
+      Expr .addr → -- recipient
+      List (Expr .addr) → -- accessed accounts
+      Expr .word → -- current account balance
+      Expr .word → -- recipient account deadness flag
+      Expr .num
   | Csload : Expr .word → List (Expr .word) → Expr .num
   | Ccall :
-      Expr .addr →
-      Expr .addr →
-      Expr .word →
-      Expr .word →
-      Expr .word →
-      List (Expr .addr) →
+      Expr .addr → -- target for access-cost warm/cold check
+      Expr .word → -- transferred value
+      Expr .word → -- requested gas
+      Expr .word → -- available gas
+      List (Expr .addr) → -- accessed accounts
+      Expr .word → -- recipient account deadness flag for the new-account check
       Expr .num
   | AddNat : Expr .num → Expr .num → Expr .num
 
@@ -253,6 +272,7 @@ end
 
 deriving instance BEq for RuntimeCode
 deriving instance BEq for ContractCode
+deriving instance BEq for AccountSummary
 deriving instance BEq for Expr
 deriving instance BEq for Assertion
 
@@ -421,7 +441,7 @@ def consumeStack {τ} : Expr τ → Nat
   | .AbstractStore a _ => consumeStack a
   | .SLoad a s => max (consumeStack a) (consumeStack s)
   | .SStore a b s => max (consumeStack a) (max (consumeStack b) (consumeStack s))
-  | .Stack known _ => maxConsumesStackList known
+  | .Stack known n => max (maxConsumesStackList known) n
   | .StackItem n => n + 1
   | .ConcreteBuf _ => 0
   | .ReadWord a b => max (consumeStack a) (consumeStack b)
@@ -436,6 +456,7 @@ def consumeStack {τ} : Expr τ → Nat
   | .RetBuf _ => 0
   | .CallSuccess => 0
   | .CalldataBuf => 0
+  | .BufLengthNat b => consumeStack b
   | .toNat a => consumeStack a
   | .ofNat a => consumeStack a
   | .SubNat a b => max (consumeStack a) (consumeStack b)
@@ -444,16 +465,25 @@ def consumeStack {τ} : Expr τ → Nat
   | .Csstore a b c d => max (consumeStack a) (max (consumeStack b) (max (consumeStack c) (maxConsumesStackList d)))
   | .Cexp a => consumeStack a
   | .CwordCost _ _ a => consumeStack a
+  | .CbyteCost _ _ a => consumeStack a
   | .Caccess a accessedAccounts => max (consumeStack a) (maxConsumesStackList accessedAccounts)
-  | .Cselfdestruct a accessedAccounts => max (consumeStack a) (maxConsumesStackList accessedAccounts)
+  | .AccountDead account => consumeStackAccountSummary account
+  | .Cselfdestruct a accessedAccounts currentBalance recipientDead =>
+      max (consumeStack a)
+        (max (maxConsumesStackList accessedAccounts)
+          (max (consumeStack currentBalance) (consumeStack recipientDead)))
   | .Csload a accessedStorageKeys => max (consumeStack a) (maxConsumesStackList accessedStorageKeys)
-  | .Ccall target recipient value gas gasAvailable accessedAccounts =>
+  | .Ccall target value gas gasAvailable accessedAccounts recipientDead =>
       max (consumeStack target)
-        (max (consumeStack recipient)
-          (max (consumeStack value)
-            (max (consumeStack gas)
-              (max (consumeStack gasAvailable) (maxConsumesStackList accessedAccounts)))))
+        (max (consumeStack value)
+          (max (consumeStack gas)
+            (max (consumeStack gasAvailable)
+              (max (maxConsumesStackList accessedAccounts)
+                (consumeStack recipientDead)))))
   | .AddNat a b => max (consumeStack a) (consumeStack b)
+
+def consumeStackAccountSummary : AccountSummary → Nat
+  | .mk nonce balance _ => max (consumeStack nonce) (consumeStack balance)
 
 def maxConsumesStackList {τ}: List (Expr τ) → Nat
     | [] => 0
@@ -462,48 +492,87 @@ end
 
 @[simp] theorem consumeStack_addrOfWord (a : Expr .word) :
     consumeStack (AddrOfWord a) = consumeStack a := by
-  rw [consumeStack.eq_60]
+  simp [consumeStack]
 
 @[simp] theorem consumeStack_cexp (a : Expr .word) :
     consumeStack (Cexp a) = consumeStack a := by
-  rw [consumeStack.eq_84]
+  simp [consumeStack]
 
 @[simp] theorem consumeStack_cwordCost (base wordCost : Nat) (a : Expr .word) :
     consumeStack (CwordCost base wordCost a) = consumeStack a := by
-  rw [consumeStack.eq_85]
+  simp [consumeStack]
+
+@[simp] theorem consumeStack_bufLengthNat (b : Expr .buf) :
+    consumeStack (BufLengthNat b) = consumeStack b := by
+  simp [consumeStack]
+
+@[simp] theorem consumeStack_cbyteCost (base byteCost : Nat) (a : Expr .word) :
+    consumeStack (CbyteCost base byteCost a) = consumeStack a := by
+  simp [consumeStack]
 
 @[simp] theorem consumeStack_caccess (a : Expr .addr) (accessedAccounts : List (Expr .addr)) :
     consumeStack (Caccess a accessedAccounts) =
       max (consumeStack a) (maxConsumesStackList accessedAccounts) := by
-  rw [consumeStack.eq_86]
+  simp [consumeStack]
 
-@[simp] theorem consumeStack_cselfdestruct (a : Expr .word) (accessedAccounts : List (Expr .addr)) :
-    consumeStack (Cselfdestruct a accessedAccounts) =
-      max (consumeStack a) (maxConsumesStackList accessedAccounts) := by
-  rw [consumeStack.eq_87]
+@[simp] theorem consumeStack_accountSummary_mk
+    (nonce balance : Expr .word) (codeEmpty : Bool) :
+    consumeStackAccountSummary (AccountSummary.mk nonce balance codeEmpty) =
+      max (consumeStack nonce) (consumeStack balance) := by
+  simp [consumeStackAccountSummary]
+
+@[simp] theorem consumeStack_accountDead (account : AccountSummary) :
+    consumeStack (AccountDead account) = consumeStackAccountSummary account := by
+  simp [consumeStack]
+
+@[simp] theorem consumeStack_cselfdestruct
+    (a : Expr .addr)
+    (accessedAccounts : List (Expr .addr))
+    (currentBalance : Expr .word)
+    (recipientDead : Expr .word) :
+    consumeStack (Cselfdestruct a accessedAccounts currentBalance recipientDead) =
+      max (consumeStack a)
+        (max (maxConsumesStackList accessedAccounts)
+          (max (consumeStack currentBalance) (consumeStack recipientDead))) := by
+  simp [consumeStack]
 
 @[simp] theorem consumeStack_csload (a : Expr .word) (accessedStorageKeys : List (Expr .word)) :
     consumeStack (Csload a accessedStorageKeys) =
       max (consumeStack a) (maxConsumesStackList accessedStorageKeys) := by
-  rw [consumeStack.eq_88]
+  simp [consumeStack]
 
 @[simp] theorem consumeStack_ccall
-    (target recipient : Expr .addr)
+    (target : Expr .addr)
     (value gas gasAvailable : Expr .word)
-    (accessedAccounts : List (Expr .addr)) :
-    consumeStack (Ccall target recipient value gas gasAvailable accessedAccounts) =
+    (accessedAccounts : List (Expr .addr))
+    (recipientDead : Expr .word) :
+    consumeStack (Ccall target value gas gasAvailable accessedAccounts recipientDead) =
       max (consumeStack target)
-        (max (consumeStack recipient)
-          (max (consumeStack value)
-            (max (consumeStack gas)
-              (max (consumeStack gasAvailable) (maxConsumesStackList accessedAccounts))))) := by
-  rw [consumeStack.eq_89]
+        (max (consumeStack value)
+          (max (consumeStack gas)
+            (max (consumeStack gasAvailable)
+              (max (maxConsumesStackList accessedAccounts)
+                (consumeStack recipientDead))))) := by
+  simp [consumeStack]
 
 @[simp] theorem consumeStack_addNat (a b : Expr .num) :
     consumeStack (AddNat a b) = max (consumeStack a) (consumeStack b) := by
-  rw [consumeStack.eq_90]
+  simp [consumeStack]
 
 end Expr
+
+namespace AccountSummary
+
+def missing : AccountSummary :=
+  .mk (.Lit ⟨0⟩) (.Lit ⟨0⟩) true
+
+def balanceExpr : AccountSummary → Expr .word
+  | .mk _ balance _ => balance
+
+def deadExpr (account : AccountSummary) : Expr .word :=
+  .AccountDead account
+
+end AccountSummary
 
 def Assertion.consumeStack : Assertion → Nat
   | .PEq a b => max (Expr.consumeStack a) (Expr.consumeStack b)

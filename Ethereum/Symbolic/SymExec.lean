@@ -55,7 +55,7 @@ lemma stackKnown_consumption : ∀ (sym : SymState) x, x ∈ sym.knownStack → 
   rw [hstackConstr] at hstack
   simp [Expr.consumeStack] at hstack
   set symstack := sym.evm.machineState.stack
-  apply maxListConsume_elem_consume hstack
+  apply maxListConsume_elem_consume hstack.left
   · exact hin
 
 
@@ -79,12 +79,12 @@ def SymState.stackAt (sym : SymState) (idx : Nat) : Except SymbolicError { e : E
         apply maxListConsume_elem_consume
         · rw [heq] at this
           simp [Expr.consumeStack] at this
-          exact this
+          exact this.left
         · exact hknown
       ⟩
   else throw .StackUnderflow
 
-def addCondition (sym : SymState) (c : Condition s b) (h : s ≤ sym.n) : SymState :=
+def addCondition {s b : Nat} (sym : SymState) (c : Condition s b) (h : s ≤ sym.n) : SymState :=
   { 
     n := max b sym.n
     conditions :=
@@ -148,6 +148,13 @@ lemma activeWords_consumption : ∀ (sym : SymState), sym.evm.machineState.activ
   simp [State.consumeStack, MachineState.consumeStack, maxList] at sym.hevm
   grind
 
+lemma returnData_consumption : ∀ (sym : SymState), sym.evm.machineState.returnData.consumeStack ≤ sym.n := by
+  intro sym
+  set sym.evm := sym.evm
+  set sym.hevm := sym.hevm
+  simp [State.consumeStack, MachineState.consumeStack, maxList] at sym.hevm
+  grind
+
 lemma accessedAccounts_consumption : ∀ (sym : SymState), Expr.maxConsumesStackList sym.evm.substate.accessedAccounts ≤ sym.n := by
   intro sym
   have hstate := sym.hevm
@@ -159,6 +166,106 @@ lemma accessedStorageKeys_consumption : ∀ (sym : SymState), Expr.maxConsumesSt
   have hstate := sym.hevm
   simp [State.consumeStack, Substate.consumeStack, maxList] at hstate
   omega
+
+lemma accountConsumeStack_of_mem {n} {entries : List (Expr .addr × Account)}
+    (hstack : maxConsumesStackAccountList entries ≤ n)
+    {entry : Expr .addr × Account}
+    (hmem : entry ∈ entries) :
+    entry.2.consumeStack ≤ n := by
+  induction entries with
+  | nil => simp at hmem
+  | cons head tail ih =>
+      simp [maxConsumesStackAccountList] at hstack
+      cases hmem with
+      | head =>
+          exact hstack.right.left
+      | tail _ htail =>
+          exact ih hstack.right.right htail
+
+def RuntimeCode.isEmpty : RuntimeCode → Bool
+  | .concrete code => code.isEmpty
+  | .symbolic code => code.isEmpty
+
+def Account.summary (account : Account) : AccountSummary :=
+  .mk account.nonce account.balance account.code.isEmpty
+
+def SymState.accountSummary (sym : SymState) (addr : Expr .addr) : AccountSummary :=
+  match sym.evm.accountMap.find? addr with
+  | none => .missing
+  | some account => account.summary
+
+def SymState.accountBalanceExpr (sym : SymState) (addr : Expr .addr) : Expr .word :=
+  (sym.accountSummary addr).balanceExpr
+
+def SymState.accountDeadExpr (sym : SymState) (addr : Expr .addr) : Expr .word :=
+  (sym.accountSummary addr).deadExpr
+
+def SymState.accountStorageExpr (sym : SymState) (addr : Expr .addr) : Expr .storage :=
+  match sym.evm.accountMap.find? addr with
+  | none => .ConcreteStore []
+  | some account => account.storage
+
+lemma accountSummary_consumption (sym : SymState) (addr : Expr .addr) :
+    Expr.consumeStackAccountSummary (sym.accountSummary addr) ≤ sym.n := by
+  unfold SymState.accountSummary
+  cases hfind : sym.evm.accountMap.find? addr with
+  | none =>
+      simp [AccountSummary.missing, Expr.consumeStack]
+  | some account =>
+      obtain ⟨key, hmem, _⟩ := Batteries.RBMap.find?_some_mem_toList hfind
+      have haccmap : sym.evm.accountMap.consumeStack ≤ sym.n := by
+        have hstate := sym.hevm
+        simp [State.consumeStack, maxList] at hstate
+        omega
+      have hacc : account.consumeStack ≤ sym.n :=
+        accountConsumeStack_of_mem (by simpa [AccountMap.consumeStack] using haccmap) hmem
+      have hnonce : account.nonce.consumeStack ≤ sym.n := by
+        have h := hacc
+        simp [Account.consumeStack, PersistentAccountState.consumeStack, maxList] at h
+        omega
+      have hbalance : account.balance.consumeStack ≤ sym.n := by
+        have h := hacc
+        simp [Account.consumeStack, PersistentAccountState.consumeStack, maxList] at h
+        omega
+      simpa [Account.summary, Expr.consumeStackAccountSummary] using
+        Nat.max_le.mpr ⟨hnonce, hbalance⟩
+
+lemma accountBalanceExpr_consumption (sym : SymState) (addr : Expr .addr) :
+    (sym.accountBalanceExpr addr).consumeStack ≤ sym.n := by
+  unfold SymState.accountBalanceExpr
+  cases hsummary : sym.accountSummary addr with
+  | mk nonce balance codeEmpty =>
+      have h := accountSummary_consumption sym addr
+      rw [hsummary] at h
+      have hbalance : balance.consumeStack ≤ sym.n :=
+        Nat.le_trans (Nat.le_max_right nonce.consumeStack balance.consumeStack)
+          (by simpa [Expr.consumeStackAccountSummary] using h)
+      simpa [AccountSummary.balanceExpr] using hbalance
+
+lemma accountDeadExpr_consumption (sym : SymState) (addr : Expr .addr) :
+    (sym.accountDeadExpr addr).consumeStack ≤ sym.n := by
+  simpa [SymState.accountDeadExpr, AccountSummary.deadExpr] using
+    accountSummary_consumption sym addr
+
+lemma accountStorageExpr_consumption (sym : SymState) (addr : Expr .addr) :
+    (sym.accountStorageExpr addr).consumeStack ≤ sym.n := by
+  unfold SymState.accountStorageExpr
+  cases hfind : sym.evm.accountMap.find? addr with
+  | none =>
+      simp [Expr.consumeStack]
+  | some account =>
+      obtain ⟨key, hmem, _⟩ := Batteries.RBMap.find?_some_mem_toList hfind
+      have haccmap : sym.evm.accountMap.consumeStack ≤ sym.n := by
+        have hstate := sym.hevm
+        simp [State.consumeStack, maxList] at hstate
+        omega
+      have hacc : account.consumeStack ≤ sym.n :=
+        accountConsumeStack_of_mem (by simpa [AccountMap.consumeStack] using haccmap) hmem
+      have hstorage : account.storage.consumeStack ≤ sym.n := by
+        have h := hacc
+        simp [Account.consumeStack, PersistentAccountState.consumeStack, maxList] at h
+        omega
+      exact hstorage
 
 -- def symMemoryExpansionCostCond (sym : SymState) (instr : Operation) : Except SymbolicError SymState :=
 def symMemoryExpansionCost (sym : SymState) (instr : Operation) :
@@ -192,9 +299,9 @@ def symMemoryExpansionCost (sym : SymState) (instr : Operation) :
     | .CREATE | .CREATE2 =>
       memExpandWith 1 2
     | .CALL | .CALLCODE =>
-      memExpandWith 3 4
+      memExpandCall 3 4 5 6
     | .DELEGATECALL | .STATICCALL =>
-      memExpandWith 2 3
+      memExpandCall 2 3 4 5
     | .RETURN | .REVERT =>
       memExpandWith 0 1
     | _ => pure .none
@@ -204,16 +311,29 @@ def symMemoryExpansionCost (sym : SymState) (instr : Operation) :
       let sj ← sym.stackAt j
       let cost := Expr.SubNat (Expr.Cₘ (Expr.M sym.evm.machineState.activeWords si sj)) (Expr.Cₘ (Expr.toNat sym.evm.machineState.activeWords))
       pure $ pure $ ⟨cost, by simp [cost, Expr.consumeStack, activeWords_consumption]; apply And.intro si.2 sj.2 ⟩
+    memExpandCall i j k l := do
+      let si ← sym.stackAt i
+      let sj ← sym.stackAt j
+      let sk ← sym.stackAt k
+      let sl ← sym.stackAt l
+      let cost :=
+        Expr.SubNat
+          (Expr.Cₘ (Expr.M (Expr.ofNat (Expr.M sym.evm.machineState.activeWords si sj)) sk sl))
+          (Expr.Cₘ (Expr.toNat sym.evm.machineState.activeWords))
+      pure $ pure $ ⟨cost, by
+        simp [cost, Expr.consumeStack, activeWords_consumption]
+        omega⟩
 
 def symCsstore (sym : SymState) : Except SymbolicError { e : Expr .num // e.consumeStack ≤ sym.n } := do
   let s0 ← sym.stackAt 0
   let v' ← sym.stackAt 1
   let v := 
-    Expr.SLoad s0 (.AbstractStore .Address 0) -- TODO: note actual call number
+    Expr.SLoad s0 (sym.accountStorageExpr Expr.Address)
   pure <| ⟨.Csstore v v' s0 sym.evm.substate.accessedStorageKeys,
     by simp [Expr.consumeStack]
        constructor
-       · simpa [v, Expr.consumeStack] using s0.2
+       · simpa [v, Expr.consumeStack] using
+           (Nat.max_le.mpr ⟨s0.2, accountStorageExpr_consumption sym Expr.Address⟩)
        · constructor
          · exact v'.2
          · constructor
@@ -249,8 +369,13 @@ def symC' (sym : SymState) (instr : Operation) :
     | .LOG4 => logCost 4
     | .SELFDESTRUCT => do
       let s0 ← sym.stackAt 0
-      pure ⟨Expr.Cselfdestruct s0 sym.evm.substate.accessedAccounts, by
-        simpa using (Nat.max_le.mpr ⟨s0.2, accessedAccounts_consumption sym⟩)
+      let recipient := Expr.AddrOfWord s0
+      let currentBalance := sym.accountBalanceExpr Expr.Address
+      let recipientDead := sym.accountDeadExpr recipient
+      pure ⟨Expr.Cselfdestruct recipient sym.evm.substate.accessedAccounts currentBalance recipientDead, by
+        simp [recipient, currentBalance, recipientDead]
+        exact ⟨s0.2, accessedAccounts_consumption sym,
+          accountBalanceExpr_consumption sym Expr.Address, accountDeadExpr_consumption sym recipient⟩
       ⟩
     | .CREATE => do
       let s2 ← sym.stackAt 2
@@ -308,7 +433,7 @@ def symC' (sym : SymState) (instr : Operation) :
 where
   logCost (topics : Nat) := do
     let s1 ← sym.stackAt 1
-    pure ⟨Expr.CwordCost (Glog + topics * Glogtopic) Glogdata s1, by
+    pure ⟨Expr.CbyteCost (Glog + topics * Glogtopic) Glogdata s1, by
       simpa using s1.2⟩
   callCost (valueFromStack recipientIsTarget : Bool) := do
     let gas ← sym.stackAt 0
@@ -320,44 +445,31 @@ where
         pure ⟨Expr.Lit ⟨0⟩, by simp [Expr.consumeStack]⟩
     let targetAddr := Expr.AddrOfWord target
     let recipient := if recipientIsTarget then targetAddr else Expr.Address
+    let recipientDead := sym.accountDeadExpr recipient
     let cost := Expr.Ccall
       targetAddr
-      recipient
       value
       gas
       sym.evm.machineState.gasAvailable
       sym.evm.substate.accessedAccounts
+      recipientDead
     pure ⟨cost, by
       have htargetAddr : targetAddr.consumeStack ≤ sym.n := by
         simpa [targetAddr] using target.2
-      have hrecipient : recipient.consumeStack ≤ sym.n := by
-        cases recipientIsTarget
-        · simp [recipient, Expr.consumeStack]
-        · simpa [recipient, targetAddr] using target.2
       simpa [cost] using
         (Nat.max_le.mpr ⟨htargetAddr,
-          Nat.max_le.mpr ⟨hrecipient,
-            Nat.max_le.mpr ⟨value.2,
-              Nat.max_le.mpr ⟨gas.2,
-                Nat.max_le.mpr ⟨gasAvailable_consumption sym, accessedAccounts_consumption sym⟩⟩⟩⟩⟩)
+          Nat.max_le.mpr ⟨value.2,
+            Nat.max_le.mpr ⟨gas.2,
+              Nat.max_le.mpr ⟨gasAvailable_consumption sym,
+                Nat.max_le.mpr ⟨accessedAccounts_consumption sym,
+                  accountDeadExpr_consumption sym recipient⟩⟩⟩⟩⟩)
     ⟩
 
 
-def symZ (w : Operation) (sym : SymState)
-  : Except SymbolicError (Expr .num × SymState) :=
-  do 
-  let W (w : Operation) (sym : SymState) : Except SymbolicError Bool := do
-    let s2 ← sym.stackAt 2
-    pure (Bool.or (Decidable.decide (w ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2, .LOG3, .LOG4, .TSTORE])) (Decidable.decide (w = .CALL) ∧ (not $ s2 == Expr.Lit ⟨0⟩)))
-  if δ w = none then
-    .error .InvalidInstruction -- Should I give something else?
-  let sym :=
-    if hknown : sym.knownStack.length < (δ w).getD 0 then
-      let diff := (δ w).getD 0 - sym.knownStack.length
-      let c := (.stackGE diff)
-      addCondition sym c (by simp)
-    else sym
-  let cost₁? ← symMemoryExpansionCost sym w
+def symZApplyMemoryExpansionCondition
+    (sym : SymState)
+    (cost₁? : Option { e : Expr .num // e.consumeStack ≤ sym.n }) :
+    SymState :=
   let sym :=
     match cost₁? with
     | .none => sym
@@ -367,70 +479,134 @@ def symZ (w : Operation) (sym : SymState)
       addCondition sym c
         (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
             exact ⟨gasAvailable_consumption sym, cost₁.2⟩)
+  sym
+
+def symZApplyMemoryExpansionAndCharge
+    (sym : SymState)
+    (cost₁? : Option { e : Expr .num // e.consumeStack ≤ sym.n }) :
+    SymState :=
+  let sym := symZApplyMemoryExpansionCondition sym cost₁?
   let sym : SymState := update_gas sym (Expr.Sub (sym.evm.machineState.gasAvailable)
         ((cost₁?).option (Expr.Lit ⟨0⟩) (λ (⟨c,_⟩ ) ↦ c.ofNat)))
         (by simp [Expr.consumeStack]
             apply And.intro (gasAvailable_consumption sym)
             cases cost₁? <;> simp [Option.option, Expr.consumeStack]
             rename_i x; exact x.2)
-  let cost₂ ← symC' sym w
-  let sym :=
-    let assertion := Assertion.PGEq sym.evm.machineState.gasAvailable (Expr.ofNat cost₂.1)
-    let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
-    addCondition sym c
-      (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
-          exact ⟨gasAvailable_consumption sym, cost₂.2⟩)
-  let sym ← do
-    if w = Operation.JUMP then
-      let dest ← sym.stackAt 0
-      let c : Condition dest.1.consumeStack 0 := .jumpValid dest.1
-      pure <| addCondition sym c dest.2
-    else pure sym
-  let sym : SymState ← do
-    if w = Operation.JUMPI then
-      let dest ← sym.stackAt 0
-      let jcond ← sym.stackAt 1
-      let c : Condition (max (dest.1.consumeStack) (jcond.1.consumeStack)) 0 := .jumpiValid dest.1 jcond.1
-      pure <| addCondition sym c (max_le dest.2 jcond.2)
-    else pure sym
-  let sym ← do
+  sym
+
+def symZApplyCostCondition
+    (sym : SymState)
+    (cost₂ : { e : Expr .num // e.consumeStack ≤ sym.n }) :
+    SymState :=
+  let assertion := Assertion.PGEqnat (Expr.toNat sym.evm.machineState.gasAvailable) cost₂.1
+  let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
+  addCondition sym c
+    (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+        exact ⟨gasAvailable_consumption sym, cost₂.2⟩)
+
+def symZApplyJumpCondition (w : Operation) (sym : SymState) :
+    Except SymbolicError SymState := do
+  if w = Operation.JUMP then
+    let dest ← sym.stackAt 0
+    let c : Condition dest.1.consumeStack 0 := .jumpValid dest.1
+    pure <| addCondition sym c dest.2
+  else pure sym
+
+def symZApplyJumpiCondition (w : Operation) (sym : SymState) :
+    Except SymbolicError SymState := do
+  if w = Operation.JUMPI then
+    let dest ← sym.stackAt 0
+    let jcond ← sym.stackAt 1
+    let c : Condition (max (dest.1.consumeStack) (jcond.1.consumeStack)) 0 := .jumpiValid dest.1 jcond.1
+    pure <| addCondition sym c (max_le dest.2 jcond.2)
+  else pure sym
+
+def symZApplyReturnDataCopyCondition (w : Operation) (sym : SymState) :
+    Except SymbolicError SymState := do
+  if w = Operation.RETURNDATACOPY then
     let s1 ← sym.stackAt 1
     let s2 ← sym.stackAt 2
-    let assertion := Assertion.PLEq (Expr.Add s1 s2) (Expr.BufLength (Expr.RetBuf 0)) -- TODO: note actual call number
+    let assertion := Assertion.PLEqnat
+      (Expr.AddNat (Expr.toNat s1) (Expr.toNat s2))
+      (Expr.BufLengthNat sym.evm.machineState.returnData)
     let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .InvalidMemoryAccess)
     pure <| addCondition sym c
       (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
-          exact ⟨s1.2, s2.2⟩)
-  let sym :=
-    -- TODO: track max stack size so that we can avoid this often
-    let diff := 1024 - sym.knownStack.length + (δ w).getD 0 - (α w).getD 0
-    let c := (.stackLT diff)
-    addCondition sym c (by simp)
-  let sym ← do
-    let w_res ← W w sym
-    if w_res then
-      let c := .staticMode
-      pure <| addCondition sym c (by simp)
-    else pure sym
-  let sym :=
-    if (w = .SSTORE) then
-      let assertion := Assertion.PGEqnat sym.evm.machineState.gasAvailable.toNat (Expr.NatLit GasConstants.Gcallstipend)
-      let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
-      addCondition sym c
-        (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
-            exact gasAvailable_consumption sym)
-    else sym
-  let sym ← do
+          exact ⟨s1.2, s2.2, returnData_consumption sym⟩)
+  else pure sym
+
+def symZApplyStackOverflowCondition (w : Operation) (sym : SymState) :
+    SymState :=
+  -- TODO: track max stack size so that we can avoid this often
+  let diff := sym.asp + (1025 + (δ w).getD 0 - (α w).getD 0 - sym.knownStack.length)
+  let c : Condition 0 0 := .stackLT diff
+  addCondition sym c (by simp)
+
+def symZApplyStaticModeCondition (w : Operation) (sym : SymState) :
+    Except SymbolicError SymState := do
+  if w ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2, .LOG3, .LOG4, .TSTORE] then
+    let c : Condition 0 0 := .staticMode
+    pure <| addCondition sym c (by simp)
+  else if w = .CALL then
+    let value ← sym.stackAt 2
+    let c : Condition value.1.consumeStack 0 := .staticModeIfNonzero value.1
+    pure <| addCondition sym c value.2
+  else pure sym
+
+def symZApplySstoreStipendCondition (w : Operation) (sym : SymState) :
+    SymState :=
+  if (w = .SSTORE) then
+    let assertion := Assertion.PGTnat sym.evm.machineState.gasAvailable.toNat (Expr.NatLit GasConstants.Gcallstipend)
+    let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
+    addCondition sym c
+      (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+          exact gasAvailable_consumption sym)
+  else sym
+
+def symZApplyCreateSizeCondition (w : Operation) (sym : SymState) :
+    Except SymbolicError SymState := do
+  if (w = .CREATE ∨ w = .CREATE2) then
     let s2 ← sym.stackAt 2
-    if (w = .CREATE ∨ w = .CREATE2) then
-      let assertion := Assertion.PLEq s2 (Expr.Lit ⟨49152⟩)
-      let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
-      pure $ addCondition sym c
-        (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
-            exact s2.2)
-    else pure sym
+    let assertion := Assertion.PLEq s2 (Expr.Lit ⟨49152⟩)
+    let c : Condition assertion.consumeStack 0 := .assert ⟨assertion, by rfl⟩ (.exception .OutOfGass)
+    pure $ addCondition sym c
+      (by simp [assertion, Assertion.consumeStack, Expr.consumeStack]
+          exact s2.2)
+  else pure sym
+
+def symZCore (w : Operation) (sym : SymState)
+  : Except SymbolicError (Expr .num × SymState) :=
+  do
+  let cost₁? ← symMemoryExpansionCost sym w
+  let sym := symZApplyMemoryExpansionAndCharge sym cost₁?
+  let cost₂ ← symC' sym w
+  let sym := symZApplyCostCondition sym cost₂
+  let sym ← symZApplyJumpCondition w sym
+  let sym ← symZApplyJumpiCondition w sym
+  let sym ← symZApplyReturnDataCopyCondition w sym
+  let sym := symZApplyStackOverflowCondition w sym
+  let sym ← symZApplyStaticModeCondition w sym
+  let sym := symZApplySstoreStipendCondition w sym
+  let sym ← symZApplyCreateSizeCondition w sym
   pure (cost₂, sym)
 
+def symZApplyStackUnderflowCondition (w : Operation) (sym : SymState) :
+    SymState :=
+  if hknown : sym.knownStack.length < (δ w).getD 0 then
+    let diff := sym.asp + ((δ w).getD 0 - sym.knownStack.length)
+    let c : Condition 0 diff := .stackGE diff
+    addCondition sym c (by simp)
+  else sym
+
+def symZ (w : Operation) (sym : SymState)
+  : Except SymbolicError (Expr .num × SymState) :=
+  do
+  if δ w = none then
+    .error .InvalidInstruction -- Should I give something else?
+  let sym := symZApplyStackUnderflowCondition w sym
+  symZCore w sym
+
+/-
 def symstep (code : ByteArray) (validJumps : Array UInt256) (sym : SymState) : Option SymState :=
   match sym.evm.machineState.pc with
   | .Lit n => do
@@ -504,7 +680,6 @@ def symstep (code : ByteArray) (validJumps : Array UInt256) (sym : SymState) : O
     | _ => .none
   | _ => .none
 
-
 lemma pc_lit_if_symstep_some {bytecode : ByteArray} {validJumps : Array UInt256} {symstate symstate' : SymState} :
   symstep bytecode validJumps symstate = .some symstate' →
   ∃ n, symstate.evm.machineState.pc = .Lit n := by
@@ -514,54 +689,6 @@ lemma pc_lit_if_symstep_some {bytecode : ByteArray} {validJumps : Array UInt256}
     · rename_i n hn; exact ⟨n,hn⟩
     · contradiction
 
-lemma match_list_len_lt_2 {A B : Type} {b : B} {f : A → A → List A → B} : ∀ (l : List A),
-    List.length l < 2 →
-    (match l with
-    | x :: y :: t => f x y t
-    | _ => b) = b := by
-      intro l hlen
-      cases l with
-      | nil => rfl
-      | cons _ t =>
-          cases t with
-          | nil => rfl
-          | cons _ t =>
-              simp at hlen
-              omega
-
-lemma list_len_ge_2_to_match :
-    2 ≤ List.length l →
-    ∃ a b t, l = a :: b :: t := by
-      intro h
-      match l with
-      | [] => simp at h
-      | _ :: [] => simp at h
-      | a :: b :: t => simp
-
-lemma list_get_dropped : a :: t = List.drop n l → l[n]? = .some a := by
-  intro h
-  rw [List.drop_eq_getElem_cons] at h
-  simp at h
-  symm
-  rw [h.left]
-  rw [List.some_getElem_eq_getElem?_iff]
-  · simp
-  · apply List.length_lt_of_drop_ne_nil; simp [← h]
-
-theorem sumZ_Z_consistent {state : Ethereum.State} {xres : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray))}
-  {concrete : Ethereum.State} {symstate symstate' : SymState} {o : Option (Bool × ByteArray)}
-  {w : Operation} :
-  let bytecode := state.executionEnv.code
-  let validJumps := D_J bytecode { val := 0 }
-  Z validJumps w state = zres →
-
-  concretizeSym concrete validJumps symstate = .ok (state, o) →
-  symZ w symstate = .ok (cost₂, symstate') →
-  match zres with
-  | .error e => concretizeSym concrete validJumps symstate' = .error e
-  | .ok (state,_) => concretizeSym concrete validJumps symstate' = .ok (state,o)
-  := by
-    sorry
 
 theorem sumStep_Xstep_consistent {state : Ethereum.State} {xres : Except ExecutionException (Ethereum.State × Option (Bool × ByteArray))}
   {concrete : Ethereum.State} {symstate symstate' : SymState} {o : Option (Bool × ByteArray)}
@@ -750,3 +877,4 @@ theorem sumStep_Xstep_consistent {state : Ethereum.State} {xres : Except Executi
           · subst bytecode; rw [← hpc_lit_concrete]; assumption 
       | _ => sorry
     | none => simp [h] at hsymstep; sorry
+    -/

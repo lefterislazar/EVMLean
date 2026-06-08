@@ -1,4 +1,5 @@
 import Ethereum.State
+import Ethereum.Gas
 
 import Ethereum.Symbolic.Expr
 import Ethereum.Symbolic.State
@@ -46,6 +47,11 @@ def defaultConcretizeType : (τ : EType) → concretizeType τ
   | .byte => ⟨0⟩
   | .num => Nat.zero --0
 
+def addListToSet {α β : Type} (cmp : β → β → Ordering) (l : List α) (s : Batteries.RBSet β cmp) (f : α → β) :
+    Batteries.RBSet β cmp :=
+  l.foldl (λ s' x ↦ let x' := f x; s'.insert x') s
+
+set_option maxHeartbeats 800000 in
 mutual 
 def concretizeExpr {τ : EType} 
   (concrete : Ethereum.State)
@@ -79,6 +85,10 @@ def concretizeExpr {τ : EType}
       let a' : UInt256 := concretizeExpr concrete a (by simp [Expr.consumeStack] at hstack; exact hstack.left)
       let b' : UInt256 := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack.right)
       a' * b'
+  | .Max a b =>
+      let a' : UInt256 := concretizeExpr concrete a (by simp [Expr.consumeStack] at hstack; exact hstack.left)
+      let b' : UInt256 := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack.right)
+      (max a' b' : UInt256)
   | .Div a b =>
       let a' : UInt256 := concretizeExpr concrete a (by simp [Expr.consumeStack] at hstack; exact hstack.left)
       let b' : UInt256 := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack.right)
@@ -108,14 +118,16 @@ def concretizeExpr {τ : EType}
   | .BufLength b =>
       let b' : ByteArray := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack)
       { val := Fin.ofNat UInt256.size (b'.size) }
+  | .RetBuf _ =>
+      concrete.machineState.returnData
   | .Stack known n =>
       let known' : List (UInt256) := concretizeExprList concrete known
-        (by simp [Expr.consumeStack] at hstack; exact hstack)
+        (by simp [Expr.consumeStack] at hstack; exact hstack.left)
           -- simp [Expr.consumeStack.maxConsumesStackList] at hstack)
 
       known' ++ (List.drop n $ concrete.machineState.stack)
   | .StackItem n =>
-      concrete.machineState.stack[n]'(by simp [Expr.consumeStack] at hstack; exact Nat.lt_of_add_one_le hstack)
+      concrete.machineState.stack[n]!
   -- | .StackSize stack =>
   --     let stack' : List (UInt256) := concretizeExpr concrete stack
   --     List.length stack'
@@ -123,7 +135,177 @@ def concretizeExpr {τ : EType}
       let a' : UInt256 := concretizeExpr concrete a (by simp [Expr.consumeStack] at hstack; exact hstack.left)
       let b' : UInt256 := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack.right)
       UInt256.lt a' b'
+  | .Address =>
+      concrete.executionEnv.codeOwner
+  | .Caller =>
+      concrete.executionEnv.source
+  | .AddrOfWord a =>
+      AccountAddress.ofUInt256 (concretizeExpr concrete a (by simpa using hstack))
+  | .ConcreteStore entries =>
+      entries.foldl
+        (fun storage entry => storage.insert entry.1 entry.2)
+        (Batteries.mkRBMap UInt256 UInt256 compare)
+  | .AbstractStore addr _ =>
+      let addr' : AccountAddress := concretizeExpr concrete addr (by simpa [Expr.consumeStack] using hstack)
+      match concrete.accountMap.find? addr' with
+      | none => Batteries.mkRBMap UInt256 UInt256 compare
+      | some account => account.storage
+  | .SLoad key storage =>
+      let key' : UInt256 := concretizeExpr concrete key (by simp [Expr.consumeStack] at hstack; exact hstack.left)
+      let storage' : Storage := concretizeExpr concrete storage (by simp [Expr.consumeStack] at hstack; exact hstack.right)
+      storage'.findD key' ⟨0⟩
+  | .SStore key value storage =>
+      let key' : UInt256 := concretizeExpr concrete key (by simp [Expr.consumeStack] at hstack; exact hstack.left)
+      let value' : UInt256 := concretizeExpr concrete value (by simp [Expr.consumeStack] at hstack; exact hstack.right.left)
+      let storage' : Storage := concretizeExpr concrete storage (by simp [Expr.consumeStack] at hstack; exact hstack.right.right)
+      if value' == ⟨0⟩ then storage'.erase key' else storage'.insert key' value'
+  | .toNat a =>
+      (concretizeExpr concrete a (by
+        simpa [Expr.consumeStack] using hstack)).toNat
+  | .ofNat a =>
+      UInt256.ofNat (concretizeExpr concrete a (by
+        simpa [Expr.consumeStack] using hstack))
+  | .SubNat a b =>
+      let a' : Nat := concretizeExpr concrete a (by simp [Expr.consumeStack] at hstack; exact hstack.left)
+      let b' : Nat := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack.right)
+      a' - b'
+  | .BufLengthNat b =>
+      let b' : ByteArray := concretizeExpr concrete b (by
+        simpa [Expr.consumeStack] using hstack)
+      b'.size
+  | .AddNat a b =>
+      let a' : Nat := concretizeExpr concrete a (by simp at hstack; exact hstack.left)
+      let b' : Nat := concretizeExpr concrete b (by simp at hstack; exact hstack.right)
+      a' + b'
+  | .M a b c =>
+      let a' : UInt256 := concretizeExpr concrete a (by simp [Expr.consumeStack] at hstack; exact hstack.left)
+      let b' : UInt256 := concretizeExpr concrete b (by simp [Expr.consumeStack] at hstack; exact hstack.right.left)
+      let c' : UInt256 := concretizeExpr concrete c (by simp [Expr.consumeStack] at hstack; exact hstack.right.right)
+      MachineState.M a'.toNat b'.toNat c'.toNat
+  | .Cₘ a =>
+      let a' : Nat := concretizeExpr concrete a (by
+        simpa [Expr.consumeStack] using hstack)
+      Ethereum.EVM.Cₘ (UInt256.ofNat a')
+  | .Cexp a =>
+      let a' : UInt256 := concretizeExpr concrete a (by simpa using hstack)
+      if a' == ⟨0⟩ then GasConstants.Gexp
+      else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 a'.toNat)
+  | .CwordCost base wordCost a =>
+      let a' : UInt256 := concretizeExpr concrete a (by simpa using hstack)
+      base + wordCost * ((a'.toNat + 31) / 32)
+  | .CbyteCost base byteCost a =>
+      let a' : UInt256 := concretizeExpr concrete a (by simpa using hstack)
+      base + byteCost * a'.toNat
+  | .Caccess a accessedAccounts =>
+      let a' : AccountAddress := concretizeExpr concrete a (by simp at hstack; exact hstack.left)
+      let accessedAccounts' :=
+        addListToSet compare
+          (concretizeExprList concrete accessedAccounts (by simp at hstack; exact hstack.right))
+          concrete.substate.accessedAccounts id
+      if accessedAccounts'.contains a' then GasConstants.Gwarmaccess else GasConstants.Gcoldaccountaccess
+  | .AccountDead account =>
+      concretizeAccountSummaryDead concrete account (by simpa [Expr.consumeStack] using hstack)
+  | .Csload a accessedStorageKeys =>
+      let a' : UInt256 := concretizeExpr concrete a (by simp at hstack; exact hstack.left)
+      let accessedStorageKeys' :=
+        addListToSet Substate.storageKeysCmp
+          ((concretizeExprList concrete accessedStorageKeys (by simp at hstack; exact hstack.right)).map
+            (fun x => (concrete.executionEnv.codeOwner, x)))
+          concrete.substate.accessedStorageKeys id
+      if accessedStorageKeys'.contains (concrete.executionEnv.codeOwner, a') then
+        GasConstants.Gwarmaccess
+      else
+        GasConstants.Gcoldsload
+  | .Csstore v v' storeAddr accessedStorageKeys =>
+      let v_existing : UInt256 := concretizeExpr concrete v (by simp [Expr.consumeStack] at hstack; omega)
+      let v_new : UInt256 := concretizeExpr concrete v' (by simp [Expr.consumeStack] at hstack; omega)
+      let storeAddr' : UInt256 := concretizeExpr concrete storeAddr (by simp [Expr.consumeStack] at hstack; omega)
+      let accessedStorageKeys' :=
+        addListToSet Substate.storageKeysCmp
+          ((concretizeExprList concrete accessedStorageKeys (by simp [Expr.consumeStack] at hstack; omega)).map
+            (fun x => (concrete.executionEnv.codeOwner, x)))
+          concrete.substate.accessedStorageKeys id
+      let v₀ :=
+        match concrete.σ₀.find? concrete.executionEnv.codeOwner with
+        | none => ⟨0⟩
+        | some acc => acc.storage.findD storeAddr' ⟨0⟩
+      let loadComponent :=
+        if accessedStorageKeys'.contains (concrete.executionEnv.codeOwner, storeAddr') then
+          0
+        else
+          GasConstants.Gcoldsload
+      let storeComponent :=
+        if v_existing = v_new || v₀ ≠ v_existing then GasConstants.Gwarmaccess else
+        if v_existing ≠ v_new && v₀ = v_existing && v₀ = ⟨0⟩ then GasConstants.Gsset else
+        GasConstants.Gsreset
+      loadComponent + storeComponent
+  | .Cselfdestruct recipient accessedAccounts currentBalance recipientDead =>
+      let r : AccountAddress := concretizeExpr concrete recipient (by simp at hstack; exact hstack.left)
+      let accessedAccounts' :=
+        addListToSet compare
+          (concretizeExprList concrete accessedAccounts (by simp at hstack; omega))
+          concrete.substate.accessedAccounts id
+      let c_cold := if accessedAccounts'.contains r then 0 else GasConstants.Gcoldaccountaccess
+      let currentBalance' : UInt256 :=
+        concretizeExpr concrete currentBalance (by simp at hstack; omega)
+      let recipientDead' : UInt256 :=
+        concretizeExpr concrete recipientDead (by simp at hstack; omega)
+      let c_new :=
+        if (recipientDead' != ⟨0⟩) && currentBalance' != ⟨0⟩ then
+          GasConstants.Gnewaccount
+        else 0
+      GasConstants.Gselfdestruct + c_cold + c_new
+  | .Ccall target value gas gasAvailable accessedAccounts recipientDead =>
+      let target' : AccountAddress := concretizeExpr concrete target (by simp at hstack; omega)
+      let value' : UInt256 := concretizeExpr concrete value (by simp at hstack; omega)
+      let gas' : UInt256 := concretizeExpr concrete gas (by simp at hstack; omega)
+      let gasAvailable' : UInt256 := concretizeExpr concrete gasAvailable (by simp at hstack; omega)
+      let accessedAccounts' :=
+        addListToSet compare
+          (concretizeExprList concrete accessedAccounts (by simp at hstack; omega))
+          concrete.substate.accessedAccounts id
+      let c_access := if accessedAccounts'.contains target' then GasConstants.Gwarmaccess else GasConstants.Gcoldaccountaccess
+      let c_xfer := if value' != ⟨0⟩ then GasConstants.Gcallvalue else 0
+      let recipientDead' : UInt256 :=
+        concretizeExpr concrete recipientDead (by simp at hstack; omega)
+      let c_new :=
+        if (recipientDead' != ⟨0⟩) && value' != ⟨0⟩ then
+          GasConstants.Gnewaccount
+        else 0
+      let c_extra := c_access + c_xfer + c_new
+      let c_gascap :=
+        if gasAvailable'.toNat >= c_extra then
+          min (Ethereum.EVM.L (gasAvailable'.toNat - c_extra)) gas'.toNat
+        else
+          gas'.toNat
+      c_gascap + c_extra
   | _ => defaultConcretizeType τ
+
+def concretizeAccountSummaryBalance
+    (concrete : Ethereum.State)
+    (account : AccountSummary)
+    (hstack : Expr.consumeStackAccountSummary account ≤ concrete.machineState.stack.length) :
+    UInt256 :=
+  match account with
+  | .mk _ balance _ =>
+      concretizeExpr concrete balance (by
+        simp at hstack
+        exact hstack.right)
+
+def concretizeAccountSummaryDead
+    (concrete : Ethereum.State)
+    (account : AccountSummary)
+    (hstack : Expr.consumeStackAccountSummary account ≤ concrete.machineState.stack.length) :
+    UInt256 :=
+  match account with
+  | .mk nonce balance codeEmpty =>
+      let nonce' : UInt256 := concretizeExpr concrete nonce (by
+        simp at hstack
+        exact hstack.left)
+      let balance' : UInt256 := concretizeExpr concrete balance (by
+        simp at hstack
+        exact hstack.right)
+      if codeEmpty && nonce' == ⟨0⟩ && balance' == ⟨0⟩ then ⟨1⟩ else ⟨0⟩
 
 def concretizeExprList {τ : EType}
   (concrete : Ethereum.State)
@@ -133,6 +315,17 @@ def concretizeExprList {τ : EType}
     exprs.attach.map (λ ⟨expr,h_exprKnown⟩ ↦
       concretizeExpr concrete expr (consumeStack_le_max_of_mem hstack h_exprKnown))
 end
+
+def concretizeStack
+    (concrete : Ethereum.State)
+    (stack : Expr .stack)
+    (hstack : stack.consumeStack ≤ concrete.machineState.stack.length) :
+    Stack UInt256 :=
+  match stack with
+  | .Stack known n =>
+      let known' : List UInt256 := concretizeExprList concrete known
+        (by simp [Expr.consumeStack] at hstack; exact hstack.left)
+      known' ++ List.drop n concrete.machineState.stack
 
 -- UNUSED
 private theorem consumeStack_lt_of_mem
@@ -222,14 +415,11 @@ def RBMap.mapValues
     (Batteries.mkRBMap κ β cmp)
 
 -- TODO: check this more
-def concretizeRuntimeCode (concrete : Ethereum.State) (c : RuntimeCode) : ByteArray :=
-  -- match c with
-  -- | .concrete b => b
-  -- | .symbolic _ =>
-    let addr := concrete.executionEnv.codeOwner
-    match concrete.accountMap.find? addr with
-    | .none => ByteArray.empty
-    | .some acc => acc.code
+def concretizeRuntimeCode (_concrete : Ethereum.State) (c : RuntimeCode) : ByteArray :=
+  match c with
+  | .concrete code => code
+  | .symbolic code =>
+      if code.isEmpty then ByteArray.empty else ByteArray.mk #[0]
 
 def concretizeAccount
     (concrete : Ethereum.State)
@@ -272,9 +462,6 @@ def concretizeAccountMap
             (by simpa [AccountMap.consumeStack] using hstack)
             entry.2)))
     (Batteries.mkRBMap AccountAddress Ethereum.Account compare)
-
-def addListToSet {α β : Type} (cmp) (l : List α) (s : Batteries.RBSet β cmp) (f : α → β) :=
-  l.foldl (λ s' x ↦ let x' := f x; s'.insert x') s
 
 /-
 def concretizeStorageKeys
@@ -373,7 +560,7 @@ def concretizeMachineState
   {
     pc := concretizeExpr concrete sym.pc
       (by simp [MachineState.consumeStack, maxList] at hstack; omega)
-    stack := concretizeExpr concrete sym.stack
+    stack := concretizeStack concrete sym.stack
       (by simp [MachineState.consumeStack, maxList] at hstack; omega)
     execLength := sym.execLength
     gasAvailable := concretizeExpr concrete sym.gasAvailable
@@ -504,15 +691,20 @@ def checkCondition
       else .ok ⟨hstack⟩
   | .jumpValid d => do
       let d_concr ← pure $ concretizeExpr concrete d hstack
-      if notIn (.some d_concr) validJumps then .ok ⟨by simp⟩
-      else  throw .BadJumpDestination
+      if notIn (.some d_concr) validJumps then throw .BadJumpDestination
+      else .ok ⟨by simp⟩
   | .jumpiValid d jc => do
       let d_concr ← pure $ concretizeExpr concrete d (by apply le_of_max_le_left at hstack; assumption)
       let jc_concr ← pure $ concretizeExpr concrete jc (by apply le_of_max_le_right at hstack; assumption)
-      if notIn (.some d_concr) validJumps then .ok ⟨by simp⟩
-      else  throw .BadJumpDestination
+      if jc_concr == ⟨0⟩ then .ok ⟨by simp⟩
+      else if notIn (.some d_concr) validJumps then throw .BadJumpDestination
+      else .ok ⟨by simp⟩
   | .staticMode =>
       if concrete.executionEnv.perm then .ok ⟨hstack⟩
+      else throw .StaticModeViolation
+  | .staticModeIfNonzero e =>
+      if concrete.executionEnv.perm || concretizeExpr concrete e hstack == ⟨0⟩
+      then .ok ⟨by simp⟩
       else throw .StaticModeViolation
 
 def checkConditions
