@@ -30,8 +30,8 @@ lemma UInt256_subzero : ∀ (a : UInt256), a - { val := 0 } = a := by
       simp [*] at ha
       simp; assumption
 
-lemma  Sat256_natsub_zero : ∀ (a : Sat256), a.natSub 0 = a :=
-  by intros a; simp [Sat256.natSub, Id.run]
+lemma Sat256_natsub_zero (a : Sat256) : a.natSub 0 = a :=
+  by simp [Sat256.natSub, Id.run]
 
 lemma UInt256_subzero' : ∀ (a : UInt256), a - UInt256.ofNat 0 = a :=
   by intros a; simp [UInt256.ofNat, Id.run]; apply UInt256_subzero a
@@ -144,7 +144,7 @@ theorem step_stop : ∀ (s : State),
       simp [GasConstants.Gzero]
     have hgas' :
         ¬ (s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gzero := by
-      simpa [UInt256_subzero'] using hgas
+      simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
     rw [if_neg hgas']
     simp [α, Operation.isCreate]
     by_cases hoverflow : 1024 < s.machineState.stack.length
@@ -193,18 +193,18 @@ theorem step_add : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
           simp [hoverflow]
           have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-            simpa [UInt256_subzero'] using hgas
+            simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
           simp [bind, Except.bind]
 
           unfold step
@@ -212,7 +212,7 @@ theorem step_add : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]; constructor
             · simp [UInt256.add]; rfl
             · rw [Sat256_natsub_zero]
@@ -257,11 +257,11 @@ theorem step_mul : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -274,7 +274,7 @@ theorem step_mul : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
             rw [Sat256_natsub_zero]
 
@@ -318,14 +318,14 @@ theorem step_exp : ∀ (s : State),
             s.machineState.gasAvailable.toNat <
               (if b == ⟨0⟩ then GasConstants.Gexp
               else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat)) := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 :
             ¬ s.machineState.gasAvailable.toNat <
               (if b == ⟨0⟩ then GasConstants.Gexp
               else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat)) := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -337,7 +337,7 @@ theorem step_exp : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
             rw [Sat256_natsub_zero]
 
@@ -380,11 +380,11 @@ theorem step_addmod : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -396,7 +396,7 @@ theorem step_addmod : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, Ethereum.State.calldataload]
             rw [Sat256_natsub_zero]
 
@@ -439,11 +439,11 @@ theorem step_mulmod : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -455,7 +455,7 @@ theorem step_mulmod : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, Ethereum.State.blockHash]
             rw [Sat256_natsub_zero]
 
@@ -497,11 +497,11 @@ theorem step_sdiv : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -513,9 +513,9 @@ theorem step_sdiv : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, blobhash]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_mod : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -555,11 +555,11 @@ theorem step_mod : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -571,9 +571,9 @@ theorem step_mod : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_smod : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -613,11 +613,11 @@ theorem step_smod : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -629,9 +629,9 @@ theorem step_smod : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_signextend : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -671,11 +671,11 @@ theorem step_signextend : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -687,9 +687,9 @@ theorem step_signextend : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_sub : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -731,11 +731,11 @@ theorem step_sub : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -748,9 +748,9 @@ theorem step_sub : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_div : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -792,11 +792,11 @@ theorem step_div : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -809,9 +809,9 @@ theorem step_div : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 /-
  -   Comparison and Bitwise Logic Operations
@@ -854,11 +854,11 @@ theorem step_lt : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -870,9 +870,9 @@ theorem step_lt : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_gt : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -911,11 +911,11 @@ theorem step_gt : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -927,9 +927,9 @@ theorem step_gt : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_slt : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -968,11 +968,11 @@ theorem step_slt : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -984,9 +984,9 @@ theorem step_slt : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_sgt : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1025,11 +1025,11 @@ theorem step_sgt : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1041,9 +1041,9 @@ theorem step_sgt : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_eq : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1082,11 +1082,11 @@ theorem step_eq : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1098,9 +1098,9 @@ theorem step_eq : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_and : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1139,11 +1139,11 @@ theorem step_and : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1155,9 +1155,9 @@ theorem step_and : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_or : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1196,11 +1196,11 @@ theorem step_or : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1212,9 +1212,9 @@ theorem step_or : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_xor : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1253,11 +1253,11 @@ theorem step_xor : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1269,9 +1269,9 @@ theorem step_xor : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_byte : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1310,11 +1310,11 @@ theorem step_byte : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1326,9 +1326,9 @@ theorem step_byte : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_shl : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1367,11 +1367,11 @@ theorem step_shl : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1383,9 +1383,9 @@ theorem step_shl : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_shr : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1424,11 +1424,11 @@ theorem step_shr : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1440,9 +1440,9 @@ theorem step_shr : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_sar : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1481,11 +1481,11 @@ theorem step_sar : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1497,9 +1497,9 @@ theorem step_sar : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_iszero : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1537,11 +1537,11 @@ theorem step_iszero : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1553,9 +1553,9 @@ theorem step_iszero : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_not : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1593,11 +1593,11 @@ theorem step_not : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -1609,9 +1609,9 @@ theorem step_not : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 /-
  -   Keccak Operation
@@ -1661,9 +1661,8 @@ theorem step_keccak : ∀ (s : State),
             gasAvailable'.toNat <
               GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32)
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32) := by
@@ -1671,9 +1670,8 @@ theorem step_keccak : ∀ (s : State),
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32) := by
@@ -1690,7 +1688,7 @@ theorem step_keccak : ∀ (s : State),
             unfold Ethereum.State.incrPC
             simp
             apply And.intro
-            · simp [UInt256.ofNat, Id.run]; rfl
+            · simp [MachineState.keccak256, UInt256_ofNat_1]
             · apply And.intro
               · simp [Stack.push, MachineState.keccak256]
               · simp [MachineState.keccak256]
@@ -1723,10 +1721,10 @@ theorem step_address : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1738,9 +1736,9 @@ theorem step_address : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push, Ethereum.State.selfbalance]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_origin : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1766,10 +1764,10 @@ theorem step_origin : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1781,9 +1779,9 @@ theorem step_origin : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_caller : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1809,10 +1807,10 @@ theorem step_caller : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1824,9 +1822,9 @@ theorem step_caller : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_callvalue : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1852,10 +1850,10 @@ theorem step_callvalue : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1867,9 +1865,9 @@ theorem step_callvalue : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_calldatasize : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1895,10 +1893,10 @@ theorem step_calldatasize : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1910,9 +1908,9 @@ theorem step_calldatasize : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_codesize : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1938,10 +1936,10 @@ theorem step_codesize : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1953,9 +1951,9 @@ theorem step_codesize : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_gasprice : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -1981,10 +1979,10 @@ theorem step_gasprice : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -1996,9 +1994,9 @@ theorem step_gasprice : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_returndatasize : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2024,10 +2022,10 @@ theorem step_returndatasize : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2039,9 +2037,9 @@ theorem step_returndatasize : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_coinbase : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2067,10 +2065,10 @@ theorem step_coinbase : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2082,9 +2080,9 @@ theorem step_coinbase : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_timestamp : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2110,10 +2108,10 @@ theorem step_timestamp : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2125,9 +2123,9 @@ theorem step_timestamp : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_number : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2153,10 +2151,10 @@ theorem step_number : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2168,9 +2166,9 @@ theorem step_number : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_prevrandao : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2196,10 +2194,10 @@ theorem step_prevrandao : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2211,9 +2209,9 @@ theorem step_prevrandao : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_gaslimit : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2239,10 +2237,10 @@ theorem step_gaslimit : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2254,9 +2252,9 @@ theorem step_gaslimit : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_chainid : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2282,10 +2280,10 @@ theorem step_chainid : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2297,9 +2295,9 @@ theorem step_chainid : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_basefee : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2325,10 +2323,10 @@ theorem step_basefee : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2340,9 +2338,9 @@ theorem step_basefee : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_blobbasefee : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2368,10 +2366,10 @@ theorem step_blobbasefee : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2383,9 +2381,9 @@ theorem step_blobbasefee : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_calldataload : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2424,11 +2422,11 @@ theorem step_calldataload : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -2440,11 +2438,11 @@ theorem step_calldataload : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
             apply And.intro
             · simp [Ethereum.State.calldataload]
-            · rw [UInt256_subzero']
+            · rw [Sat256_natsub_zero]
 
 theorem step_blockhash : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2480,11 +2478,11 @@ theorem step_blockhash : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gblockhash)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gblockhash := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gblockhash := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -2496,11 +2494,11 @@ theorem step_blockhash : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
             apply And.intro
             · simp [Ethereum.State.blockHash, Ethereum.State.blockHashes]
-            · rw [UInt256_subzero']
+            · rw [Sat256_natsub_zero]
 
 theorem step_blobhash : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2534,11 +2532,11 @@ theorem step_blobhash : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.HASH_OPCODE_GAS)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -2551,9 +2549,9 @@ theorem step_blobhash : ∀ (s : State),
           unfold blobhash
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_selfbalance : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2586,10 +2584,10 @@ theorem step_selfbalance : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -2601,11 +2599,11 @@ theorem step_selfbalance : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
           apply And.intro
           · simp [Ethereum.State.selfbalance]
-          · rw [UInt256_subzero']
+          · rw [Sat256_natsub_zero]
 theorem step_balance : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BALANCE, .none)
@@ -2646,13 +2644,13 @@ theorem step_balance : ∀ (s : State),
         have hgas0 :
             s.machineState.gasAvailable.toNat <
               Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 :
             ¬ s.machineState.gasAvailable.toNat <
               Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -2664,12 +2662,12 @@ theorem step_balance : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [Ethereum.State.balance, Ethereum.State.addAccessedAccount]
           · simp [Stack.push, Ethereum.State.balance, Ethereum.State.addAccessedAccount,
               Ethereum.Substate.addAccessedAccount]
             apply And.intro
             · rw [UInt256_ofNat_1]
-            · rw [UInt256_subzero']
+            · rw [Sat256_natsub_zero]
 
 theorem step_extcodesize : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2712,13 +2710,13 @@ theorem step_extcodesize : ∀ (s : State),
         have hgas0 :
             s.machineState.gasAvailable.toNat <
               Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 :
             ¬ s.machineState.gasAvailable.toNat <
               Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -2730,12 +2728,13 @@ theorem step_extcodesize : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
+          · simp [Ethereum.State.extCodeSize, Ethereum.State.lookupAccount,
+              Ethereum.State.addAccessedAccount]
           · simp [Stack.push, Ethereum.State.extCodeSize, Ethereum.State.lookupAccount,
               Ethereum.State.addAccessedAccount, Ethereum.Substate.addAccessedAccount]
             apply And.intro
             · rw [UInt256_ofNat_1]
-            · rw [UInt256_subzero']
+            · rw [Sat256_natsub_zero]
 
 theorem step_extcodehash : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2782,13 +2781,13 @@ theorem step_extcodehash : ∀ (s : State),
         have hgas0 :
             s.machineState.gasAvailable.toNat <
               Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 :
             ¬ s.machineState.gasAvailable.toNat <
               Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -2800,12 +2799,12 @@ theorem step_extcodehash : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp [Stack.push, Ethereum.State.extCodeHash, Ethereum.State.dead,
             Ethereum.State.lookupAccount, Ethereum.State.addAccessedAccount,
-            Ethereum.Substate.addAccessedAccount, UInt256_ofNat_1, UInt256_subzero']
+            Ethereum.Substate.addAccessedAccount, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
           by_cases hdead :
               Option.option true Account.emptyAccount
                 (Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 a)) = true
-          · simp [hdead, UInt256_ofNat_1, UInt256_subzero']
-          · simp [hdead, UInt256_ofNat_1, UInt256_subzero']
+          · simp [hdead, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
+          · simp [hdead, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
 
 /-
  -   Machine and Stack Operations
@@ -2843,11 +2842,11 @@ theorem step_pop : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length
         · simp [hoverflow]
@@ -2859,8 +2858,8 @@ theorem step_pop : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 theorem step_mload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MLOAD, .none)
@@ -2906,9 +2905,8 @@ theorem step_mload : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MLOAD)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gverylow
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat 32)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
@@ -2919,9 +2917,8 @@ theorem step_mload : ∀ (s : State),
             InstructionGasGroups.Wverylow]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat 32)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
@@ -2984,9 +2981,8 @@ theorem step_mstore : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MSTORE)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gverylow
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat 32)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
@@ -2997,9 +2993,8 @@ theorem step_mstore : ∀ (s : State),
             InstructionGasGroups.Wverylow]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat 32)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
@@ -3061,9 +3056,8 @@ theorem step_mstore8 : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MSTORE8)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gverylow
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat 1)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
@@ -3074,9 +3068,8 @@ theorem step_mstore8 : ∀ (s : State),
             InstructionGasGroups.Wverylow]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat 1)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
@@ -3139,13 +3132,13 @@ theorem step_sload : ∀ (s : State),
         have hgas0 :
             s.machineState.gasAvailable.toNat <
               Csload (a :: t) s.substate s.executionEnv := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 :
             ¬ s.machineState.gasAvailable.toNat <
               Csload (a :: t) s.substate s.executionEnv := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, C', hstack]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
@@ -3158,7 +3151,7 @@ theorem step_sload : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp [Ethereum.State.sload, Ethereum.State.lookupAccount, Ethereum.State.addAccessedStorageKey,
           Ethereum.Substate.addAccessedStorageKey, Account.lookupStorage, Stack.push, UInt256_ofNat_1]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_tload : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -3194,11 +3187,11 @@ theorem step_tload : ∀ (s : State),
           ((s.machineState.gasAvailable.natSub 0).toNat < Ctload)
       · simp [hgas, C', hstack]
         have hgas0 : s.machineState.gasAvailable.toNat < Ctload := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < Ctload := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, C', hstack]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
@@ -3211,7 +3204,7 @@ theorem step_tload : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp [Ethereum.State.tload, Ethereum.State.lookupAccount, Account.lookupTransientStorage,
           Stack.push, UInt256_ofNat_1]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_tstore : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -3254,11 +3247,11 @@ theorem step_tstore : ∀ (s : State),
           ((s.machineState.gasAvailable.natSub 0).toNat < Ctstore)
       · simp [hgas, C', hstack]
         have hgas0 : s.machineState.gasAvailable.toNat < Ctstore := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < Ctstore := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, C', hstack]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length
@@ -3281,12 +3274,12 @@ theorem step_tstore : ∀ (s : State),
             | none =>
               simp [Ethereum.State.tstore, Ethereum.State.lookupAccount,
                 Ethereum.State.updateAccount, Account.updateTransientStorage,
-                Stack.push, UInt256_ofNat_1, UInt256_subzero', hacc, hperm,
+                Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero', hacc, hperm,
                 Option.option]
             | some acc =>
               simp [Ethereum.State.tstore, Ethereum.State.lookupAccount,
                 Ethereum.State.updateAccount, Account.updateTransientStorage,
-                Stack.push, UInt256_ofNat_1, UInt256_subzero', hacc, hperm,
+                Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero', hacc, hperm,
                 Option.option]
 
 theorem step_calldatacopy : ∀ (s : State),
@@ -3333,9 +3326,8 @@ theorem step_calldatacopy : ∀ (s : State),
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3344,9 +3336,8 @@ theorem step_calldatacopy : ∀ (s : State),
             InstructionGasGroups.Wcopy]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3408,9 +3399,8 @@ theorem step_codecopy : ∀ (s : State),
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3419,9 +3409,8 @@ theorem step_codecopy : ∀ (s : State),
             InstructionGasGroups.Wcopy]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3484,9 +3473,8 @@ theorem step_returndatacopy : ∀ (s : State),
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3495,9 +3483,8 @@ theorem step_returndatacopy : ∀ (s : State),
             InstructionGasGroups.Wcopy]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3568,9 +3555,8 @@ theorem step_extcodecopy : ∀ (s : State),
         let copyCost := Caccess addr s.substate + GasConstants.Gcopy * ((d.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat b.toNat d.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 Caccess (AccountAddress.ofUInt256 a) s.substate +
@@ -3580,9 +3566,8 @@ theorem step_extcodecopy : ∀ (s : State),
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat b.toNat d.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 Caccess (AccountAddress.ofUInt256 a) s.substate +
@@ -3646,9 +3631,8 @@ theorem step_mcopy : ∀ (s : State),
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat (max a.toNat b.toNat) c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3657,9 +3641,8 @@ theorem step_mcopy : ∀ (s : State),
             InstructionGasGroups.Wcopy]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat (max a.toNat b.toNat) c.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
@@ -3718,9 +3701,8 @@ theorem step_return : ∀ (s : State),
         · simp [GasConstants.Gzero] at hgas
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gzero := by
@@ -3737,7 +3719,7 @@ theorem step_return : ∀ (s : State),
             unfold step
             simp [Id.run, EVM.binaryMachineStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
-            simp [MachineState.evmReturn, UInt256_ofNat_1, UInt256_subzero']
+            simp [MachineState.evmReturn, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
 
 theorem step_revert : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -3781,9 +3763,8 @@ theorem step_revert : ∀ (s : State),
         · simp [GasConstants.Gzero] at hgas
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gzero := by
@@ -3800,7 +3781,7 @@ theorem step_revert : ∀ (s : State),
             unfold step
             simp [Id.run, EVM.binaryMachineStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
-            simp [MachineState.evmRevert, MachineState.evmReturn, UInt256_ofNat_1, UInt256_subzero']
+            simp [MachineState.evmRevert, MachineState.evmReturn, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
 
 theorem step_log0 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -3845,9 +3826,8 @@ theorem step_log0 : ∀ (s : State),
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat := by
@@ -3855,9 +3835,8 @@ theorem step_log0 : ∀ (s : State),
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat := by
@@ -3925,9 +3904,8 @@ theorem step_log1 : ∀ (s : State),
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic := by
@@ -3935,9 +3913,8 @@ theorem step_log1 : ∀ (s : State),
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic := by
@@ -4006,9 +3983,8 @@ theorem step_log2 : ∀ (s : State),
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic := by
@@ -4016,9 +3992,8 @@ theorem step_log2 : ∀ (s : State),
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic := by
@@ -4088,9 +4063,8 @@ theorem step_log3 : ∀ (s : State),
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic := by
@@ -4098,9 +4072,8 @@ theorem step_log3 : ∀ (s : State),
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic := by
@@ -4171,9 +4144,8 @@ theorem step_log4 : ∀ (s : State),
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic := by
@@ -4181,9 +4153,8 @@ theorem step_log4 : ∀ (s : State),
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
-              ¬ (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat
+              ¬ (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat
                         (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic := by
@@ -4286,11 +4257,11 @@ theorem step_sstore : ∀ (s : State),
           ((s.machineState.gasAvailable.natSub 0).toNat < Csstore chargedState)
       · simp [hgas, C', hstack, chargedState]
         have hgas0 : s.machineState.gasAvailable.toNat < Csstore s := by
-          simpa [chargedState, Csstore, hstack, UInt256_subzero'] using hgas
+          simpa [chargedState, Csstore, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < Csstore s := by
-          simpa [chargedState, Csstore, hstack, UInt256_subzero'] using hgas
+          simpa [chargedState, Csstore, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, C', hstack, chargedState]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length
@@ -4309,12 +4280,12 @@ theorem step_sstore : ∀ (s : State),
                 (s.machineState.gasAvailable.natSub 0).toNat ≤ GasConstants.Gcallstipend
             · have hstipend0 :
                   s.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend := by
-                simpa [UInt256_subzero'] using hstipend
+                simpa [Sat256_natsub_zero, UInt256_subzero'] using hstipend
               simp [hstipend, hstipend0]
             ·
               have hstipend0 :
                   ¬ s.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend := by
-                simpa [UInt256_subzero'] using hstipend
+                simpa [Sat256_natsub_zero, UInt256_subzero'] using hstipend
               simp [hstipend, hstipend0, bind, Except.bind]
               unfold step
               simp [Id.run, binaryStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
@@ -4325,7 +4296,7 @@ theorem step_sstore : ∀ (s : State),
                 simp [Ethereum.State.sstore, Ethereum.State.lookupAccount,
                   Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey,
                   Ethereum.Substate.addAccessedStorageKey,
-                  Account.updateStorage, Stack.push, UInt256_ofNat_1, UInt256_subzero',
+                  Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero',
                   hacc, hperm, Option.option]
                 simp [Csstore, hstack]
               | some acc =>
@@ -4335,7 +4306,7 @@ theorem step_sstore : ∀ (s : State),
                   simp [Ethereum.State.sstore, Ethereum.State.lookupAccount,
                     Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey,
                     Ethereum.Substate.addAccessedStorageKey,
-                    Account.updateStorage, Stack.push, UInt256_ofNat_1, UInt256_subzero',
+                    Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero',
                     hacc, hperm, Option.option]
                   rw [Account_fst_storage
                     (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
@@ -4400,7 +4371,7 @@ theorem step_call : ∀ (s : State),
                   pc := s.machineState.pc + ⟨1⟩
                   memory := o.write 0 s.machineState.memory outOffset.toNat n.toNat
                   returnData := o
-                  gasAvailable := gasAvailable'.natSub $ gasCost + g'.toNat
+                  gasAvailable := gasAvailable'.natSub (gasCost - g'.toNat)
                   execLength := s.machineState.execLength + 1
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
@@ -5038,8 +5009,8 @@ theorem step_create : ∀ (s : State),
                     UInt256.ofNat (MachineState.M createState.machineState.activeWords.toNat offset.toNat size.toNat)
                   machineState.returnData := newReturnData
                   machineState.gasAvailable :=
-                    (createState.machineState.gasAvailable.natSub 
-                      (L createState.machineState.gasAvailable.toNat + g'.toNat))
+                    createState.machineState.gasAvailable.natSub
+                      (L createState.machineState.gasAvailable.toNat - g'.toNat)
                   machineState.pc := createState.machineState.pc + ⟨1⟩
                   executionEnv := s.executionEnv
                   }
@@ -5081,9 +5052,8 @@ theorem step_create : ∀ (s : State),
               GasConstants.Gcreate + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
@@ -5094,9 +5064,8 @@ theorem step_create : ∀ (s : State),
               GasConstants.Gcreate + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
-              ¬(s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
+              ¬(s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
@@ -5169,7 +5138,7 @@ theorem step_create : ∀ (s : State),
                         ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hrefund :
-                      (createState.machineState.gasAvailable + g').toNat <
+                      createState.machineState.gasAvailable.toNat + g'.toNat <
                         L createState.machineState.gasAvailable.toNat
                   ·
                     have hrefund_expanded := hrefund
@@ -5212,7 +5181,7 @@ theorem step_create : ∀ (s : State),
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152 := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
                     by_cases hrefund :
-                        (createState.machineState.gasAvailable + g').toNat <
+                        createState.machineState.gasAvailable.toNat + g'.toNat <
                           L createState.machineState.gasAvailable.toNat
                     ·
                       have hrefund_expanded := hrefund
@@ -5268,7 +5237,7 @@ theorem step_create : ∀ (s : State),
                       intro h
                       exact hDepth_expanded ⟨h.1, by simpa using h.2.1, h.2.2⟩
                     by_cases hrefund :
-                        (createState.machineState.gasAvailable + g').toNat <
+                        createState.machineState.gasAvailable.toNat + g'.toNat <
                           L createState.machineState.gasAvailable.toNat
                     ·
                       have hrefund_expanded := hrefund
@@ -5345,7 +5314,7 @@ theorem step_create2 : ∀ (s : State),
         let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
         let x : UInt256 := if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ initCode.size > 49152 then ⟨0⟩ else UInt256.ofNat a
         let newReturnData : ByteArray := if z then .empty else o
-        if (createState.machineState.gasAvailable + g').toNat < L createState.machineState.gasAvailable.toNat then .error .OutOfGass
+        if createState.machineState.gasAvailable.toNat + g'.toNat < L createState.machineState.gasAvailable.toNat then .error .OutOfGass
         else
         .ok ({state' with
                   machineState.stack := x :: t
@@ -5353,8 +5322,8 @@ theorem step_create2 : ∀ (s : State),
                     UInt256.ofNat (MachineState.M createState.machineState.activeWords.toNat offset.toNat size.toNat)
                   machineState.returnData := newReturnData
                   machineState.gasAvailable :=
-                    UInt256.ofNat (createState.machineState.gasAvailable.toNat -
-                      L createState.machineState.gasAvailable.toNat + g'.toNat)
+                    createState.machineState.gasAvailable.natSub
+                      (L createState.machineState.gasAvailable.toNat - g'.toNat)
                   machineState.pc := createState.machineState.pc + ⟨1⟩
                   executionEnv := s.executionEnv
                   }
@@ -5398,9 +5367,8 @@ theorem step_create2 : ∀ (s : State),
               GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
-              (s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
+              (s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
@@ -5411,9 +5379,8 @@ theorem step_create2 : ∀ (s : State),
               GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
-              ¬(s.machineState.gasAvailable -
-                    UInt256.ofNat
-                      (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
+              ¬(s.machineState.gasAvailable.natSub
+                    (Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
@@ -5487,7 +5454,7 @@ theorem step_create2 : ∀ (s : State),
                         ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hrefund :
-                      (createState.machineState.gasAvailable + g').toNat <
+                      createState.machineState.gasAvailable.toNat + g'.toNat <
                         L createState.machineState.gasAvailable.toNat
                   ·
                     have hrefund_expanded := hrefund
@@ -5530,7 +5497,7 @@ theorem step_create2 : ∀ (s : State),
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152 := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
                     by_cases hrefund :
-                        (createState.machineState.gasAvailable + g').toNat <
+                        createState.machineState.gasAvailable.toNat + g'.toNat <
                           L createState.machineState.gasAvailable.toNat
                     ·
                       have hrefund_expanded := hrefund
@@ -5586,7 +5553,7 @@ theorem step_create2 : ∀ (s : State),
                       intro h
                       exact hDepth_expanded ⟨h.1, by simpa using h.2.1, h.2.2⟩
                     by_cases hrefund :
-                        (createState.machineState.gasAvailable + g').toNat <
+                        createState.machineState.gasAvailable.toNat + g'.toNat <
                           L createState.machineState.gasAvailable.toNat
                     ·
                       have hrefund_expanded := hrefund
@@ -5704,11 +5671,11 @@ theorem step_selfdestruct : ∀ (s : State),
             ((s.machineState.gasAvailable.natSub 0).toNat < Cselfdestruct chargedState)
         ·
           have hgas0 : s.machineState.gasAvailable.toNat < Cselfdestruct s := by
-            simpa [chargedState, Cselfdestruct, hstack, UInt256_subzero'] using hgas
+            simpa [chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
           simp [hgas, hgas0, C', hstack, chargedState]
         ·
           have hgas0 : ¬ s.machineState.gasAvailable.toNat < Cselfdestruct s := by
-            simpa [chargedState, Cselfdestruct, hstack, UInt256_subzero'] using hgas
+            simpa [chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
           simp [hgas, hgas0, C', hstack, chargedState]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -5737,12 +5704,12 @@ theorem step_selfdestruct : ∀ (s : State),
               cases hcreated : s.createdAccounts.contains s.executionEnv.codeOwner
               · have hcreated_mem : ¬ s.executionEnv.codeOwner ∈ s.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
-                  simpa [hcreated]
+                  simp [hcreated]
                 cases hself :
                     Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
                   simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r,
-                    chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                    chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
@@ -5751,22 +5718,22 @@ theorem step_selfdestruct : ∀ (s : State),
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>
                       simp [hcreated, hcreated_mem, hbal, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
                   | some targetAcc =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     by_cases hneq : AccountAddress.ofUInt256 target ≠ s.executionEnv.codeOwner
                     · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
                     · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
               · have hcreated_mem : s.executionEnv.codeOwner ∈ s.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
-                  simpa [hcreated]
+                  simp [hcreated]
                 cases hself :
                     Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
                   simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r,
-                    chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                    chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
@@ -5775,14 +5742,14 @@ theorem step_selfdestruct : ∀ (s : State),
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>
                       simp [hcreated, hcreated_mem, hbal, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
                   | some targetAcc =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     by_cases hneq : AccountAddress.ofUInt256 target ≠ s.executionEnv.codeOwner
                     · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
                     · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, UInt256_subzero', UInt256_ofNat_1]
+                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
 
 theorem step_pc : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -5808,10 +5775,10 @@ theorem step_pc : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -5823,9 +5790,8 @@ theorem step_pc : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
-        · simp [Stack.push]
-          rw [UInt256_subzero']
+        · simp [UInt256_ofNat_1]
+        · exact And.intro rfl rfl
 
 theorem step_msize : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -5851,10 +5817,10 @@ theorem step_msize : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -5866,9 +5832,9 @@ theorem step_msize : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push, MachineState.msize]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 theorem step_gas : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -5880,7 +5846,7 @@ theorem step_gas : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack :=
-                  (s.machineState.gasAvailable.natSub GasConstants.Gbase) :: s.machineState.stack,
+                  (s.machineState.gasAvailable.natSub GasConstants.Gbase).toUInt256 :: s.machineState.stack,
                 machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
@@ -5895,10 +5861,10 @@ theorem step_gas : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -5910,9 +5876,8 @@ theorem step_gas : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
-        · simp [Stack.push]
-          rw [UInt256_subzero']
+        · simp [UInt256_ofNat_1]
+        · exact And.intro rfl rfl
 
 theorem step_jumpdest : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -5935,10 +5900,10 @@ theorem step_jumpdest : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gjumpdest)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length
       · simp [hoverflow]
@@ -5949,8 +5914,8 @@ theorem step_jumpdest : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
-        · rw [UInt256_subzero']
+        · simp [UInt256_ofNat_1]
+        · rw [Sat256_natsub_zero]
 
 theorem step_jump : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -5983,11 +5948,11 @@ theorem step_jump : ∀ (s : State),
       by_cases hgas :
           ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
       · have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, hstack]
         cases hcontains : (D_J I_b ⟨0⟩).contains a
         · simp [Z.notIn, Z.belongs, I_b, hcontains]
@@ -5999,7 +5964,7 @@ theorem step_jump : ∀ (s : State),
             simp [I_b, hcontains, hoverflow]
             simp [bind, Except.bind]
             unfold step
-            simp [Stack.pop, UInt256_subzero']
+            simp [Stack.pop, Sat256_natsub_zero, UInt256_subzero']
 
 theorem step_jumpi : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6033,11 +5998,11 @@ theorem step_jumpi : ∀ (s : State),
       by_cases hgas :
           ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Ghigh)
       · have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Ghigh := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Ghigh := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, hstack]
         cases hb : (b != (⟨0⟩ : UInt256))
         ·
@@ -6053,7 +6018,7 @@ theorem step_jumpi : ∀ (s : State),
             simp [I_b, hb, hbeq, hoverflow]
             simp [bind, Except.bind]
             unfold step
-            simp [Stack.pop2, hb, hbeq, hzero_bne, UInt256_subzero']
+            simp [Stack.pop2, hb, hbeq, hzero_bne, Sat256_natsub_zero, UInt256_subzero']
         ·
           have hbne : b ≠ (⟨0⟩ : UInt256) :=
             UInt256_bne_zero_eq_true_ne b hb
@@ -6067,7 +6032,7 @@ theorem step_jumpi : ∀ (s : State),
               simp [I_b, hb, hbne, hcontains, hoverflow]
               simp [bind, Except.bind]
               unfold step
-              simp [Stack.pop2, hb, hbne, UInt256_subzero']
+              simp [Stack.pop2, hb, hbne, Sat256_natsub_zero, UInt256_subzero']
 
 theorem step_push0 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6093,10 +6058,10 @@ theorem step_push0 : ∀ (s : State),
     by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -6108,9 +6073,9 @@ theorem step_push0 : ∀ (s : State),
         unfold Ethereum.State.incrPC
         simp
         apply And.intro
-        · simp [UInt256.ofNat, Id.run]; rfl
+        · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [UInt256_subzero']
+          rw [Sat256_natsub_zero]
 
 set_option maxHeartbeats 2000000 in
 theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWidth : Nat),
@@ -6150,10 +6115,10 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
       ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
     · simp [hgas, hcostCharged, chargedState]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas0]
     · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-        simpa [UInt256_subzero'] using hgas
+        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
       simp [hgas, hgas0, hcostCharged, chargedState, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
@@ -6164,7 +6129,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
         · contradiction
         all_goals
           simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            Stack.push, UInt256_subzero', Id.run]
+            Stack.push, Sat256_natsub_zero, UInt256_subzero', Id.run]
 
 theorem step_push1 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
@@ -6351,11 +6316,11 @@ theorem step_dup1 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 2
         · simp [hoverflow]
@@ -6367,8 +6332,8 @@ theorem step_dup1 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup2 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6407,11 +6372,11 @@ theorem step_dup2 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 3
         · simp [hoverflow]
@@ -6423,8 +6388,8 @@ theorem step_dup2 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap1 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6463,11 +6428,11 @@ theorem step_swap1 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 2
         · simp [hoverflow]
@@ -6479,8 +6444,8 @@ theorem step_swap1 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 theorem step_swap2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP2, .none)
@@ -6519,11 +6484,11 @@ theorem step_swap2 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 3
         · simp [hoverflow]
@@ -6535,8 +6500,8 @@ theorem step_swap2 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup3 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6576,11 +6541,11 @@ theorem step_dup3 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 4
         · simp [hoverflow]
@@ -6592,8 +6557,8 @@ theorem step_dup3 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap3 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6634,11 +6599,11 @@ theorem step_swap3 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 4
         · simp [hoverflow]
@@ -6650,8 +6615,8 @@ theorem step_swap3 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup4 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6692,11 +6657,11 @@ theorem step_dup4 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 5
         · simp [hoverflow]
@@ -6708,8 +6673,8 @@ theorem step_dup4 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap4 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6751,11 +6716,11 @@ theorem step_swap4 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 5
         · simp [hoverflow]
@@ -6767,8 +6732,8 @@ theorem step_swap4 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup5 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6810,11 +6775,11 @@ theorem step_dup5 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 6
         · simp [hoverflow]
@@ -6826,8 +6791,8 @@ theorem step_dup5 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap5 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6870,11 +6835,11 @@ theorem step_swap5 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 6
         · simp [hoverflow]
@@ -6886,8 +6851,8 @@ theorem step_swap5 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup6 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6930,11 +6895,11 @@ theorem step_dup6 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 7
         · simp [hoverflow]
@@ -6946,8 +6911,8 @@ theorem step_dup6 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap6 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -6991,11 +6956,11 @@ theorem step_swap6 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 7
         · simp [hoverflow]
@@ -7007,8 +6972,8 @@ theorem step_swap6 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup7 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7052,11 +7017,11 @@ theorem step_dup7 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 8
         · simp [hoverflow]
@@ -7068,8 +7033,8 @@ theorem step_dup7 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap7 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7114,11 +7079,11 @@ theorem step_swap7 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 8
         · simp [hoverflow]
@@ -7130,8 +7095,8 @@ theorem step_swap7 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup8 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7176,11 +7141,11 @@ theorem step_dup8 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 9
         · simp [hoverflow]
@@ -7192,8 +7157,8 @@ theorem step_dup8 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap8 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7239,11 +7204,11 @@ theorem step_swap8 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 9
         · simp [hoverflow]
@@ -7255,8 +7220,8 @@ theorem step_swap8 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup9 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7302,11 +7267,11 @@ theorem step_dup9 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 10
         · simp [hoverflow]
@@ -7318,8 +7283,8 @@ theorem step_dup9 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap9 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7366,11 +7331,11 @@ theorem step_swap9 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 10
         · simp [hoverflow]
@@ -7382,8 +7347,8 @@ theorem step_swap9 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup10 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7430,11 +7395,11 @@ theorem step_dup10 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 11
         · simp [hoverflow]
@@ -7446,8 +7411,8 @@ theorem step_dup10 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap10 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7495,11 +7460,11 @@ theorem step_swap10 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 11
         · simp [hoverflow]
@@ -7511,8 +7476,8 @@ theorem step_swap10 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup11 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7560,11 +7525,11 @@ theorem step_dup11 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 12
         · simp [hoverflow]
@@ -7576,8 +7541,8 @@ theorem step_dup11 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap11 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7626,11 +7591,11 @@ theorem step_swap11 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 12
         · simp [hoverflow]
@@ -7642,8 +7607,8 @@ theorem step_swap11 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup12 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7692,11 +7657,11 @@ theorem step_dup12 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 13
         · simp [hoverflow]
@@ -7708,8 +7673,8 @@ theorem step_dup12 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap12 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7759,11 +7724,11 @@ theorem step_swap12 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 13
         · simp [hoverflow]
@@ -7775,8 +7740,8 @@ theorem step_swap12 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup13 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7826,11 +7791,11 @@ theorem step_dup13 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 14
         · simp [hoverflow]
@@ -7842,8 +7807,8 @@ theorem step_dup13 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap13 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7894,11 +7859,11 @@ theorem step_swap13 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 14
         · simp [hoverflow]
@@ -7910,8 +7875,8 @@ theorem step_swap13 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup14 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -7962,11 +7927,11 @@ theorem step_dup14 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 15
         · simp [hoverflow]
@@ -7978,8 +7943,8 @@ theorem step_dup14 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap14 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -8031,11 +7996,11 @@ theorem step_swap14 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 15
         · simp [hoverflow]
@@ -8047,8 +8012,8 @@ theorem step_swap14 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup15 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -8100,11 +8065,11 @@ theorem step_dup15 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 16
         · simp [hoverflow]
@@ -8116,8 +8081,8 @@ theorem step_dup15 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap15 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -8170,11 +8135,11 @@ theorem step_swap15 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 16
         · simp [hoverflow]
@@ -8186,8 +8151,8 @@ theorem step_swap15 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_dup16 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -8240,11 +8205,11 @@ theorem step_dup16 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 17
         · simp [hoverflow]
@@ -8256,8 +8221,8 @@ theorem step_dup16 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
 
 theorem step_swap16 : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -8311,11 +8276,11 @@ theorem step_swap16 : ∀ (s : State),
       by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [UInt256_subzero'] using hgas
+          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 17
         · simp [hoverflow]
@@ -8327,5 +8292,5 @@ theorem step_swap16 : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp
           apply And.intro
-          · simp [UInt256.ofNat, Id.run]; rfl
-          · rw [UInt256_subzero']
+          · simp [UInt256_ofNat_1]
+          · rw [Sat256_natsub_zero]
