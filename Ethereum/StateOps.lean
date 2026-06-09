@@ -240,16 +240,6 @@ def extCodeCopy' (self : State) (acc mstart cstart size : UInt256) : State :=
 
 end Memory
 
-section Gas
-
-def State.subtractGas (self : State) (d : ℕ) : State :=
-  { self with
-    machineState.gasAvailable := self.machineState.gasAvailable - d
-    machineState.hgasBound := lt_of_le_of_lt (b := self.machineState.gasAvailable) (by simp) self.machineState.hgasBound
-  }
-
-end Gas
-
 def logOp (μ₀ μ₁ : UInt256) (t : Array UInt256) (sState : State) : State :=
   let Iₐ := sState.executionEnv.codeOwner
   let mem := sState.machineState.memory.readWithPadding μ₀.toNat μ₁.toNat

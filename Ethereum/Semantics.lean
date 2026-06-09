@@ -199,8 +199,7 @@ def call
       let μ'incomplete : MachineState :=
         { μ'ₘ with
             returnData   := μ'ₒ
-            gasAvailable := evmState.machineState.gasAvailable - (gasCost - g'.toNat)
-            hgasBound := lt_of_le_of_lt (b := evmState.machineState.gasAvailable) (by simp) evmState.machineState.hgasBound
+            gasAvailable := evmState.machineState.gasAvailable.natSub (gasCost - g'.toNat)
             activeWords :=
               let m : ℕ:= MachineState.M evmState.machineState.activeWords.toNat inOffset.toNat inSize.toNat
               .ofNat <| MachineState.M m outOffset.toNat outSize.toNat
@@ -227,7 +226,7 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
         | .none => fetchInstr evmState.executionEnv evmState.machineState.pc
         | .some (instr, arg) => pure (instr, arg)
     let evmState := { evmState with machineState.execLength := evmState.machineState.execLength + 1 }
-    let evmStateCharged := evmState.subtractGas gasCost
+    let evmStateCharged := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.natSub gasCost }
     match instr with
       | .CREATE =>
         let evmState := evmStateCharged
@@ -246,7 +245,7 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
             let (a, evmState', g', z, o)
                   : (AccountAddress × State × UInt256 × Bool × ByteArray)
               :=
-              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable), False, .empty) else
+              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty) else
               if hDepth : μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
                 let Λ :=
                   Lambda
@@ -259,7 +258,7 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
                     evmState.substate
                     Iₐ
                     Iₒ
-                    (.ofNat <| L evmState.machineState.gasAvailable)
+                    (.ofNat <| L evmState.machineState.gasAvailable.toNat)
                     (.ofNat I.gasPrice)
                     μ₀
                     i
@@ -280,19 +279,18 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
                     , o
                     )
               else
-                (0, evmState, .ofNat (L evmState.machineState.gasAvailable), False, .empty)
+                (0, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty)
             let x : UInt256 :=
               let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
                 if z = false ∨ Iₑ = 1024 ∨ μ₀ > balance ∨ i.size > 49152 then ⟨0⟩ else .ofNat a
             let newReturnData : ByteArray := if z then .empty else o
-            if evmState.machineState.gasAvailable + g'.toNat < L evmState.machineState.gasAvailable then
+            if evmState.machineState.gasAvailable.toNat + g'.toNat < L evmState.machineState.gasAvailable.toNat then
               .error .OutOfGass
             let evmState' :=
               { evmState' with
                   machineState.activeWords := .ofNat <| MachineState.M evmState.machineState.activeWords.toNat μ₁.toNat μ₂.toNat
                   machineState.returnData := newReturnData
-                  machineState.gasAvailable := evmState.machineState.gasAvailable - (L (evmState.machineState.gasAvailable) - g'.toNat)
-                  machineState.hgasBound := lt_of_le_of_lt (b := evmState.machineState.gasAvailable) (by simp) evmState.machineState.hgasBound
+                  machineState.gasAvailable := evmState.machineState.gasAvailable.natSub (L (evmState.machineState.gasAvailable.toNat) - g'.toNat)
               }
             .ok <| evmState'.replaceStackAndIncrPC (stack.push x)
           | _ =>
@@ -312,7 +310,7 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
             let σ_Iₐ : Account := σ.find? Iₐ |>.getD default
             let σStar := σ.insert Iₐ {σ_Iₐ with nonce := σ_Iₐ.nonce + ⟨1⟩}
             let (a, evmState', g', z, o) : (AccountAddress × State × UInt256 × Bool × ByteArray) :=
-              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable), False, .empty) else
+              if σ_Iₐ.nonce.toNat ≥ 2^64-1 then (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty) else
               if hDepth : μ₀ ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
                 let Λ :=
                   Lambda
@@ -325,7 +323,7 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
                     evmState.substate
                     Iₐ
                     Iₒ
-                    (.ofNat <| L evmState.machineState.gasAvailable)
+                    (.ofNat <| L evmState.machineState.gasAvailable.toNat)
                     (.ofNat I.gasPrice)
                     μ₀
                     i
@@ -337,19 +335,18 @@ def step (gasCost : ℕ) (instr : Option (Operation × Option (UInt256 × Nat)) 
                   | (a, cA, σ', g', A', z, o) =>
                     (a, {evmState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
               else
-                (0, evmState, .ofNat (L evmState.machineState.gasAvailable), False, .empty)
+                (0, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), False, .empty)
             let x : UInt256 :=
               let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
                 if z = false ∨ Iₑ = 1024 ∨ μ₀ > balance ∨ i.size > 49152 then ⟨0⟩ else .ofNat a
             let newReturnData : ByteArray := if z then .empty else o
-            if evmState.machineState.gasAvailable + g'.toNat < L evmState.machineState.gasAvailable then
+            if evmState.machineState.gasAvailable.toNat + g'.toNat < L evmState.machineState.gasAvailable.toNat then
               .error .OutOfGass
             let evmState' :=
               { evmState' with
                 machineState.activeWords := .ofNat <| MachineState.M evmState.machineState.activeWords.toNat μ₁.toNat μ₂.toNat
                 machineState.returnData := newReturnData
-                machineState.gasAvailable := evmState.machineState.gasAvailable - (L (evmState.machineState.gasAvailable) - g'.toNat)
-                machineState.hgasBound := lt_of_le_of_lt (b := evmState.machineState.gasAvailable) (by simp) evmState.machineState.hgasBound
+                machineState.gasAvailable := evmState.machineState.gasAvailable.natSub (L (evmState.machineState.gasAvailable.toNat) - g'.toNat)
               }
             .ok <| evmState'.replaceStackAndIncrPC (stack.push x)
           | _ =>
@@ -714,12 +711,12 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
     .error .StackUnderflow
   else
     let cost₁ := memoryExpansionCost evmState w
-    if evmState.machineState.gasAvailable < cost₁ then
+    if evmState.machineState.gasAvailable.toNat < cost₁ then
       .error .OutOfGass
     else
-      let evmState := evmState.subtractGas cost₁
+      let evmState := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.natSub cost₁ }
       let cost₂ := C' evmState w
-      if evmState.machineState.gasAvailable < cost₂ then
+      if evmState.machineState.gasAvailable.toNat < cost₂ then
         .error .OutOfGass
       else
         let invalidJump := notIn evmState.machineState.stack[0]? validJumps
@@ -733,7 +730,7 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
           .error .StackOverflow
         else if (¬ evmState.executionEnv.perm) ∧ W w evmState.machineState.stack then
           .error .StaticModeViolation
-        else if (w = .SSTORE) ∧ evmState.machineState.gasAvailable ≤ GasConstants.Gcallstipend then
+        else if (w = .SSTORE) ∧ evmState.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend then
           .error .OutOfGass
         else if w.isCreate ∧ evmState.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩ then
           .error .OutOfGass
@@ -805,7 +802,7 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
       match ret with -- The YP does this in a weird way.
         | none => X f validJumps {evmState' with executionEnv.depth := evmState.executionEnv.depth}
         | some ⟨false, o⟩ =>
-          .ok <| .revert ⟨evmState'.machineState.gasAvailable, evmState'.machineState.hgasBound⟩ o
+          .ok <| .revert evmState'.machineState.gasAvailable.toUInt256 o
         | some ⟨true, o⟩ =>
           .ok <| .success evmState' o
           termination_by (1024 - evmState.executionEnv.depth.val, 3, fuel)
@@ -844,8 +841,7 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
             executionEnv := I
             substate := A
             createdAccounts := createdAccounts
-            machineState.gasAvailable := g.1
-            machineState.hgasBound := g.1.2
+            machineState.gasAvailable := .ofUInt256 g
             blocks := blocks
             genesisBlockHeader := genesisBlockHeader
         }
@@ -853,7 +849,7 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
       match result with
         | .success evmState' o =>
           let finalGas := evmState'.machineState.gasAvailable
-          .ok (ExecutionResult.success (evmState'.createdAccounts, evmState'.accountMap, .ofNat finalGas, evmState'.substate) o)
+          .ok (ExecutionResult.success (evmState'.createdAccounts, evmState'.accountMap, finalGas.toUInt256, evmState'.substate) o)
         | .revert g' o => .ok (ExecutionResult.revert g' o)
     termination_by (1024 - I.depth.val, 4, 0)
     decreasing_by

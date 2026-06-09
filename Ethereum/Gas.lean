@@ -171,8 +171,8 @@ def Cextra (t r : AccountAddress) (val : UInt256) (σ : AccountMap) (A : Substat
   Caccess t A + Cxfer val + Cnew r val σ
 
 def Cgascap (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) :=
-  if μ.gasAvailable >= Cextra t r val σ A then
-    min (L <| (μ.gasAvailable - Cextra t r val σ A)) g.toNat
+  if μ.gasAvailable.toNat >= Cextra t r val σ A then
+    min (L <| (μ.gasAvailable.natSub $ Cextra t r val σ A).toNat) g.toNat
   else
     g.toNat
 

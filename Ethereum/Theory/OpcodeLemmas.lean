@@ -30,6 +30,8 @@ lemma UInt256_subzero : ∀ (a : UInt256), a - { val := 0 } = a := by
       simp [*] at ha
       simp; assumption
 
+lemma  Sat256_natsub_zero : ∀ (a : Sat256), a.natSub 0 = a :=
+  by intros a; simp [Sat256.natSub, Id.run]
 
 lemma UInt256_subzero' : ∀ (a : UInt256), a - UInt256.ofNat 0 = a :=
   by intros a; simp [UInt256.ofNat, Id.run]; apply UInt256_subzero a
@@ -128,7 +130,7 @@ theorem step_stop : ∀ (s : State),
       if s.machineState.stack.length - 0 + 0 > 1024 then .error .StackOverflow
       else
       .ok ({s with
-              machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gzero
+              machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gzero
               machineState.execLength := s.machineState.execLength + 1
               machineState.returnData := .empty
             }, .some (true, .empty))
@@ -141,7 +143,7 @@ theorem step_stop : ∀ (s : State),
     have hgas : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gzero := by
       simp [GasConstants.Gzero]
     have hgas' :
-        ¬ (s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gzero := by
+        ¬ (s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gzero := by
       simpa [UInt256_subzero'] using hgas
     rw [if_neg hgas']
     simp [α, Operation.isCreate]
@@ -152,7 +154,7 @@ theorem step_stop : ∀ (s : State),
       simp [bind, Except.bind]
       unfold step
       simp [MachineState.setReturnData, GasConstants.Gzero]
-      rw [UInt256_subzero']
+      rw [Sat256_natsub_zero]
 
 theorem step_add : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -167,7 +169,7 @@ theorem step_add : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := (a + b) :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -188,7 +190,7 @@ theorem step_add : ∀ (s : State),
         , InstructionGasGroups.Wzero
         , InstructionGasGroups.Wbase
         , InstructionGasGroups.Wverylow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -213,7 +215,7 @@ theorem step_add : ∀ (s : State),
           · simp [UInt256.ofNat, Id.run]; rfl
           · simp [Stack.push]; constructor
             · simp [UInt256.add]; rfl
-            · rw [UInt256_subzero']
+            · rw [Sat256_natsub_zero]
 
 theorem step_mul : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -227,7 +229,7 @@ theorem step_mul : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.mul a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub $ GasConstants.Glow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -252,7 +254,7 @@ theorem step_mul : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
           simpa [UInt256_subzero'] using hgas
@@ -274,7 +276,7 @@ theorem step_mul : ∀ (s : State),
           apply And.intro
           · simp [UInt256.ofNat, Id.run]; rfl
           · simp [Stack.push, flip]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_exp : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -291,7 +293,7 @@ theorem step_exp : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.exp a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -308,7 +310,7 @@ theorem step_exp : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
       by_cases hgas:
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat <
+          ((s.machineState.gasAvailable.natSub 0).toNat <
             if b == ⟨0⟩ then GasConstants.Gexp
             else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat))
       · simp [hgas]
@@ -337,7 +339,7 @@ theorem step_exp : ∀ (s : State),
           apply And.intro
           · simp [UInt256.ofNat, Id.run]; rfl
           · simp [Stack.push, flip]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_addmod : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -351,7 +353,7 @@ theorem step_addmod : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.addMod a b c :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gmid
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gmid
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -375,7 +377,7 @@ theorem step_addmod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow, InstructionGasGroups.Wmid ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gmid)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
           simpa [UInt256_subzero'] using hgas
@@ -396,7 +398,7 @@ theorem step_addmod : ∀ (s : State),
           apply And.intro
           · simp [UInt256.ofNat, Id.run]; rfl
           · simp [Stack.push, Ethereum.State.calldataload]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_mulmod : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -410,7 +412,7 @@ theorem step_mulmod : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.mulMod a b c :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gmid
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gmid
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -434,7 +436,7 @@ theorem step_mulmod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow, InstructionGasGroups.Wmid ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gmid)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
           simpa [UInt256_subzero'] using hgas
@@ -455,7 +457,7 @@ theorem step_mulmod : ∀ (s : State),
           apply And.intro
           · simp [UInt256.ofNat, Id.run]; rfl
           · simp [Stack.push, Ethereum.State.blockHash]
-            rw [UInt256_subzero']
+            rw [Sat256_natsub_zero]
 
 theorem step_sdiv : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -469,7 +471,7 @@ theorem step_sdiv : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.sdiv a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Glow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -492,7 +494,7 @@ theorem step_sdiv : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
           simpa [UInt256_subzero'] using hgas
@@ -527,7 +529,7 @@ theorem step_mod : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.mod a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Glow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -550,7 +552,7 @@ theorem step_mod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
           simpa [UInt256_subzero'] using hgas
@@ -585,7 +587,7 @@ theorem step_smod : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.smod a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Glow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -608,7 +610,7 @@ theorem step_smod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
           simpa [UInt256_subzero'] using hgas
@@ -643,7 +645,7 @@ theorem step_signextend : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.signextend a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Glow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -666,7 +668,7 @@ theorem step_signextend : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
           simpa [UInt256_subzero'] using hgas
@@ -701,7 +703,7 @@ theorem step_sub : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.sub a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -726,7 +728,7 @@ theorem step_sub : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -762,7 +764,7 @@ theorem step_div : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.div a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Glow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -787,7 +789,7 @@ theorem step_div : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
           simpa [UInt256_subzero'] using hgas
@@ -827,7 +829,7 @@ theorem step_lt : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.lt a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -849,7 +851,7 @@ theorem step_lt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -884,7 +886,7 @@ theorem step_gt : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.gt a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -906,7 +908,7 @@ theorem step_gt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -941,7 +943,7 @@ theorem step_slt : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.slt a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -963,7 +965,7 @@ theorem step_slt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -998,7 +1000,7 @@ theorem step_sgt : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.sgt a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1020,7 +1022,7 @@ theorem step_sgt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1055,7 +1057,7 @@ theorem step_eq : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.eq a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1077,7 +1079,7 @@ theorem step_eq : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1112,7 +1114,7 @@ theorem step_and : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.land a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1134,7 +1136,7 @@ theorem step_and : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1169,7 +1171,7 @@ theorem step_or : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.lor a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1191,7 +1193,7 @@ theorem step_or : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1226,7 +1228,7 @@ theorem step_xor : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.xor a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1248,7 +1250,7 @@ theorem step_xor : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1283,7 +1285,7 @@ theorem step_byte : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.byteAt a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1305,7 +1307,7 @@ theorem step_byte : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1340,7 +1342,7 @@ theorem step_shl : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.shiftLeft b a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1362,7 +1364,7 @@ theorem step_shl : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1397,7 +1399,7 @@ theorem step_shr : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.shiftRight b a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1419,7 +1421,7 @@ theorem step_shr : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1454,7 +1456,7 @@ theorem step_sar : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.sar a b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1476,7 +1478,7 @@ theorem step_sar : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1511,7 +1513,7 @@ theorem step_iszero : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.isZero a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1532,7 +1534,7 @@ theorem step_iszero : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1567,7 +1569,7 @@ theorem step_not : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := UInt256.lnot a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -1588,7 +1590,7 @@ theorem step_not : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -1624,7 +1626,7 @@ theorem step_keccak : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .KECCAK256
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let hashCost := GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32)
         if gasAvailable'.toNat < hashCost then .error .OutOfGass
         else
@@ -1634,7 +1636,7 @@ theorem step_keccak : ∀ (s : State),
         let kec := ffi.KEC bytes
         .ok ({s with
                   machineState.stack := UInt256.ofNat (fromByteArrayBigEndian kec) :: t,
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat hashCost
+                  machineState.gasAvailable := gasAvailable'.natSub hashCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   machineState.activeWords :=
@@ -1654,7 +1656,7 @@ theorem step_keccak : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .KECCAK256
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .KECCAK256)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .KECCAK256)
         by_cases hgas :
             gasAvailable'.toNat <
               GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32)
@@ -1707,7 +1709,7 @@ theorem step_address : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.codeOwner.val :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1718,7 +1720,7 @@ theorem step_address : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -1750,7 +1752,7 @@ theorem step_origin : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.sender.val :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1761,7 +1763,7 @@ theorem step_origin : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -1793,7 +1795,7 @@ theorem step_caller : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.source.val :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1804,7 +1806,7 @@ theorem step_caller : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -1836,7 +1838,7 @@ theorem step_callvalue : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := s.executionEnv.weiValue :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1847,7 +1849,7 @@ theorem step_callvalue : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -1879,7 +1881,7 @@ theorem step_calldatasize : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.calldata.size :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1890,7 +1892,7 @@ theorem step_calldatasize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -1922,7 +1924,7 @@ theorem step_codesize : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.code.size :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1933,7 +1935,7 @@ theorem step_codesize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -1965,7 +1967,7 @@ theorem step_gasprice : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.gasPrice :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -1976,7 +1978,7 @@ theorem step_gasprice : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2008,7 +2010,7 @@ theorem step_returndatasize : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.machineState.returnData.size :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2019,7 +2021,7 @@ theorem step_returndatasize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2051,7 +2053,7 @@ theorem step_coinbase : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.header.beneficiary.val :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2062,7 +2064,7 @@ theorem step_coinbase : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2094,7 +2096,7 @@ theorem step_timestamp : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.header.timestamp :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2105,7 +2107,7 @@ theorem step_timestamp : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2137,7 +2139,7 @@ theorem step_number : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.header.number :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2148,7 +2150,7 @@ theorem step_number : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2180,7 +2182,7 @@ theorem step_prevrandao : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := s.executionEnv.header.prevRandao :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2191,7 +2193,7 @@ theorem step_prevrandao : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2223,7 +2225,7 @@ theorem step_gaslimit : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.header.gasLimit :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2234,7 +2236,7 @@ theorem step_gaslimit : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2266,7 +2268,7 @@ theorem step_chainid : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat Ethereum.chainId :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2277,7 +2279,7 @@ theorem step_chainid : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2309,7 +2311,7 @@ theorem step_basefee : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.header.baseFeePerGas :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2320,7 +2322,7 @@ theorem step_basefee : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2352,7 +2354,7 @@ theorem step_blobbasefee : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := UInt256.ofNat s.executionEnv.header.getBlobGasprice :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2363,7 +2365,7 @@ theorem step_blobbasefee : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -2398,7 +2400,7 @@ theorem step_calldataload : ∀ (s : State),
         .ok ({s with
                   machineState.stack :=
                     (uInt256OfByteArray <| s.executionEnv.calldata.readBytes a.toNat 32) :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2419,7 +2421,7 @@ theorem step_calldataload : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -2460,7 +2462,7 @@ theorem step_blockhash : ∀ (s : State),
                       ⟨0⟩
                     else
                       s.blocks.map ProcessedBlock.hash |>.getD a.toNat ⟨0⟩) :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gblockhash
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gblockhash
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2475,7 +2477,7 @@ theorem step_blockhash : ∀ (s : State),
       have hstacksize' : ¬ t.length + 1 < 1 := by simp
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gblockhash)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gblockhash)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gblockhash := by
           simpa [UInt256_subzero'] using hgas
@@ -2514,7 +2516,7 @@ theorem step_blobhash : ∀ (s : State),
                   machineState.stack :=
                     (s.executionEnv.blobVersionedHashes[a.toNat]?.option ⟨0⟩
                       (.ofNat ∘ fromByteArrayBigEndian)) :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.HASH_OPCODE_GAS
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.HASH_OPCODE_GAS
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2529,7 +2531,7 @@ theorem step_blobhash : ∀ (s : State),
       have hstacksize' : ¬ t.length + 1 < 1 := by simp
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.HASH_OPCODE_GAS)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.HASH_OPCODE_GAS)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS := by
           simpa [UInt256_subzero'] using hgas
@@ -2565,7 +2567,7 @@ theorem step_selfbalance : ∀ (s : State),
                 machineState.stack :=
                   (s.accountMap.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ::
                     s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Glow
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Glow
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -2581,7 +2583,7 @@ theorem step_selfbalance : ∀ (s : State),
       , InstructionGasGroups.Wverylow.dupInstrs
       , InstructionGasGroups.Wverylow.swapInstrs
       , InstructionGasGroups.Wlow]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Glow)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
         simpa [UInt256_subzero'] using hgas
@@ -2621,7 +2623,7 @@ theorem step_balance : ∀ (s : State),
                     {s.substate with
                       accessedAccounts := s.substate.accessedAccounts.insert addr}
                   machineState.stack := (s.accountMap.find? addr |>.elim ⟨0⟩ (·.balance)) :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2638,7 +2640,7 @@ theorem step_balance : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
       by_cases hgas:
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat <
+          ((s.machineState.gasAvailable.natSub 0).toNat <
             Caccess (AccountAddress.ofUInt256 a) s.substate)
       · simp [hgas]
         have hgas0 :
@@ -2687,7 +2689,7 @@ theorem step_extcodesize : ∀ (s : State),
                       accessedAccounts := s.substate.accessedAccounts.insert addr}
                   machineState.stack :=
                     (s.accountMap.find? addr |>.option ⟨0⟩ (.ofNat ∘ ByteArray.size ∘ (·.code))) :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2704,7 +2706,7 @@ theorem step_extcodesize : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
       by_cases hgas:
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat <
+          ((s.machineState.gasAvailable.natSub 0).toNat <
             Caccess (AccountAddress.ofUInt256 a) s.substate)
       · simp [hgas]
         have hgas0 :
@@ -2757,7 +2759,7 @@ theorem step_extcodehash : ∀ (s : State),
                     {s.substate with
                       accessedAccounts := s.substate.accessedAccounts.insert addr}
                   machineState.stack := hash :: t
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2774,7 +2776,7 @@ theorem step_extcodehash : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
       by_cases hgas:
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat <
+          ((s.machineState.gasAvailable.natSub 0).toNat <
             Caccess (AccountAddress.ofUInt256 a) s.substate)
       · simp [hgas]
         have hgas0 :
@@ -2821,7 +2823,7 @@ theorem step_pop : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2838,7 +2840,7 @@ theorem step_pop : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
         , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
           simpa [UInt256_subzero'] using hgas
@@ -2868,7 +2870,7 @@ theorem step_mload : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .MLOAD
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         if gasAvailable'.toNat < GasConstants.Gverylow then .error .OutOfGass
         else
         if s.machineState.stack.length - 1 + 1 > 1024 then .error .StackOverflow
@@ -2884,7 +2886,7 @@ theorem step_mload : ∀ (s : State),
                           (s.machineState.memory.readWithPadding a.toNat 32))) :: t
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat 32)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := gasAvailable'.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2901,7 +2903,7 @@ theorem step_mload : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .MLOAD
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .MLOAD)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MLOAD)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gverylow
         · have hgas' :
               (s.machineState.gasAvailable -
@@ -2951,7 +2953,7 @@ theorem step_mstore : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .MSTORE
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         if gasAvailable'.toNat < GasConstants.Gverylow then .error .OutOfGass
         else
         if s.machineState.stack.length - 2 + 0 > 1024 then .error .StackOverflow
@@ -2961,7 +2963,7 @@ theorem step_mstore : ∀ (s : State),
                   machineState.memory := b.toByteArray.write 0 s.machineState.memory a.toNat 32
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat 32)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := gasAvailable'.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -2979,7 +2981,7 @@ theorem step_mstore : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .MSTORE
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .MSTORE)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MSTORE)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gverylow
         · have hgas' :
               (s.machineState.gasAvailable -
@@ -3027,7 +3029,7 @@ theorem step_mstore8 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .MSTORE8
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         if gasAvailable'.toNat < GasConstants.Gverylow then .error .OutOfGass
         else
         if s.machineState.stack.length - 2 + 0 > 1024 then .error .StackOverflow
@@ -3038,7 +3040,7 @@ theorem step_mstore8 : ∀ (s : State),
                     (⟨#[UInt8.ofNat b.toNat]⟩ : ByteArray).write 0 s.machineState.memory a.toNat 1
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat 1)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := gasAvailable'.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3056,7 +3058,7 @@ theorem step_mstore8 : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .MSTORE8
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .MSTORE8)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MSTORE8)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gverylow
         · have hgas' :
               (s.machineState.gasAvailable -
@@ -3115,7 +3117,7 @@ theorem step_sload : ∀ (s : State),
                       accessedStorageKeys :=
                         s.substate.accessedStorageKeys.insert (s.executionEnv.codeOwner, a)}
                   machineState.stack := value :: t
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3131,7 +3133,7 @@ theorem step_sload : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat <
+          ((s.machineState.gasAvailable.natSub 0).toNat <
             Csload (a :: t) s.substate s.executionEnv)
       · simp [hgas, C', hstack]
         have hgas0 :
@@ -3173,7 +3175,7 @@ theorem step_tload : ∀ (s : State),
             (fun acc => acc.tstorage.findD a ⟨0⟩)
         .ok ({s with
                   machineState.stack := value :: t
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat Ctload
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub Ctload
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3189,7 +3191,7 @@ theorem step_tload : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < Ctload)
+          ((s.machineState.gasAvailable.natSub 0).toNat < Ctload)
       · simp [hgas, C', hstack]
         have hgas0 : s.machineState.gasAvailable.toNat < Ctload := by
           simpa [UInt256_subzero'] using hgas
@@ -3232,7 +3234,7 @@ theorem step_tstore : ∀ (s : State),
         .ok ({s with
                   accountMap := accountMap
                   machineState.stack := t
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat Ctstore
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub Ctstore
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3249,7 +3251,7 @@ theorem step_tstore : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < Ctstore)
+          ((s.machineState.gasAvailable.natSub 0).toNat < Ctstore)
       · simp [hgas, C', hstack]
         have hgas0 : s.machineState.gasAvailable.toNat < Ctstore := by
           simpa [UInt256_subzero'] using hgas
@@ -3296,7 +3298,7 @@ theorem step_calldatacopy : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CALLDATACOPY
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         if gasAvailable'.toNat < copyCost then .error .OutOfGass
         else
@@ -3308,7 +3310,7 @@ theorem step_calldatacopy : ∀ (s : State),
                     s.executionEnv.calldata.write b.toNat s.machineState.memory a.toNat c.toNat
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat copyCost
+                  machineState.gasAvailable := gasAvailable'.natSub copyCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3327,7 +3329,7 @@ theorem step_calldatacopy : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .CALLDATACOPY
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALLDATACOPY)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALLDATACOPY)
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
@@ -3371,7 +3373,7 @@ theorem step_codecopy : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CODECOPY
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         if gasAvailable'.toNat < copyCost then .error .OutOfGass
         else
@@ -3383,7 +3385,7 @@ theorem step_codecopy : ∀ (s : State),
                     s.executionEnv.code.write b.toNat s.machineState.memory a.toNat c.toNat
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat copyCost
+                  machineState.gasAvailable := gasAvailable'.natSub copyCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3402,7 +3404,7 @@ theorem step_codecopy : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .CODECOPY
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CODECOPY)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CODECOPY)
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
@@ -3446,7 +3448,7 @@ theorem step_returndatacopy : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .RETURNDATACOPY
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         if gasAvailable'.toNat < copyCost then .error .OutOfGass
         else if b.toNat + c.toNat > s.machineState.returnData.size then .error .InvalidMemoryAccess
@@ -3459,7 +3461,7 @@ theorem step_returndatacopy : ∀ (s : State),
                     s.machineState.returnData.write b.toNat s.machineState.memory a.toNat c.toNat
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat c.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat copyCost
+                  machineState.gasAvailable := gasAvailable'.natSub copyCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3478,7 +3480,7 @@ theorem step_returndatacopy : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .RETURNDATACOPY
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .RETURNDATACOPY)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .RETURNDATACOPY)
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
@@ -3527,7 +3529,7 @@ theorem step_extcodecopy : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .EXTCODECOPY
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let addr := AccountAddress.ofUInt256 a
         let copyCost := Caccess addr s.substate + GasConstants.Gcopy * ((d.toNat + 31) / 32)
         if gasAvailable'.toNat < copyCost then .error .OutOfGass
@@ -3541,7 +3543,7 @@ theorem step_extcodecopy : ∀ (s : State),
                   machineState.memory := code.write c.toNat s.machineState.memory b.toNat d.toNat
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat b.toNat d.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat copyCost
+                  machineState.gasAvailable := gasAvailable'.natSub copyCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3561,7 +3563,7 @@ theorem step_extcodecopy : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .EXTCODECOPY
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .EXTCODECOPY)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .EXTCODECOPY)
         let addr := AccountAddress.ofUInt256 a
         let copyCost := Caccess addr s.substate + GasConstants.Gcopy * ((d.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
@@ -3609,7 +3611,7 @@ theorem step_mcopy : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .MCOPY
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         if gasAvailable'.toNat < copyCost then .error .OutOfGass
         else
@@ -3621,7 +3623,7 @@ theorem step_mcopy : ∀ (s : State),
                   machineState.activeWords :=
                     UInt256.ofNat
                       (MachineState.M s.machineState.activeWords.toNat (max a.toNat b.toNat) c.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat copyCost
+                  machineState.gasAvailable := gasAvailable'.natSub copyCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3640,7 +3642,7 @@ theorem step_mcopy : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .MCOPY
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .MCOPY)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .MCOPY)
         let copyCost := GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32)
         by_cases hgas : gasAvailable'.toNat < copyCost
         · have hgas' :
@@ -3684,7 +3686,7 @@ theorem step_return : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .RETURN
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         if s.machineState.stack.length - 2 + 0 > 1024 then .error .StackOverflow
         else
         let output := s.machineState.memory.readWithPadding a.toNat b.toNat
@@ -3693,7 +3695,7 @@ theorem step_return : ∀ (s : State),
                   machineState.H_return := output
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat GasConstants.Gzero
+                  machineState.gasAvailable := gasAvailable'.natSub GasConstants.Gzero
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3711,7 +3713,7 @@ theorem step_return : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .RETURN
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .RETURN)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .RETURN)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gzero
         · simp [GasConstants.Gzero] at hgas
         ·
@@ -3746,7 +3748,7 @@ theorem step_revert : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .REVERT
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         if s.machineState.stack.length - 2 + 0 > 1024 then .error .StackOverflow
         else
         let output := s.machineState.memory.readWithPadding a.toNat b.toNat
@@ -3756,7 +3758,7 @@ theorem step_revert : ∀ (s : State),
                   machineState.activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat
                     UInt256.ofNat (MachineState.M (UInt256.ofNat m).toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat GasConstants.Gzero
+                  machineState.gasAvailable := gasAvailable'.natSub GasConstants.Gzero
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3774,7 +3776,7 @@ theorem step_revert : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .REVERT
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .REVERT)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .REVERT)
         by_cases hgas : gasAvailable'.toNat < GasConstants.Gzero
         · simp [GasConstants.Gzero] at hgas
         ·
@@ -3809,7 +3811,7 @@ theorem step_log0 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .LOG0
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat
         if gasAvailable'.toNat < logCost then .error .OutOfGass
         else if s.machineState.stack.length - 2 + 0 > 1024 then .error .StackOverflow
@@ -3821,7 +3823,7 @@ theorem step_log0 : ∀ (s : State),
                   machineState.stack := t
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat logCost
+                  machineState.gasAvailable := gasAvailable'.natSub logCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3839,7 +3841,7 @@ theorem step_log0 : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .LOG0
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .LOG0)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .LOG0)
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
@@ -3888,7 +3890,7 @@ theorem step_log1 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .LOG1
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic
         if gasAvailable'.toNat < logCost then .error .OutOfGass
         else if s.machineState.stack.length - 3 + 0 > 1024 then .error .StackOverflow
@@ -3900,7 +3902,7 @@ theorem step_log1 : ∀ (s : State),
                   machineState.stack := t
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat logCost
+                  machineState.gasAvailable := gasAvailable'.natSub logCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -3919,7 +3921,7 @@ theorem step_log1 : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .LOG1
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .LOG1)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .LOG1)
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
@@ -3968,7 +3970,7 @@ theorem step_log2 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .LOG2
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic
         if gasAvailable'.toNat < logCost then .error .OutOfGass
         else if s.machineState.stack.length - 4 + 0 > 1024 then .error .StackOverflow
@@ -3980,7 +3982,7 @@ theorem step_log2 : ∀ (s : State),
                   machineState.stack := t
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat logCost
+                  machineState.gasAvailable := gasAvailable'.natSub logCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -4000,7 +4002,7 @@ theorem step_log2 : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .LOG2
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .LOG2)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .LOG2)
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
@@ -4049,7 +4051,7 @@ theorem step_log3 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .LOG3
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic
         if gasAvailable'.toNat < logCost then .error .OutOfGass
         else if s.machineState.stack.length - 5 + 0 > 1024 then .error .StackOverflow
@@ -4061,7 +4063,7 @@ theorem step_log3 : ∀ (s : State),
                   machineState.stack := t
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat logCost
+                  machineState.gasAvailable := gasAvailable'.natSub logCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -4082,7 +4084,7 @@ theorem step_log3 : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .LOG3
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .LOG3)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .LOG3)
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
@@ -4131,7 +4133,7 @@ theorem step_log4 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .LOG4
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic
         if gasAvailable'.toNat < logCost then .error .OutOfGass
         else if s.machineState.stack.length - 6 + 0 > 1024 then .error .StackOverflow
@@ -4143,7 +4145,7 @@ theorem step_log4 : ∀ (s : State),
                   machineState.stack := t
                   machineState.activeWords :=
                     UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat a.toNat b.toNat)
-                  machineState.gasAvailable := gasAvailable' - UInt256.ofNat logCost
+                  machineState.gasAvailable := gasAvailable'.natSub logCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -4165,7 +4167,7 @@ theorem step_log4 : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .LOG4
       · simp [hmem]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .LOG4)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .LOG4)
         let logCost := GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic
         by_cases hgas : gasAvailable'.toNat < logCost
         · have hgas' :
@@ -4258,7 +4260,7 @@ theorem step_sstore : ∀ (s : State),
                   accountMap := accountMap
                   substate := substate
                   machineState.stack := t
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -4279,9 +4281,9 @@ theorem step_sstore : ∀ (s : State),
           machineState :=
             {s.machineState with
               stack := a :: b :: t
-              gasAvailable := s.machineState.gasAvailable - UInt256.ofNat 0}}
+              gasAvailable := s.machineState.gasAvailable.natSub 0}}
       by_cases hgas :
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < Csstore chargedState)
+          ((s.machineState.gasAvailable.natSub 0).toNat < Csstore chargedState)
       · simp [hgas, C', hstack, chargedState]
         have hgas0 : s.machineState.gasAvailable.toNat < Csstore s := by
           simpa [chargedState, Csstore, hstack, UInt256_subzero'] using hgas
@@ -4304,7 +4306,7 @@ theorem step_sstore : ∀ (s : State),
               · rfl
             simp [hstatic, hperm]
             by_cases hstipend :
-                (s.machineState.gasAvailable - UInt256.ofNat 0).toNat ≤ GasConstants.Gcallstipend
+                (s.machineState.gasAvailable.natSub 0).toNat ≤ GasConstants.Gcallstipend
             · have hstipend0 :
                   s.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend := by
                 simpa [UInt256_subzero'] using hstipend
@@ -4355,7 +4357,7 @@ theorem step_call : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CALL
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-          let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+          let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
             Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
@@ -4398,7 +4400,7 @@ theorem step_call : ∀ (s : State),
                   pc := s.machineState.pc + ⟨1⟩
                   memory := o.write 0 s.machineState.memory outOffset.toNat n.toNat
                   returnData := o
-                  gasAvailable := gasAvailable' - UInt256.ofNat gasCost + g'
+                  gasAvailable := gasAvailable'.natSub $ gasCost + g'.toNat
                   execLength := s.machineState.execLength + 1
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
@@ -4443,7 +4445,7 @@ theorem step_call : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .CALL
       · simp [hmem, hnot_underflow]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALL)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALL)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let gasCost :=
           Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
@@ -4456,13 +4458,13 @@ theorem step_call : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALL)).toNat <
+              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALL)).toNat <
                 Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t,
                     execLength := s.machineState.execLength,
-                    gasAvailable := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALL),
+                    gasAvailable := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALL),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
@@ -4505,7 +4507,7 @@ theorem step_call' : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CALL
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-          let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+          let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
             Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
@@ -4548,7 +4550,7 @@ theorem step_call' : ∀ (s : State),
                   pc := s.machineState.pc + ⟨1⟩
                   memory := o.write 0 s.machineState.memory outOffset.toNat n.toNat
                   returnData := o
-                  gasAvailable := gasAvailable' - UInt256.ofNat gasCost + g'
+                  gasAvailable := gasAvailable'.natSub (gasCost - g'.toNat)
                   execLength := s.machineState.execLength + 1
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
@@ -4568,7 +4570,7 @@ theorem step_callcode : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CALLCODE
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-          let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+          let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
             Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
@@ -4610,7 +4612,7 @@ theorem step_callcode : ∀ (s : State),
                   pc := s.machineState.pc + ⟨1⟩
                   memory := o.write 0 s.machineState.memory outOffset.toNat n.toNat
                   returnData := o
-                  gasAvailable := gasAvailable' - UInt256.ofNat gasCost + g'
+                  gasAvailable := gasAvailable'.natSub (gasCost - g'.toNat)
                   execLength := s.machineState.execLength + 1
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
@@ -4655,7 +4657,7 @@ theorem step_callcode : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .CALLCODE
       · simp [hmem, hnot_underflow]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALLCODE)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALLCODE)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let gasCost :=
           Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
@@ -4668,13 +4670,13 @@ theorem step_callcode : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALLCODE)).toNat <
+              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALLCODE)).toNat <
                 Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t,
                     execLength := s.machineState.execLength,
-                    gasAvailable := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CALLCODE),
+                    gasAvailable := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALLCODE),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
@@ -4710,7 +4712,7 @@ theorem step_delegatecall : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .DELEGATECALL
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-          let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+          let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let value := (⟨0⟩ : UInt256)
           let gasCost :=
@@ -4754,7 +4756,7 @@ theorem step_delegatecall : ∀ (s : State),
                   pc := s.machineState.pc + ⟨1⟩
                   memory := o.write 0 s.machineState.memory outOffset.toNat n.toNat
                   returnData := o
-                  gasAvailable := gasAvailable' - UInt256.ofNat gasCost + g'
+                  gasAvailable := gasAvailable'.natSub (gasCost - g'.toNat)
                   execLength := s.machineState.execLength + 1
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
@@ -4795,7 +4797,7 @@ theorem step_delegatecall : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .DELEGATECALL
       · simp [hmem, hnot_underflow]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .DELEGATECALL)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .DELEGATECALL)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let value := (⟨0⟩ : UInt256)
         let gasCost :=
@@ -4809,13 +4811,13 @@ theorem step_delegatecall : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .DELEGATECALL)).toNat <
+              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .DELEGATECALL)).toNat <
                 Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t,
                     execLength := s.machineState.execLength,
-                    gasAvailable := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .DELEGATECALL),
+                    gasAvailable := s.machineState.gasAvailable.natSub (memoryExpansionCost s .DELEGATECALL),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
@@ -4851,7 +4853,7 @@ theorem step_staticcall : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .STATICCALL
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-          let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+          let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let value := (⟨0⟩ : UInt256)
           let gasCost :=
@@ -4894,7 +4896,7 @@ theorem step_staticcall : ∀ (s : State),
                   pc := s.machineState.pc + ⟨1⟩
                   memory := o.write 0 s.machineState.memory outOffset.toNat n.toNat
                   returnData := o
-                  gasAvailable := gasAvailable' - UInt256.ofNat gasCost + g'
+                  gasAvailable := gasAvailable'.natSub (gasCost - g'.toNat)
                   execLength := s.machineState.execLength + 1
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
@@ -4935,7 +4937,7 @@ theorem step_staticcall : ∀ (s : State),
       by_cases hmem : s.machineState.gasAvailable.toNat < memoryExpansionCost s .STATICCALL
       · simp [hmem, hnot_underflow]
       · simp [hmem]
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .STATICCALL)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .STATICCALL)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let value := (⟨0⟩ : UInt256)
         let gasCost :=
@@ -4949,13 +4951,13 @@ theorem step_staticcall : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .STATICCALL)).toNat <
+              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .STATICCALL)).toNat <
                 Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t,
                     execLength := s.machineState.execLength,
-                    gasAvailable := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .STATICCALL),
+                    gasAvailable := s.machineState.gasAvailable.natSub (memoryExpansionCost s .STATICCALL),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
@@ -4991,7 +4993,7 @@ theorem step_create : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CREATE
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let gasCost := GasConstants.Gcreate + R size.toNat
         if gasAvailable'.toNat < gasCost then .error .OutOfGass
         else if s.machineState.stack.length - 3 + 1 > 1024 then .error .StackOverflow
@@ -5000,7 +5002,7 @@ theorem step_create : ∀ (s : State),
         else
         let createState :=
           {s with
-            machineState.gasAvailable := gasAvailable' - UInt256.ofNat gasCost
+            machineState.gasAvailable := gasAvailable'.natSub gasCost
             machineState.execLength := s.machineState.execLength + 1}
         let initCode := createState.machineState.memory.readWithPadding offset.toNat size.toNat
         let Iₐ := createState.executionEnv.codeOwner
@@ -5028,7 +5030,7 @@ theorem step_create : ∀ (s : State),
         let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
         let x : UInt256 := if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ initCode.size > 49152 then ⟨0⟩ else UInt256.ofNat a
         let newReturnData : ByteArray := if z then .empty else o
-        if (createState.machineState.gasAvailable + g').toNat < L createState.machineState.gasAvailable.toNat then .error .OutOfGass
+        if createState.machineState.gasAvailable.toNat + g'.toNat < L createState.machineState.gasAvailable.toNat then .error .OutOfGass
         else
         .ok ({state' with
                   machineState.stack := x :: t
@@ -5036,8 +5038,8 @@ theorem step_create : ∀ (s : State),
                     UInt256.ofNat (MachineState.M createState.machineState.activeWords.toNat offset.toNat size.toNat)
                   machineState.returnData := newReturnData
                   machineState.gasAvailable :=
-                    UInt256.ofNat (createState.machineState.gasAvailable.toNat -
-                      L createState.machineState.gasAvailable.toNat + g'.toNat)
+                    (createState.machineState.gasAvailable.natSub 
+                      (L createState.machineState.gasAvailable.toNat + g'.toNat))
                   machineState.pc := createState.machineState.pc + ⟨1⟩
                   executionEnv := s.executionEnv
                   }
@@ -5071,11 +5073,11 @@ theorem step_create : ∀ (s : State),
               Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
                 Cₘ s.machineState.activeWords := by
           simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hmem
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CREATE)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CREATE)
         let gasCost := GasConstants.Gcreate + R size.toNat
         by_cases hgas : gasAvailable'.toNat < gasCost
         ·
-          have hgas' : (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CREATE)).toNat <
+          have hgas' : (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CREATE)).toNat <
               GasConstants.Gcreate + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
@@ -5088,7 +5090,7 @@ theorem step_create : ∀ (s : State),
           simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
             hmem', hgas', hgas'', C', hstack, hnot_underflow]
         ·
-          have hgas' : ¬ (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CREATE)).toNat <
+          have hgas' : ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CREATE)).toNat <
               GasConstants.Gcreate + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
@@ -5122,7 +5124,7 @@ theorem step_create : ∀ (s : State),
               ·
                 let createState : State :=
                   {s with
-                    machineState.gasAvailable := gasAvailable' - UInt256.ofNat gasCost
+                    machineState.gasAvailable := gasAvailable'.natSub gasCost
                     machineState.execLength := s.machineState.execLength + 1}
                 have hdepth_eq {hDepth : value ≤
                     (((createState.accountMap).find? createState.executionEnv.codeOwner).option ⟨0⟩ fun x => x.balance) ∧
@@ -5305,7 +5307,7 @@ theorem step_create2 : ∀ (s : State),
         let memoryCost := memoryExpansionCost s .CREATE2
         if s.machineState.gasAvailable.toNat < memoryCost then .error .OutOfGass
         else
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat memoryCost
+        let gasAvailable' := s.machineState.gasAvailable.natSub memoryCost
         let gasCost := GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat
         if gasAvailable'.toNat < gasCost then .error .OutOfGass
         else if s.machineState.stack.length - 4 + 1 > 1024 then .error .StackOverflow
@@ -5314,7 +5316,7 @@ theorem step_create2 : ∀ (s : State),
         else
         let createState :=
           {s with
-            machineState.gasAvailable := gasAvailable' - UInt256.ofNat gasCost
+            machineState.gasAvailable := gasAvailable'.natSub gasCost
             machineState.execLength := s.machineState.execLength + 1}
         let initCode := createState.machineState.memory.readWithPadding offset.toNat size.toNat
         let ζ := Ethereum.UInt256.toByteArray salt
@@ -5388,11 +5390,11 @@ theorem step_create2 : ∀ (s : State),
               Cₘ (UInt256.ofNat (MachineState.M s.machineState.activeWords.toNat offset.toNat size.toNat)) -
                 Cₘ s.machineState.activeWords := by
           simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hmem
-        let gasAvailable' := s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CREATE2)
+        let gasAvailable' := s.machineState.gasAvailable.natSub (memoryExpansionCost s .CREATE2)
         let gasCost := GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat
         by_cases hgas : gasAvailable'.toNat < gasCost
         ·
-          have hgas' : (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CREATE2)).toNat <
+          have hgas' : (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CREATE2)).toNat <
               GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
@@ -5405,7 +5407,7 @@ theorem step_create2 : ∀ (s : State),
           simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
             hmem', hgas', hgas'', C', hstack, hnot_underflow]
         ·
-          have hgas' : ¬ (s.machineState.gasAvailable - UInt256.ofNat (memoryExpansionCost s .CREATE2)).toNat <
+          have hgas' : ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CREATE2)).toNat <
               GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [gasAvailable', gasCost] using hgas
           have hgas'' :
@@ -5439,7 +5441,7 @@ theorem step_create2 : ∀ (s : State),
               ·
                 let createState : State :=
                   {s with
-                    machineState.gasAvailable := gasAvailable' - UInt256.ofNat gasCost
+                    machineState.gasAvailable := gasAvailable'.natSub gasCost
                     machineState.execLength := s.machineState.execLength + 1}
                 have hdepth_eq {hDepth : value ≤
                     (((createState.accountMap).find? createState.executionEnv.codeOwner).option ⟨0⟩ fun x => x.balance) ∧
@@ -5627,7 +5629,7 @@ theorem step_selfdestruct : ∀ (s : State),
         else
         let sdState :=
           {s with
-            machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+            machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
             machineState.execLength := s.machineState.execLength + 1}
         let Iₐ := sdState.executionEnv.codeOwner
         let r := AccountAddress.ofUInt256 target
@@ -5697,9 +5699,9 @@ theorem step_selfdestruct : ∀ (s : State),
             machineState :=
               {s.machineState with
                 stack := target :: t
-                gasAvailable := s.machineState.gasAvailable - UInt256.ofNat 0}}
+                gasAvailable := s.machineState.gasAvailable.natSub 0}}
         by_cases hgas :
-            ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < Cselfdestruct chargedState)
+            ((s.machineState.gasAvailable.natSub 0).toNat < Cselfdestruct chargedState)
         ·
           have hgas0 : s.machineState.gasAvailable.toNat < Cselfdestruct s := by
             simpa [chargedState, Cselfdestruct, hstack, UInt256_subzero'] using hgas
@@ -5724,7 +5726,7 @@ theorem step_selfdestruct : ∀ (s : State),
               let gasCost := Cselfdestruct s
               let sdState :=
                 {s with
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat gasCost
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub gasCost
                   machineState.execLength := s.machineState.execLength + 1}
               let Iₐ := sdState.executionEnv.codeOwner
               let r := AccountAddress.ofUInt256 target
@@ -5792,7 +5794,7 @@ theorem step_pc : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := s.machineState.pc :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -5803,7 +5805,7 @@ theorem step_pc : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -5835,7 +5837,7 @@ theorem step_msize : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := (s.machineState.activeWords * ⟨32⟩) :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -5846,7 +5848,7 @@ theorem step_msize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -5878,8 +5880,8 @@ theorem step_gas : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack :=
-                  (s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase) :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                  (s.machineState.gasAvailable.natSub GasConstants.Gbase) :: s.machineState.stack,
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -5890,7 +5892,7 @@ theorem step_gas : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -5921,7 +5923,7 @@ theorem step_jumpdest : ∀ (s : State),
       if s.machineState.stack.length - 0 + 0 > 1024 then .error .StackOverflow
       else
       .ok ({s with
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gjumpdest
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gjumpdest
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -5930,7 +5932,7 @@ theorem step_jumpdest : ∀ (s : State),
     intros s I_b hjumpdest
     simp [Xstep, Z, δ, I_b, hjumpdest]
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gjumpdest)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gjumpdest)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest := by
         simpa [UInt256_subzero'] using hgas
@@ -5963,7 +5965,7 @@ theorem step_jump : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gmid
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gmid
                   machineState.pc := a
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -5979,7 +5981,7 @@ theorem step_jump : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gmid)
+          ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
       · have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
           simpa [UInt256_subzero'] using hgas
         simp [hgas, hgas0]
@@ -6012,7 +6014,7 @@ theorem step_jumpi : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Ghigh
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Ghigh
                   machineState.pc := if b != ⟨0⟩ then a else s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6029,7 +6031,7 @@ theorem step_jumpi : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Ghigh)
+          ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Ghigh)
       · have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Ghigh := by
           simpa [UInt256_subzero'] using hgas
         simp [hgas, hgas0]
@@ -6077,7 +6079,7 @@ theorem step_push0 : ∀ (s : State),
       else
       .ok ({s with
                 machineState.stack := ⟨0⟩ :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gbase
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -6088,7 +6090,7 @@ theorem step_push0 : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gbase)
+    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
     · simp [hgas]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
         simpa [UInt256_subzero'] using hgas
@@ -6122,7 +6124,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
       else
       .ok ({s with
                 machineState.stack := arg :: s.machineState.stack,
-                machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                 machineState.pc := s.machineState.pc + UInt256.ofNat argWidth.succ
                 machineState.execLength := s.machineState.execLength + 1
                 }
@@ -6133,7 +6135,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
       {s with
         machineState :=
           {s.machineState with
-            gasAvailable := s.machineState.gasAvailable - UInt256.ofNat 0}}
+            gasAvailable := s.machineState.gasAvailable.natSub 0}}
     have hcostCharged : C' chargedState (.Push op) = GasConstants.Gverylow := by
       cases op
       · contradiction
@@ -6145,7 +6147,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
     simp [Xstep, Z, δ, I_b, hpush]
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hcostCharged]
     by_cases hgas :
-      ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
     · simp [hgas, hcostCharged, chargedState]
       have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
         simpa [UInt256_subzero'] using hgas
@@ -6172,7 +6174,7 @@ theorem step_push1 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 2
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6187,7 +6189,7 @@ theorem step_push2 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 3
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6202,7 +6204,7 @@ theorem step_push3 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 4
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6217,7 +6219,7 @@ theorem step_push4 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 5
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6232,7 +6234,7 @@ theorem step_push5 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 6
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6247,7 +6249,7 @@ theorem step_push6 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 7
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6262,7 +6264,7 @@ theorem step_push7 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 8
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6277,7 +6279,7 @@ theorem step_push8 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 9
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6292,7 +6294,7 @@ theorem step_push9 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 10
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6307,7 +6309,7 @@ theorem step_push10 : ∀ (s : State) (arg : UInt256),
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
         machineState.stack := arg :: s.machineState.stack
-        machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+        machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
         machineState.pc := s.machineState.pc + UInt256.ofNat 11
         machineState.execLength := s.machineState.execLength + 1}, .none)
 := by
@@ -6325,7 +6327,7 @@ theorem step_dup1 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := a :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6346,7 +6348,7 @@ theorem step_dup1 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6380,7 +6382,7 @@ theorem step_dup2 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := b :: a :: b :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6402,7 +6404,7 @@ theorem step_dup2 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6436,7 +6438,7 @@ theorem step_swap1 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := b :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6458,7 +6460,7 @@ theorem step_swap1 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6491,7 +6493,7 @@ theorem step_swap2 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := c :: b :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6514,7 +6516,7 @@ theorem step_swap2 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6548,7 +6550,7 @@ theorem step_dup3 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := c :: a :: b :: c :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6571,7 +6573,7 @@ theorem step_dup3 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6605,7 +6607,7 @@ theorem step_swap3 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := d :: b :: c :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6629,7 +6631,7 @@ theorem step_swap3 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6663,7 +6665,7 @@ theorem step_dup4 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := d :: a :: b :: c :: d :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6687,7 +6689,7 @@ theorem step_dup4 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6721,7 +6723,7 @@ theorem step_swap4 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := e :: b :: c :: d :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6746,7 +6748,7 @@ theorem step_swap4 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6780,7 +6782,7 @@ theorem step_dup5 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := e :: a :: b :: c :: d :: e :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6805,7 +6807,7 @@ theorem step_dup5 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6839,7 +6841,7 @@ theorem step_swap5 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := f :: b :: c :: d :: e :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6865,7 +6867,7 @@ theorem step_swap5 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6899,7 +6901,7 @@ theorem step_dup6 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := f :: a :: b :: c :: d :: e :: f :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6925,7 +6927,7 @@ theorem step_dup6 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -6959,7 +6961,7 @@ theorem step_swap6 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := g :: b :: c :: d :: e :: f :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -6986,7 +6988,7 @@ theorem step_swap6 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7020,7 +7022,7 @@ theorem step_dup7 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := g :: a :: b :: c :: d :: e :: f :: g :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7047,7 +7049,7 @@ theorem step_dup7 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7081,7 +7083,7 @@ theorem step_swap7 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := h :: b :: c :: d :: e :: f :: g :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7109,7 +7111,7 @@ theorem step_swap7 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7143,7 +7145,7 @@ theorem step_dup8 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := h :: a :: b :: c :: d :: e :: f :: g :: h :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7171,7 +7173,7 @@ theorem step_dup8 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7205,7 +7207,7 @@ theorem step_swap8 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := i :: b :: c :: d :: e :: f :: g :: h :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7234,7 +7236,7 @@ theorem step_swap8 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7268,7 +7270,7 @@ theorem step_dup9 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := i :: a :: b :: c :: d :: e :: f :: g :: h :: i :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7297,7 +7299,7 @@ theorem step_dup9 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7331,7 +7333,7 @@ theorem step_swap9 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := j :: b :: c :: d :: e :: f :: g :: h :: i :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7361,7 +7363,7 @@ theorem step_swap9 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7395,7 +7397,7 @@ theorem step_dup10 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := j :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7425,7 +7427,7 @@ theorem step_dup10 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7459,7 +7461,7 @@ theorem step_swap10 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := k :: b :: c :: d :: e :: f :: g :: h :: i :: j :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7490,7 +7492,7 @@ theorem step_swap10 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7524,7 +7526,7 @@ theorem step_dup11 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := k :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7555,7 +7557,7 @@ theorem step_dup11 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7589,7 +7591,7 @@ theorem step_swap11 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := l :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7621,7 +7623,7 @@ theorem step_swap11 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7655,7 +7657,7 @@ theorem step_dup12 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := l :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7687,7 +7689,7 @@ theorem step_dup12 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7721,7 +7723,7 @@ theorem step_swap12 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := m :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7754,7 +7756,7 @@ theorem step_swap12 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7788,7 +7790,7 @@ theorem step_dup13 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := m :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7821,7 +7823,7 @@ theorem step_dup13 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7855,7 +7857,7 @@ theorem step_swap13 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := n :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7889,7 +7891,7 @@ theorem step_swap13 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7923,7 +7925,7 @@ theorem step_dup14 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := n :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -7957,7 +7959,7 @@ theorem step_dup14 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -7991,7 +7993,7 @@ theorem step_swap14 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := o :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -8026,7 +8028,7 @@ theorem step_swap14 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -8060,7 +8062,7 @@ theorem step_dup15 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := o :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -8095,7 +8097,7 @@ theorem step_dup15 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -8129,7 +8131,7 @@ theorem step_swap15 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := p :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -8165,7 +8167,7 @@ theorem step_swap15 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -8199,7 +8201,7 @@ theorem step_dup16 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := p :: a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -8235,7 +8237,7 @@ theorem step_dup16 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas
@@ -8269,7 +8271,7 @@ theorem step_swap16 : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack := q :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: a :: t,
-                  machineState.gasAvailable := s.machineState.gasAvailable - UInt256.ofNat GasConstants.Gverylow
+                  machineState.gasAvailable := s.machineState.gasAvailable.natSub GasConstants.Gverylow
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
                   }
@@ -8306,7 +8308,7 @@ theorem step_swap16 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable - UInt256.ofNat 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
       · simp [hgas]
         have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
           simpa [UInt256_subzero'] using hgas

@@ -73,8 +73,7 @@ def mcopy (self : MachineState) (writeStart readStart s : UInt256) : MachineStat
       .ofNat (MachineState.M self.activeWords.toNat (max writeStart.toNat readStart.toNat) s.toNat)
   }
 
-def gas (self : MachineState) : UInt256 :=
-  ⟨self.gasAvailable, self.hgasBound⟩
+def gas (self : MachineState) : UInt256 := self.gasAvailable.toUInt256
 
 section ReturnData
 

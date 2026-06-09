@@ -3,6 +3,7 @@ import Batteries
 import Ethereum.Data.Stack
 import Ethereum.Maps.ByteMap
 import Ethereum.UInt256
+import Ethereum.Sat256
 import Batteries.Data.HashMap
 
 namespace Ethereum
@@ -13,6 +14,7 @@ instance : DecidableEq ByteArray
   | a, b => match decEq a.data b.data with
     | isTrue  h₁ => isTrue <| congrArg ByteArray.mk h₁
     | isFalse h₂ => isFalse <| λ h ↦ by cases h; exact (h₂ rfl)
+
 
 /--
 The partial shared `MachineState` `μ`. Section 9.4.1.
@@ -25,26 +27,28 @@ structure MachineState where
   pc                  : UInt256
   stack       : Stack UInt256
   execLength          : ℕ
-  gasAvailable        : ℕ
-  hgasBound           : gasAvailable < UInt256.size
+  gasAvailable        : Sat256
+  -- hgasBound           : gasAvailable < UInt256.size
   activeWords         : UInt256
   memory              : ByteArray
   returnData          : ByteArray
   H_return            : ByteArray
-  -- deriving Inhabited
+  deriving Inhabited
 
+/-
 instance machineStateInhabited : Inhabited MachineState where
   default :=
     { pc := default (α := UInt256)
       stack := default (α := Stack UInt256)
       execLength := default (α := ℕ)
-      gasAvailable := default (α := ℕ)
-      hgasBound := (by simp [UInt256.size]) 
+      gasAvailable := default (α := Sat256)
+      -- hgasBound := (by simp [UInt256.size]) 
       activeWords := default (α := UInt256)
       memory := default (α := ByteArray)
       returnData := default (α := ByteArray)
       H_return := default (α := ByteArray)
     }
+    -/
 
 -- inductive WordSize := | Standard | Single
 

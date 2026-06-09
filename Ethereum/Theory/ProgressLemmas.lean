@@ -49,7 +49,7 @@ lemma Xstep_X_X_halt_success : ∀ f state state' validJumps o,
 
 lemma Xstep_X_X_halt_revert : ∀ f state state' validJumps o,
   Xstep validJumps state = .ok (state', .some (false,o))
-  → X (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable o) := by
+  → X (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable.toUInt256 o) := by
     intros f state state' validJumps o hstep
     unfold X
     simp [hstep, bind, Except.bind]
