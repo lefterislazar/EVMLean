@@ -51,7 +51,7 @@ lemma Xstep_X_X_halt_success : ∀ f state state' validJumps o,
 
 lemma Xstep_X_X_halt_revert : ∀ f state state' validJumps o,
   Xstep validJumps state = .ok (state', .some (HaltCause.revert,o))
-  → X (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable o) := by
+  → X (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable.toUInt256 o) := by
     intros f state state' validJumps o hstep
     unfold X
     simp [hstep, bind, Except.bind]
@@ -116,7 +116,7 @@ lemma XstepN_X_halt_success {s s' o n f} validJumps :
 
 lemma XstepN_X_halt_revert {s s' o n f} validJumps :
     XstepN validJumps s (.ok (s', .some (.revert, o))) n →
-    X (f + n) validJumps s = .ok (.revert s'.machineState.gasAvailable o) := by
+    X (f + n) validJumps s = .ok (.revert s'.machineState.gasAvailable.toUInt256 o) := by
     intro hstepN
     generalize hxi : (Except.ok (s', Option.some (HaltCause.revert, o))) = xi
     rw [hxi] at hstepN

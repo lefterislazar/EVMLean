@@ -262,7 +262,7 @@ lemma step_no_OutOfFuel {g state} instr :
       simp [step] at h
   | Env op =>
       cases op <;> intro h <;>
-        simp [step] at h <;>
+        simp [step] at h;
         repeat (split at h) <;>
         simp at h
   | Block op =>
