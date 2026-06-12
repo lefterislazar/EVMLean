@@ -626,18 +626,17 @@ lemma step_create_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat (first | split at h | simp at h)
+  repeat' (split at h <;> try simp at h)
   all_goals
-    repeat (first | split at h | progress simp at h)
+    try contradiction
     first
-    | contradiction
+    | rw [← h]
+      simp
+      omega
     | injection h with hs
       rw [← hs]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_le _ _ _
-    | rw [← h]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_le _ _ _
+      simp
+      omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -649,18 +648,17 @@ lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat (first | split at h | simp at h)
+  repeat' (split at h <;> try simp at h)
   all_goals
-    repeat (first | split at h | progress simp at h)
+    try contradiction
     first
-    | contradiction
+    | rw [← h]
+      simp
+      omega
     | injection h with hs
       rw [← hs]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_decreases hpos hle
-    | rw [← h]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_decreases hpos hle
+      simp
+      omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -670,18 +668,17 @@ lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat (first | split at h | simp at h)
+  repeat' (split at h <;> try simp at h)
   all_goals
-    repeat (first | split at h | progress simp at h)
+    try contradiction
     first
-    | contradiction
+    | rw [← h]
+      simp
+      omega
     | injection h with hs
       rw [← hs]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_le _ _ _
-    | rw [← h]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_le _ _ _
+      simp
+      omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -693,18 +690,17 @@ lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat (first | split at h | simp at h)
+  repeat' (split at h <;> try simp at h)
   all_goals
-    repeat (first | split at h | progress simp at h)
+    try contradiction
     first
-    | contradiction
+    | rw [← h]
+      simp
+      omega
     | injection h with hs
       rw [← hs]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_decreases hpos hle
-    | rw [← h]
-      simp [Sat256.natSub]
-      exact gas_sub_sub_decreases hpos hle
+      simp
+      omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_call_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -1198,8 +1194,8 @@ theorem X_gas_le {fuel : Nat} {validJumps : Array UInt256} {state : State}
             simp at hrec
             exact Nat.le_trans hrec hstepLe
         | some ro =>
-            rcases ro with ⟨success, o⟩
-            cases success <;> simp at h
+            rcases ro with ⟨HaltSuccess.success, o⟩
+            cases HaltSuccess.success <;> simp at h
             · cases h
               simpa using hstepLe
             · cases h
@@ -1742,16 +1738,106 @@ lemma C'_set_depth (s : State) (d : Fin 1025) (w : Operation) :
   cases w <;> rename_i a <;> cases a <;>
     simp [C', Csload, Csstore, Cselfdestruct]
 
+lemma Xstep_continues_of_halt_none
+    {validJumps : Array UInt256} {state state' : State}
+    (h : Xstep validJumps state = .ok (state', none)) :
+    ContinuesAfterXStep
+      (decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none)).1 := by
+  intros
+  simp [Xstep] at h
+  split at h; simp at h
+  · simp [bind, Except.bind] at h
+    cases hdecode : ((decode state.executionEnv.code state.machineState.pc).getD (Operation.STOP, none)).1 <;> simp [hdecode] at h
+    · rename_i op
+      cases op <;> simp at h <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;> 
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;> simp at h <;>
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+      · rename_i heq
+        simp [Z,hdecode,δ] at heq
+
 theorem Xstep_gas_decreases_of_continues
     {validJumps : Array UInt256} {state state' : State}
-    (hcont :
-      ContinuesAfterXStep
-        (decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none)).1)
     (h : Xstep validJumps state = .ok (state', none)) :
     state'.machineState.gasAvailable.toNat + 1 ≤ state.machineState.gasAvailable.toNat := by
   set instr : Operation × Option (UInt256 × Nat) :=
     decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none) with hinstr
   rcases instr with ⟨w, arg⟩
+  have hcont : ContinuesAfterXStep
+           (decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none)).1 :=
+    Xstep_continues_of_halt_none h
   have hcont' : ContinuesAfterXStep w := by
     simpa [← hinstr] using hcont
   simp [Xstep, ← hinstr] at h
@@ -1801,18 +1887,6 @@ theorem Xstep_gas_decreases_of_continues
         · injection h with hpair
           have hret := congrArg Prod.snd hpair
           simp at hret
-
-theorem Xstep_gas_decreases_of_continues_nonrecursive
-    {validJumps : Array UInt256} {state state' : State}
-    (hcont :
-      ContinuesAfterXStep
-        (decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none)).1)
-    (hnrec :
-      ¬ RecursiveSystemStep
-        (decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none)).1)
-    (h : Xstep validJumps state = .ok (state', none)) :
-    state'.machineState.gasAvailable.toNat + 1 ≤ state.machineState.gasAvailable.toNat :=
-  Xstep_gas_decreases_of_continues hcont h
 
 end EVM
 

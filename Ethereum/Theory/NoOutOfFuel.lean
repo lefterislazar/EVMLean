@@ -2,6 +2,8 @@ import Ethereum.Semantics
 import Ethereum.UInt256
 import Ethereum.Data.Stack
 
+import Ethereum.Theory.GasLemmas
+
 namespace Ethereum
 
 namespace EVM
@@ -313,10 +315,6 @@ lemma Xstep_no_OutOfFuel {state} validJumps :
           apply step_no_OutOfFuel; exact heq
         · repeat (split at hstep <;> try simp at hstep)
 
-lemma Xstep_of_gas_reduce_gt_1 {state state' o} validJumps :
-  Xstep validJumps state = .ok (state', o) →
-  state.machineState.gasAvailable.toNat - state'.machineState.gasAvailable.toNat ≥ 1 := by sorry
-
 lemma X_no_OufOfFuel_of_gas_lt_fuel {f s} validJumps : 
   s.machineState.gasAvailable.toNat < f →
   X f validJumps s ≠ .error .OutOfFuel := by
@@ -335,10 +333,13 @@ lemma X_no_OufOfFuel_of_gas_lt_fuel {f s} validJumps :
       simp [hstep] at h'
       assumption
     · rename_i is hstep
+      obtain ⟨state', ret⟩ := is
       split
       · apply ih
+        rename_i hret
         · simp
-          apply Xstep_of_gas_reduce_gt_1 at hstep
+          simp at hret; rw [hret] at hstep;
+          apply Xstep_gas_decreases_of_continues at hstep
           omega
       · simp
       · simp
