@@ -149,3 +149,22 @@ lemma XstepN_XstepN_add { s s' n x m} validJumps :
     rw [Nat.add_comm] at hxi
     exact XstepN.trans s is x (m + n) hstep hxi
 
+lemma XstepN_gas_lt_fuel_of_Xstep_ret_none {s s' n f} validJumps :
+    s.machineState.gasAvailable.toNat < f + n →
+    XstepN validJumps s (.ok (s', .none)) n →
+    s'.machineState.gasAvailable.toNat < f := by
+  intro hgas0 hstep
+  generalize hxi : (Except.ok (s', Option.none)) = xs'
+  rw [hxi] at hstep
+  induction hstep with
+  | step h _ hstep =>
+    rw [←  hxi] at hstep
+    apply Xstep_gas_decreases_of_continues at hstep
+    omega
+  | trans is is' ixs n' hstep1 hstep' ih =>
+    apply Xstep_gas_decreases_of_continues at hstep1
+    have h := Nat.lt_of_le_of_lt hstep1 hgas0
+    rw [← Nat.add_assoc] at h
+    apply Nat.lt_of_add_lt_add_right at h
+    apply ih h hxi
+
