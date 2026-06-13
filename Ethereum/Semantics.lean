@@ -75,7 +75,7 @@ def argOnNBytesOfInstr : Operation → ℕ
   | .Push .PUSH32 => 32
   | _ => 0
 
-def N (pc : UInt256) (instr : Operation) := pc + ⟨1⟩ + .ofNat (argOnNBytesOfInstr instr)
+def N (pc : ℕ) (instr : Operation) := pc + 1 + (argOnNBytesOfInstr instr)
 
 /--
 Returns the instruction from `arr` at `pc` assuming it is valid.
@@ -97,12 +97,22 @@ def fetchInstr (I : Ethereum.ExecutionEnv) (pc : UInt256) :
                Except EVM.ExecutionException (Operation × Option (UInt256 × Nat)) :=
   decode I.code pc |>.option (.error .StackUnderflow) Except.ok
 
-partial def D_J_aux (c : ByteArray) (i : UInt256) (result : Array UInt256) : Array UInt256 :=
-  match c.get? i.toNat >>= Ethereum.EVM.parseInstr with
+def D_J_aux (c : ByteArray) (i : ℕ) (result : Array UInt256) : Array UInt256 :=
+  match _hget : c.get? i >>= Ethereum.EVM.parseInstr with
     | none => result
-    | some cᵢ => D_J_aux c (N i cᵢ) (if cᵢ = .JUMPDEST then result.push i else result)
+    | some cᵢ => D_J_aux c (N i cᵢ) (if cᵢ = .JUMPDEST then result.push (UInt256.ofNat i) else result)
+termination_by (c.size - i)
+decreasing_by
+  have hNincr : ∀ pc i, pc < N pc i := by
+    intros; simp [N]; omega
+  simp [bind, Option.bind] at _hget
+  split at _hget; simp at _hget
+  rename_i hget_some;
+  simp [ByteArray.get?] at hget_some
+  obtain ⟨hsize,_⟩ := hget_some
+  apply Nat.sub_lt_sub_left hsize (hNincr i cᵢ)
 
-def D_J (c : ByteArray) (i : UInt256) : Array UInt256 :=
+def D_J (c : ByteArray) (i : ℕ) : Array UInt256 :=
   D_J_aux c i #[]
 
 private def BitVec.ofFn {k} (x : Fin k → Bool) : BitVec k :=
@@ -844,7 +854,7 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
             blocks := blocks
             genesisBlockHeader := genesisBlockHeader
         }
-      let result ← X (UInt256.toNat g + 1) (D_J I.code ⟨0⟩) freshEvmState
+      let result ← X (UInt256.toNat g + 1) (D_J I.code 0) freshEvmState
       match result with
         | .success evmState' o =>
           let finalGas := evmState'.machineState.gasAvailable

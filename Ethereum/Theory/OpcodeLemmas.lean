@@ -2,6 +2,8 @@ import Ethereum.Semantics
 import Ethereum.UInt256
 import Ethereum.Data.Stack
 
+import Ethereum.Theory.GasLemmas
+
 namespace Ethereum
 
 namespace EVM
@@ -11,9 +13,6 @@ set_option linter.unusedSimpArgs false
 /-
  -  Helper lemmas
  -/
-
-local instance : MonadLift Option (Except EVM.ExecutionException) :=
-  ⟨Option.option (.error .StackUnderflow) .ok⟩
 
 lemma UInt256_lt_to_Nat : ∀ (a b : UInt256), a < b → a.toNat < b.toNat := by
   intros a b hlt; exact hlt
