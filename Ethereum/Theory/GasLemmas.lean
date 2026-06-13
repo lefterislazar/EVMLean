@@ -227,18 +227,6 @@ lemma C'_pos_of_continuesAfterXStep (s : State) {w : Operation}
       self.machineState.gasAvailable.natSub d := by
   rfl
 
-@[simp] lemma Sat256.natSub_toNat (self : Sat256) (d : Nat) :
-    (self.natSub d).toNat = self.toNat - d := by
-  rfl
-
-@[simp] lemma Sat256.toUInt256_toNat (self : Sat256) :
-    self.toUInt256.toNat = self.toNat := by
-  rfl
-
-@[simp] lemma Sat256.ofUInt256_toNat (self : UInt256) :
-    (Sat256.ofUInt256 self).toNat = self.toNat := by
-  rfl
-
 @[simp] lemma State.subtractGas_gasAvailable_toNat (self : State) (d : Nat) :
     (self.subtractGas d).machineState.gasAvailable.toNat =
       self.machineState.gasAvailable.toNat - d := by

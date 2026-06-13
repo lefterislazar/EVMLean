@@ -21,6 +21,21 @@ def toNat (a : Sat256) : ℕ := a.val
 
 def ofUInt256 (a : UInt256) : Sat256 := ⟨a.val.val, a.val.isLt⟩
 
+lemma natSub_zero (a : Sat256) : a.natSub 0 = a := by
+  simp [natSub]
+
+@[simp] lemma natSub_toNat (self : Sat256) (d : Nat) :
+    (self.natSub d).toNat = self.toNat - d := by
+  rfl
+
+@[simp] lemma toUInt256_toNat (self : Sat256) :
+    self.toUInt256.toNat = self.toNat := by
+  rfl
+
+@[simp] lemma ofUInt256_toNat (self : UInt256) :
+    (Sat256.ofUInt256 self).toNat = self.toNat := by
+  rfl
+
 instance : Sub Sat256 := ⟨Sat256.sub⟩
 
 instance : LT Sat256 where
@@ -36,4 +51,3 @@ instance : Repr UInt256 where
   reprPrec n _ := repr n.toNat
 
 end Sat256
-

@@ -29,9 +29,6 @@ lemma UInt256_subzero : ∀ (a : UInt256), a - { val := 0 } = a := by
       simp [*] at ha
       simp; assumption
 
-lemma Sat256_natsub_zero (a : Sat256) : a.natSub 0 = a :=
-  by simp [Sat256.natSub, Id.run]
-
 lemma UInt256_subzero' : ∀ (a : UInt256), a - UInt256.ofNat 0 = a :=
   by intros a; simp [UInt256.ofNat, Id.run]; apply UInt256_subzero a
 
@@ -100,7 +97,7 @@ lemma UInt256_bne_zero_eq_true_ne (b : UInt256)
       intro hz
       cases hz
       have hfalse : (({ val := ⟨0, hn⟩ } : UInt256) != (⟨0⟩ : UInt256)) = false := by
-        simpa using (show ((⟨0⟩ : UInt256) != (⟨0⟩ : UInt256)) = false by decide)
+        simp
       rw [hfalse] at h
       contradiction
 
@@ -117,7 +114,7 @@ lemma UInt256_bne_zero_eq_true_ne (b : UInt256)
 theorem step_invalid : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.INVALID, .none)
-  → Xstep (D_J I_b ⟨0⟩) s = .error .InvalidInstruction
+  → Xstep (D_J I_b 0) s = .error .InvalidInstruction
 := by
     intros s I_b hinvalid
     simp [Xstep, Z, δ, I_b, hinvalid]
@@ -125,7 +122,7 @@ theorem step_invalid : ∀ (s : State),
 theorem step_stop : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.STOP, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.stack.length - 0 + 0 > 1024 then .error .StackOverflow
       else
       .ok ({s with
@@ -142,8 +139,8 @@ theorem step_stop : ∀ (s : State),
     have hgas : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gzero := by
       simp [GasConstants.Gzero]
     have hgas' :
-        ¬ (s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gzero := by
-      simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
+        ¬ s.machineState.gasAvailable.toNat < GasConstants.Gzero := by
+      simpa [Sat256.natSub_zero, UInt256_subzero'] using hgas
     rw [if_neg hgas']
     simp [α, Operation.isCreate]
     by_cases hoverflow : 1024 < s.machineState.stack.length
@@ -153,12 +150,12 @@ theorem step_stop : ∀ (s : State),
       simp [bind, Except.bind]
       unfold step
       simp [MachineState.setReturnData, GasConstants.Gzero]
-      rw [Sat256_natsub_zero]
+      rw [Sat256.natSub_zero]
 
 theorem step_add : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ADD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -189,21 +186,15 @@ theorem step_add : ∀ (s : State),
         , InstructionGasGroups.Wzero
         , InstructionGasGroups.Wbase
         , InstructionGasGroups.Wverylow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
           simp [hoverflow]
           have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-            simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
+            simpa [Sat256.natSub_zero, UInt256_subzero'] using hgas
           simp [bind, Except.bind]
 
           unfold step
@@ -214,12 +205,12 @@ theorem step_add : ∀ (s : State),
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]; constructor
             · simp [UInt256.add]; rfl
-            · rw [Sat256_natsub_zero]
+            · rw [Sat256.natSub_zero]
 
 theorem step_mul : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MUL, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -253,15 +244,9 @@ theorem step_mul : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -275,16 +260,16 @@ theorem step_mul : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_exp : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXP, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let gasCost :=
-          if b == ⟨0⟩ then GasConstants.Gexp
+          if b = (⟨0⟩ : UInt256) then GasConstants.Gexp
           else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat)
         if s.machineState.gasAvailable.toNat < gasCost then .error .OutOfGass
         else
@@ -309,23 +294,11 @@ theorem step_exp : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
       by_cases hgas:
-          ((s.machineState.gasAvailable.natSub 0).toNat <
-            if b == ⟨0⟩ then GasConstants.Gexp
+          (s.machineState.gasAvailable.toNat <
+            if b = (⟨0⟩ : UInt256) then GasConstants.Gexp
             else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat))
       · simp [hgas]
-        have hgas0 :
-            s.machineState.gasAvailable.toNat <
-              (if b == ⟨0⟩ then GasConstants.Gexp
-              else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat)) := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 :
-            ¬ s.machineState.gasAvailable.toNat <
-              (if b == ⟨0⟩ then GasConstants.Gexp
-              else GasConstants.Gexp + GasConstants.Gexpbyte * (1 + Nat.log 256 b.toNat)) := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -338,12 +311,12 @@ theorem step_exp : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_addmod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ADDMOD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gmid then .error .OutOfGass
@@ -376,15 +349,9 @@ theorem step_addmod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow, InstructionGasGroups.Wmid ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gmid)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -397,12 +364,12 @@ theorem step_addmod : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, Ethereum.State.calldataload]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_mulmod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MULMOD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gmid then .error .OutOfGass
@@ -435,15 +402,9 @@ theorem step_mulmod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow, InstructionGasGroups.Wmid ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gmid)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -456,12 +417,12 @@ theorem step_mulmod : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, Ethereum.State.blockHash]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_sdiv : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SDIV, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -493,15 +454,9 @@ theorem step_sdiv : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -514,12 +469,12 @@ theorem step_sdiv : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, blobhash]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_mod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MOD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -551,15 +506,9 @@ theorem step_mod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -572,12 +521,12 @@ theorem step_mod : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_smod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SMOD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -609,15 +558,9 @@ theorem step_smod : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -630,12 +573,12 @@ theorem step_smod : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_signextend : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SIGNEXTEND, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -667,15 +610,9 @@ theorem step_signextend : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -688,12 +625,12 @@ theorem step_signextend : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_sub : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SUB, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -727,15 +664,9 @@ theorem step_sub : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -749,12 +680,12 @@ theorem step_sub : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_div : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DIV, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -788,15 +719,9 @@ theorem step_div : ∀ (s : State),
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs
         , InstructionGasGroups.Wlow ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -810,7 +735,7 @@ theorem step_div : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 /-
  -   Comparison and Bitwise Logic Operations
@@ -819,7 +744,7 @@ theorem step_div : ∀ (s : State),
 theorem step_lt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -850,15 +775,9 @@ theorem step_lt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -871,12 +790,12 @@ theorem step_lt : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_gt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -907,15 +826,9 @@ theorem step_gt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -928,12 +841,12 @@ theorem step_gt : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_slt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SLT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -964,15 +877,9 @@ theorem step_slt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -985,12 +892,12 @@ theorem step_slt : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_sgt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SGT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1021,15 +928,9 @@ theorem step_sgt : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1042,12 +943,12 @@ theorem step_sgt : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_eq : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EQ, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1078,15 +979,9 @@ theorem step_eq : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1099,12 +994,12 @@ theorem step_eq : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_and : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.AND, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1135,15 +1030,9 @@ theorem step_and : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1156,12 +1045,12 @@ theorem step_and : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_or : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.OR, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1192,15 +1081,9 @@ theorem step_or : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1213,12 +1096,12 @@ theorem step_or : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_xor : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.XOR, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1249,15 +1132,9 @@ theorem step_xor : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1270,12 +1147,12 @@ theorem step_xor : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_byte : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BYTE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1306,15 +1183,9 @@ theorem step_byte : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1327,12 +1198,12 @@ theorem step_byte : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_shl : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SHL, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1363,15 +1234,9 @@ theorem step_shl : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1384,12 +1249,12 @@ theorem step_shl : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_shr : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SHR, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1420,15 +1285,9 @@ theorem step_shr : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1441,12 +1300,12 @@ theorem step_shr : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push, flip]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_sar : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SAR, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1477,15 +1336,9 @@ theorem step_sar : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1498,12 +1351,12 @@ theorem step_sar : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_iszero : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ISZERO, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1533,15 +1386,9 @@ theorem step_iszero : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1554,12 +1401,12 @@ theorem step_iszero : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_not : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.NOT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1589,15 +1436,9 @@ theorem step_not : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -1610,7 +1451,7 @@ theorem step_not : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 /-
  -   Keccak Operation
@@ -1619,7 +1460,7 @@ theorem step_not : ∀ (s : State),
 theorem step_keccak : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.KECCAK256, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .KECCAK256
@@ -1666,6 +1507,7 @@ theorem step_keccak : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32) := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
@@ -1675,6 +1517,7 @@ theorem step_keccak : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gkeccak256 + GasConstants.Gkeccak256word * ((b.toNat + 31) / 32) := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length + 1
@@ -1699,7 +1542,7 @@ theorem step_keccak : ∀ (s : State),
 theorem step_address : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ADDRESS, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1717,14 +1560,9 @@ theorem step_address : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1737,12 +1575,12 @@ theorem step_address : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push, Ethereum.State.selfbalance]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_origin : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ORIGIN, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1760,14 +1598,9 @@ theorem step_origin : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1780,12 +1613,12 @@ theorem step_origin : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_caller : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLER, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1803,14 +1636,9 @@ theorem step_caller : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1823,12 +1651,12 @@ theorem step_caller : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_callvalue : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLVALUE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1846,14 +1674,9 @@ theorem step_callvalue : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1866,12 +1689,12 @@ theorem step_callvalue : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_calldatasize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLDATASIZE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1889,14 +1712,9 @@ theorem step_calldatasize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1909,12 +1727,12 @@ theorem step_calldatasize : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_codesize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CODESIZE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1932,14 +1750,9 @@ theorem step_codesize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1952,12 +1765,12 @@ theorem step_codesize : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_gasprice : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GASPRICE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1975,14 +1788,9 @@ theorem step_gasprice : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -1995,12 +1803,12 @@ theorem step_gasprice : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_returndatasize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.RETURNDATASIZE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2018,14 +1826,9 @@ theorem step_returndatasize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2038,12 +1841,12 @@ theorem step_returndatasize : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_coinbase : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.COINBASE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2061,14 +1864,9 @@ theorem step_coinbase : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2081,12 +1879,12 @@ theorem step_coinbase : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_timestamp : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.TIMESTAMP, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2104,14 +1902,9 @@ theorem step_timestamp : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2124,12 +1917,12 @@ theorem step_timestamp : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_number : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.NUMBER, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2147,14 +1940,9 @@ theorem step_number : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2167,12 +1955,12 @@ theorem step_number : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_prevrandao : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PREVRANDAO, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2190,14 +1978,9 @@ theorem step_prevrandao : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2210,12 +1993,12 @@ theorem step_prevrandao : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_gaslimit : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GASLIMIT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2233,14 +2016,9 @@ theorem step_gaslimit : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2253,12 +2031,12 @@ theorem step_gaslimit : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_chainid : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CHAINID, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2276,14 +2054,9 @@ theorem step_chainid : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2296,12 +2069,12 @@ theorem step_chainid : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_basefee : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BASEFEE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2319,14 +2092,9 @@ theorem step_basefee : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2339,12 +2107,12 @@ theorem step_basefee : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_blobbasefee : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BLOBBASEFEE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2362,14 +2130,9 @@ theorem step_blobbasefee : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2382,12 +2145,12 @@ theorem step_blobbasefee : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_calldataload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLDATALOAD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -2418,15 +2181,9 @@ theorem step_calldataload : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs ]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -2441,12 +2198,12 @@ theorem step_calldataload : ∀ (s : State),
           · simp [Stack.push]
             apply And.intro
             · simp [Ethereum.State.calldataload]
-            · rw [Sat256_natsub_zero]
+            · rw [Sat256.natSub_zero]
 
 theorem step_blockhash : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BLOCKHASH, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gblockhash then .error .OutOfGass
@@ -2474,15 +2231,9 @@ theorem step_blockhash : ∀ (s : State),
       have hstacksize' : ¬ t.length + 1 < 1 := by simp
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gblockhash)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gblockhash)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gblockhash := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gblockhash := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -2497,12 +2248,12 @@ theorem step_blockhash : ∀ (s : State),
           · simp [Stack.push]
             apply And.intro
             · simp [Ethereum.State.blockHash, Ethereum.State.blockHashes]
-            · rw [Sat256_natsub_zero]
+            · rw [Sat256.natSub_zero]
 
 theorem step_blobhash : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BLOBHASH, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS then .error .OutOfGass
@@ -2528,15 +2279,9 @@ theorem step_blobhash : ∀ (s : State),
       have hstacksize' : ¬ t.length + 1 < 1 := by simp
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.HASH_OPCODE_GAS)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -2550,12 +2295,12 @@ theorem step_blobhash : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            rw [Sat256_natsub_zero]
+            rw [Sat256.natSub_zero]
 
 theorem step_selfbalance : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SELFBALANCE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2580,14 +2325,9 @@ theorem step_selfbalance : ∀ (s : State),
       , InstructionGasGroups.Wverylow.dupInstrs
       , InstructionGasGroups.Wverylow.swapInstrs
       , InstructionGasGroups.Wlow]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Glow)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Glow := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -2602,11 +2342,11 @@ theorem step_selfbalance : ∀ (s : State),
         · simp [Stack.push]
           apply And.intro
           · simp [Ethereum.State.selfbalance]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 theorem step_balance : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BALANCE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let addr := AccountAddress.ofUInt256 a
@@ -2637,20 +2377,10 @@ theorem step_balance : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
       by_cases hgas:
-          ((s.machineState.gasAvailable.natSub 0).toNat <
+          (s.machineState.gasAvailable.toNat <
             Caccess (AccountAddress.ofUInt256 a) s.substate)
       · simp [hgas]
-        have hgas0 :
-            s.machineState.gasAvailable.toNat <
-              Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 :
-            ¬ s.machineState.gasAvailable.toNat <
-              Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -2666,12 +2396,12 @@ theorem step_balance : ∀ (s : State),
               Ethereum.Substate.addAccessedAccount]
             apply And.intro
             · rw [UInt256_ofNat_1]
-            · rw [Sat256_natsub_zero]
+            · rw [Sat256.natSub_zero]
 
 theorem step_extcodesize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXTCODESIZE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let addr := AccountAddress.ofUInt256 a
@@ -2703,20 +2433,10 @@ theorem step_extcodesize : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
       by_cases hgas:
-          ((s.machineState.gasAvailable.natSub 0).toNat <
+          (s.machineState.gasAvailable.toNat <
             Caccess (AccountAddress.ofUInt256 a) s.substate)
       · simp [hgas]
-        have hgas0 :
-            s.machineState.gasAvailable.toNat <
-              Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 :
-            ¬ s.machineState.gasAvailable.toNat <
-              Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -2733,12 +2453,12 @@ theorem step_extcodesize : ∀ (s : State),
               Ethereum.State.addAccessedAccount, Ethereum.Substate.addAccessedAccount]
             apply And.intro
             · rw [UInt256_ofNat_1]
-            · rw [Sat256_natsub_zero]
+            · rw [Sat256.natSub_zero]
 
 theorem step_extcodehash : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXTCODEHASH, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let addr := AccountAddress.ofUInt256 a
@@ -2774,20 +2494,10 @@ theorem step_extcodehash : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
       by_cases hgas:
-          ((s.machineState.gasAvailable.natSub 0).toNat <
+          (s.machineState.gasAvailable.toNat <
             Caccess (AccountAddress.ofUInt256 a) s.substate)
       · simp [hgas]
-        have hgas0 :
-            s.machineState.gasAvailable.toNat <
-              Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 :
-            ¬ s.machineState.gasAvailable.toNat <
-              Caccess (AccountAddress.ofUInt256 a) s.substate := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
         ·
@@ -2798,12 +2508,12 @@ theorem step_extcodehash : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp [Stack.push, Ethereum.State.extCodeHash, Ethereum.State.dead,
             Ethereum.State.lookupAccount, Ethereum.State.addAccessedAccount,
-            Ethereum.Substate.addAccessedAccount, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
+            Ethereum.Substate.addAccessedAccount, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero']
           by_cases hdead :
               Option.option true Account.emptyAccount
                 (Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 a)) = true
-          · simp [hdead, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
-          · simp [hdead, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
+          · simp [hdead, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero']
+          · simp [hdead, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero']
 
 /-
  -   Machine and Stack Operations
@@ -2812,7 +2522,7 @@ theorem step_extcodehash : ∀ (s : State),
 theorem step_pop : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.POP, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | _ :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
@@ -2838,15 +2548,9 @@ theorem step_pop : ∀ (s : State),
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
         , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
         , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length
         · simp [hoverflow]
         ·
@@ -2858,11 +2562,11 @@ theorem step_pop : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 theorem step_mload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MLOAD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let memoryCost := memoryExpansionCost s .MLOAD
@@ -2910,6 +2614,7 @@ theorem step_mload : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
@@ -2922,6 +2627,7 @@ theorem step_mload : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
@@ -2943,7 +2649,7 @@ theorem step_mload : ∀ (s : State),
 theorem step_mstore : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MSTORE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .MSTORE
@@ -2986,6 +2692,7 @@ theorem step_mstore : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
@@ -2998,6 +2705,7 @@ theorem step_mstore : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
@@ -3017,7 +2725,7 @@ theorem step_mstore : ∀ (s : State),
 theorem step_mstore8 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MSTORE8, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .MSTORE8
@@ -3061,6 +2769,7 @@ theorem step_mstore8 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
@@ -3073,6 +2782,7 @@ theorem step_mstore8 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
@@ -3092,7 +2802,7 @@ theorem step_mstore8 : ∀ (s : State),
 theorem step_sload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SLOAD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let gasCost := Csload (a :: t) s.substate s.executionEnv
@@ -3125,20 +2835,10 @@ theorem step_sload : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable.natSub 0).toNat <
+          (s.machineState.gasAvailable.toNat <
             Csload (a :: t) s.substate s.executionEnv)
       · simp [hgas, C', hstack]
-        have hgas0 :
-            s.machineState.gasAvailable.toNat <
-              Csload (a :: t) s.substate s.executionEnv := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 :
-            ¬ s.machineState.gasAvailable.toNat <
-              Csload (a :: t) s.substate s.executionEnv := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, C', hstack]
+      · simp [hgas, C', hstack]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -3150,12 +2850,12 @@ theorem step_sload : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp [Ethereum.State.sload, Ethereum.State.lookupAccount, Ethereum.State.addAccessedStorageKey,
           Ethereum.Substate.addAccessedStorageKey, Account.lookupStorage, Stack.push, UInt256_ofNat_1]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_tload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.TLOAD, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < Ctload then .error .OutOfGass
@@ -3183,15 +2883,9 @@ theorem step_tload : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable.natSub 0).toNat < Ctload)
+          (s.machineState.gasAvailable.toNat < Ctload)
       · simp [hgas, C', hstack]
-        have hgas0 : s.machineState.gasAvailable.toNat < Ctload := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < Ctload := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, C', hstack]
+      · simp [hgas, C', hstack]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 1
         · simp [hoverflow]
@@ -3203,12 +2897,12 @@ theorem step_tload : ∀ (s : State),
           unfold Ethereum.State.incrPC
           simp [Ethereum.State.tload, Ethereum.State.lookupAccount, Account.lookupTransientStorage,
           Stack.push, UInt256_ofNat_1]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_tstore : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.TSTORE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < Ctstore then .error .OutOfGass
@@ -3243,15 +2937,9 @@ theorem step_tstore : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable.natSub 0).toNat < Ctstore)
+          (s.machineState.gasAvailable.toNat < Ctstore)
       · simp [hgas, C', hstack]
-        have hgas0 : s.machineState.gasAvailable.toNat < Ctstore := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < Ctstore := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, C', hstack]
+      · simp [hgas, C', hstack]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length
         · simp [hoverflow]
@@ -3273,18 +2961,18 @@ theorem step_tstore : ∀ (s : State),
             | none =>
               simp [Ethereum.State.tstore, Ethereum.State.lookupAccount,
                 Ethereum.State.updateAccount, Account.updateTransientStorage,
-                Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero', hacc, hperm,
+                Stack.push, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero', hacc, hperm,
                 Option.option]
             | some acc =>
               simp [Ethereum.State.tstore, Ethereum.State.lookupAccount,
                 Ethereum.State.updateAccount, Account.updateTransientStorage,
-                Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero', hacc, hperm,
+                Stack.push, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero', hacc, hperm,
                 Option.option]
 
 theorem step_calldatacopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLDATACOPY, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .CALLDATACOPY
@@ -3331,6 +3019,7 @@ theorem step_calldatacopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
         ·
@@ -3341,6 +3030,7 @@ theorem step_calldatacopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
           simp [α, Operation.isCreate]
@@ -3357,7 +3047,7 @@ theorem step_calldatacopy : ∀ (s : State),
 theorem step_codecopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CODECOPY, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .CODECOPY
@@ -3404,6 +3094,7 @@ theorem step_codecopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
         ·
@@ -3414,6 +3105,7 @@ theorem step_codecopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
           simp [α, Operation.isCreate]
@@ -3430,7 +3122,7 @@ theorem step_codecopy : ∀ (s : State),
 theorem step_returndatacopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.RETURNDATACOPY, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .RETURNDATACOPY
@@ -3478,6 +3170,7 @@ theorem step_returndatacopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
         ·
@@ -3488,6 +3181,7 @@ theorem step_returndatacopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
           by_cases hreturn : b.toNat + c.toNat > s.machineState.returnData.size
@@ -3509,7 +3203,7 @@ theorem step_returndatacopy : ∀ (s : State),
 theorem step_extcodecopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXTCODECOPY, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         let memoryCost := memoryExpansionCost s .EXTCODECOPY
@@ -3561,6 +3255,7 @@ theorem step_extcodecopy : ∀ (s : State),
                 Caccess (AccountAddress.ofUInt256 a) s.substate +
                   GasConstants.Gcopy * ((d.toNat + 31) / 32) := by
             simpa [gasAvailable', addr, copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', addr, copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
         ·
@@ -3572,6 +3267,7 @@ theorem step_extcodecopy : ∀ (s : State),
                 Caccess (AccountAddress.ofUInt256 a) s.substate +
                   GasConstants.Gcopy * ((d.toNat + 31) / 32) := by
             simpa [gasAvailable', addr, copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', addr, copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount]
           simp [α, Operation.isCreate]
@@ -3589,7 +3285,7 @@ theorem step_extcodecopy : ∀ (s : State),
 theorem step_mcopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MCOPY, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .MCOPY
@@ -3636,6 +3332,7 @@ theorem step_mcopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
         ·
@@ -3646,6 +3343,7 @@ theorem step_mcopy : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gverylow + GasConstants.Gcopy * ((c.toNat + 31) / 32) := by
             simpa [gasAvailable', copyCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', copyCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy]
           simp [α, Operation.isCreate]
@@ -3662,7 +3360,7 @@ theorem step_mcopy : ∀ (s : State),
 theorem step_return : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.RETURN, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .RETURN
@@ -3706,6 +3404,7 @@ theorem step_return : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gzero := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero]
@@ -3718,12 +3417,12 @@ theorem step_return : ∀ (s : State),
             unfold step
             simp [Id.run, EVM.binaryMachineStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
-            simp [MachineState.evmReturn, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
+            simp [MachineState.evmReturn, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero']
 
 theorem step_revert : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.REVERT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .REVERT
@@ -3768,6 +3467,7 @@ theorem step_revert : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gzero := by
             simpa [gasAvailable', memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack,
             InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
             InstructionGasGroups.Wzero]
@@ -3780,12 +3480,12 @@ theorem step_revert : ∀ (s : State),
             unfold step
             simp [Id.run, EVM.binaryMachineStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
-            simp [MachineState.evmRevert, MachineState.evmReturn, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero']
+            simp [MachineState.evmRevert, MachineState.evmReturn, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero']
 
 theorem step_log0 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG0, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .LOG0
@@ -3831,6 +3531,7 @@ theorem step_log0 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
@@ -3840,6 +3541,7 @@ theorem step_log0 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -3862,7 +3564,7 @@ theorem step_log0 : ∀ (s : State),
 theorem step_log1 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG1, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .LOG1
@@ -3909,6 +3611,7 @@ theorem step_log1 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
@@ -3918,6 +3621,7 @@ theorem step_log1 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -3940,7 +3644,7 @@ theorem step_log1 : ∀ (s : State),
 theorem step_log2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG2, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         let memoryCost := memoryExpansionCost s .LOG2
@@ -3988,6 +3692,7 @@ theorem step_log2 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
@@ -3997,6 +3702,7 @@ theorem step_log2 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 2 * GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -4019,7 +3725,7 @@ theorem step_log2 : ∀ (s : State),
 theorem step_log3 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG3, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: t =>
         let memoryCost := memoryExpansionCost s .LOG3
@@ -4068,6 +3774,7 @@ theorem step_log3 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
@@ -4077,6 +3784,7 @@ theorem step_log3 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 3 * GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -4099,7 +3807,7 @@ theorem step_log3 : ∀ (s : State),
 theorem step_log4 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG4, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: t =>
         let memoryCost := memoryExpansionCost s .LOG4
@@ -4149,6 +3857,7 @@ theorem step_log4 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
         ·
           have hgas' :
@@ -4158,6 +3867,7 @@ theorem step_log4 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Glog + GasConstants.Glogdata * b.toNat + 4 * GasConstants.Glogtopic := by
             simpa [gasAvailable', logCost, memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas
+          simp only [Sat256.natSub_toNat] at hgas'
           simp [gasAvailable', logCost, hgas', memoryExpansionCost, memoryExpansionCost.μᵢ', C', hstack]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -4180,7 +3890,7 @@ theorem step_log4 : ∀ (s : State),
 theorem step_sstore : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SSTORE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let gasCost := Csstore s
@@ -4253,14 +3963,14 @@ theorem step_sstore : ∀ (s : State),
               stack := a :: b :: t
               gasAvailable := s.machineState.gasAvailable.natSub 0}}
       by_cases hgas :
-          ((s.machineState.gasAvailable.natSub 0).toNat < Csstore chargedState)
+          (s.machineState.gasAvailable.toNat < Csstore chargedState)
       · simp [hgas, C', hstack, chargedState]
         have hgas0 : s.machineState.gasAvailable.toNat < Csstore s := by
-          simpa [chargedState, Csstore, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
+          simpa [chargedState, Csstore, hstack, Sat256.natSub_zero, UInt256_subzero'] using hgas
         simp [hgas0]
       ·
         have hgas0 : ¬ s.machineState.gasAvailable.toNat < Csstore s := by
-          simpa [chargedState, Csstore, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
+          simpa [chargedState, Csstore, hstack, Sat256.natSub_zero, UInt256_subzero'] using hgas
         simp [hgas, hgas0, C', hstack, chargedState]
         simp [α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length
@@ -4279,12 +3989,12 @@ theorem step_sstore : ∀ (s : State),
                 (s.machineState.gasAvailable.natSub 0).toNat ≤ GasConstants.Gcallstipend
             · have hstipend0 :
                   s.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend := by
-                simpa [Sat256_natsub_zero, UInt256_subzero'] using hstipend
+                simpa [Sat256.natSub_zero, UInt256_subzero'] using hstipend
               simp [hstipend, hstipend0]
             ·
               have hstipend0 :
                   ¬ s.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend := by
-                simpa [Sat256_natsub_zero, UInt256_subzero'] using hstipend
+                simpa [Sat256.natSub_zero, UInt256_subzero'] using hstipend
               simp [hstipend, hstipend0, bind, Except.bind]
               unfold step
               simp [Id.run, binaryStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
@@ -4295,9 +4005,9 @@ theorem step_sstore : ∀ (s : State),
                 simp [Ethereum.State.sstore, Ethereum.State.lookupAccount,
                   Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey,
                   Ethereum.Substate.addAccessedStorageKey,
-                  Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero',
+                  Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero',
                   hacc, hperm, Option.option]
-                simp [Csstore, hstack]
+                simp [Csstore, hstack, hgas0]
               | some acc =>
                 cases acc with
                 | mk ps ts =>
@@ -4305,7 +4015,7 @@ theorem step_sstore : ∀ (s : State),
                   simp [Ethereum.State.sstore, Ethereum.State.lookupAccount,
                     Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey,
                     Ethereum.Substate.addAccessedStorageKey,
-                    Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256_natsub_zero, UInt256_subzero',
+                    Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256.natSub_zero, UInt256_subzero',
                     hacc, hperm, Option.option]
                   rw [Account_fst_storage
                     (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
@@ -4315,13 +4025,13 @@ theorem step_sstore : ∀ (s : State),
                     (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
                     (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
-                  simp [Csstore, hstack]
+                  simp [Csstore, hstack, hgas0]
                   rfl
 
 theorem step_call : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALL, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .CALL
@@ -4428,7 +4138,7 @@ theorem step_call : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALL)).toNat <
+              ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .CALL <
                 Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
                   s.accountMap
                   { pc := s.machineState.pc,
@@ -4438,7 +4148,7 @@ theorem step_call : ∀ (s : State),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
-            omega
+            simpa [gasAvailable', gasState, gasCost, hstk, Sat256.natSub_toNat] using hgas
           by_cases hoverflow : 1024 < t.length + 1
           · simp [gasAvailable', gasState, gasCost, hgas_not, C', hstk, α, hoverflow, hnot_underflow,
               Operation.isCreate]
@@ -4471,7 +4181,7 @@ theorem step_call : ∀ (s : State),
 theorem step_call' : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALL, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .CALL
@@ -4534,7 +4244,7 @@ theorem step_call' : ∀ (s : State),
 theorem step_callcode : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLCODE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .CALLCODE
@@ -4640,7 +4350,7 @@ theorem step_callcode : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .CALLCODE)).toNat <
+              ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .CALLCODE <
                 Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
                   s.accountMap
                   { pc := s.machineState.pc,
@@ -4650,7 +4360,7 @@ theorem step_callcode : ∀ (s : State),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
-            omega
+            simpa [gasAvailable', gasState, gasCost, hstk, Sat256.natSub_toNat] using hgas
           by_cases hoverflow : 1024 < t.length + 1
           · simp [gasAvailable', gasState, gasCost, hgas_not, C', hstk, α, hoverflow, hnot_underflow,
               Operation.isCreate]
@@ -4676,7 +4386,7 @@ theorem step_callcode : ∀ (s : State),
 theorem step_delegatecall : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DELEGATECALL, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .DELEGATECALL
@@ -4781,7 +4491,7 @@ theorem step_delegatecall : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .DELEGATECALL)).toNat <
+              ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .DELEGATECALL <
                 Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
@@ -4791,7 +4501,7 @@ theorem step_delegatecall : ∀ (s : State),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
-            omega
+            simpa [gasAvailable', gasState, value, gasCost, hstk, Sat256.natSub_toNat] using hgas
           by_cases hoverflow : 1024 < t.length + 1
           · simp [gasAvailable', gasState, value, gasCost, hgas_not, C', hstk, α, hoverflow, hnot_underflow,
               Operation.isCreate]
@@ -4817,7 +4527,7 @@ theorem step_delegatecall : ∀ (s : State),
 theorem step_staticcall : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.STATICCALL, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .STATICCALL
@@ -4921,7 +4631,7 @@ theorem step_staticcall : ∀ (s : State),
           have hgas_cond := hgas
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
-              ¬ (s.machineState.gasAvailable.natSub (memoryExpansionCost s .STATICCALL)).toNat <
+              ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .STATICCALL <
                 Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
@@ -4931,7 +4641,7 @@ theorem step_staticcall : ∀ (s : State),
                     activeWords := s.machineState.activeWords, memory := s.machineState.memory,
                     returnData := s.machineState.returnData, H_return := s.machineState.H_return }
                   s.substate := by
-            omega
+            simpa [gasAvailable', gasState, value, gasCost, hstk, Sat256.natSub_toNat] using hgas
           by_cases hoverflow : 1024 < t.length + 1
           · simp [gasAvailable', gasState, value, gasCost, hgas_not, C', hstk, α, hoverflow, hnot_underflow,
               Operation.isCreate]
@@ -4957,7 +4667,7 @@ theorem step_staticcall : ∀ (s : State),
 theorem step_create : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CREATE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | value :: offset :: size :: t =>
         let memoryCost := memoryExpansionCost s .CREATE
@@ -5056,6 +4766,7 @@ theorem step_create : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
+          simp only [Sat256.natSub_toNat] at hgas''
           simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
             hmem', hgas', hgas'', C', hstack, hnot_underflow]
         ·
@@ -5068,6 +4779,7 @@ theorem step_create : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
+          simp only [Sat256.natSub_toNat] at hgas''
           by_cases hoverflow : 1024 < t.length + 1
           ·
             have hoverflow' : s.machineState.stack.length - 3 + 1 > 1024 := by
@@ -5269,7 +4981,7 @@ theorem step_create : ∀ (s : State),
 theorem step_create2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CREATE2, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | value :: offset :: size :: salt :: t =>
         let memoryCost := memoryExpansionCost s .CREATE2
@@ -5371,6 +5083,7 @@ theorem step_create2 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
+          simp only [Sat256.natSub_toNat] at hgas''
           simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
             hmem', hgas', hgas'', C', hstack, hnot_underflow]
         ·
@@ -5383,6 +5096,7 @@ theorem step_create2 : ∀ (s : State),
                         Cₘ s.machineState.activeWords)).toNat <
                 GasConstants.Gcreate + GasConstants.Gkeccak256word * ((size.toNat + 31) / 32) + R size.toNat := by
             simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack] using hgas'
+          simp only [Sat256.natSub_toNat] at hgas''
           by_cases hoverflow : 1024 < t.length + 1
           ·
             have hoverflow' : s.machineState.stack.length - 4 + 1 > 1024 := by
@@ -5585,7 +5299,7 @@ theorem step_create2 : ∀ (s : State),
 theorem step_selfdestruct : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SELFDESTRUCT, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | target :: t =>
         let gasCost := Cselfdestruct s
@@ -5667,14 +5381,14 @@ theorem step_selfdestruct : ∀ (s : State),
                 stack := target :: t
                 gasAvailable := s.machineState.gasAvailable.natSub 0}}
         by_cases hgas :
-            ((s.machineState.gasAvailable.natSub 0).toNat < Cselfdestruct chargedState)
+            (s.machineState.gasAvailable.toNat < Cselfdestruct chargedState)
         ·
           have hgas0 : s.machineState.gasAvailable.toNat < Cselfdestruct s := by
-            simpa [chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
+            simpa [chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero'] using hgas
           simp [hgas, hgas0, C', hstack, chargedState]
         ·
           have hgas0 : ¬ s.machineState.gasAvailable.toNat < Cselfdestruct s := by
-            simpa [chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero'] using hgas
+            simpa [chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero'] using hgas
           simp [hgas, hgas0, C', hstack, chargedState]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
@@ -5707,8 +5421,8 @@ theorem step_selfdestruct : ∀ (s : State),
                 cases hself :
                     Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
-                  simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r,
-                    chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
+                  simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r, hgas0,
+                    chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
@@ -5716,23 +5430,23 @@ theorem step_selfdestruct : ∀ (s : State),
                   | none =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>
-                      simp [hcreated, hcreated_mem, hbal, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
+                      simp [hcreated, hcreated_mem, hbal, sdState, Iₐ, r, hgas0,
+                        chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
                   | some targetAcc =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     by_cases hneq : AccountAddress.ofUInt256 target ≠ s.executionEnv.codeOwner
-                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
-                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
+                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r, hgas0,
+                        chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
+                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r, hgas0,
+                        chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
               · have hcreated_mem : s.executionEnv.codeOwner ∈ s.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :
                     Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
-                  simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r,
-                    chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
+                  simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r, hgas0,
+                    chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
@@ -5740,20 +5454,20 @@ theorem step_selfdestruct : ∀ (s : State),
                   | none =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>
-                      simp [hcreated, hcreated_mem, hbal, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
+                      simp [hcreated, hcreated_mem, hbal, sdState, Iₐ, r, hgas0,
+                        chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
                   | some targetAcc =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     by_cases hneq : AccountAddress.ofUInt256 target ≠ s.executionEnv.codeOwner
-                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
-                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r,
-                        chargedState, Cselfdestruct, hstack, Sat256_natsub_zero, UInt256_subzero', UInt256_ofNat_1]
+                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r, hgas0,
+                        chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
+                    · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r, hgas0,
+                        chargedState, Cselfdestruct, hstack, Sat256.natSub_zero, UInt256_subzero', UInt256_ofNat_1]
 
 theorem step_pc : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PC, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5771,14 +5485,9 @@ theorem step_pc : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -5795,7 +5504,7 @@ theorem step_pc : ∀ (s : State),
 theorem step_msize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MSIZE, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5813,14 +5522,9 @@ theorem step_msize : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -5833,12 +5537,12 @@ theorem step_msize : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push, MachineState.msize]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 theorem step_gas : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GAS, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5857,14 +5561,9 @@ theorem step_gas : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -5881,7 +5580,7 @@ theorem step_gas : ∀ (s : State),
 theorem step_jumpdest : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.JUMPDEST, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 0 > 1024 then .error .StackOverflow
@@ -5896,14 +5595,9 @@ theorem step_jumpdest : ∀ (s : State),
     intros s I_b hjumpdest
     simp [Xstep, Z, δ, I_b, hjumpdest]
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C']
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gjumpdest)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length
       · simp [hoverflow]
       ·
@@ -5914,16 +5608,16 @@ theorem step_jumpdest : ∀ (s : State),
         simp
         apply And.intro
         · simp [UInt256_ofNat_1]
-        · rw [Sat256_natsub_zero]
+        · rw [Sat256.natSub_zero]
 
 theorem step_jump : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.JUMP, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gmid then .error .OutOfGass
-        else if ¬ (D_J I_b ⟨0⟩).contains a then .error .BadJumpDestination
+        else if ¬ (D_J I_b 0).contains a then .error .BadJumpDestination
         else
         if s.machineState.stack.length - 1 + 0 > 1024 then .error .StackOverflow
         else
@@ -5945,17 +5639,16 @@ theorem step_jump : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gmid)
-      · have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gmid := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, hstack]
-        cases hcontains : (D_J I_b ⟨0⟩).contains a
-        · simp [Z.notIn, Z.belongs, I_b, hcontains]
-        · simp [Z.notIn, Z.belongs, hcontains]
+          (s.machineState.gasAvailable.toNat < GasConstants.Gmid)
+      · simp [hgas]
+      · simp [hgas, hstack]
+        cases hcontains : (D_J I_b 0).contains a
+        ·
+          simp [Array.contains_iff_mem] at hcontains
+          simp [Z.notIn, Z.belongs, I_b, hcontains]
+        ·
+          simp [Array.contains_iff_mem] at hcontains
+          simp [Z.notIn, Z.belongs, hcontains]
           simp [α, Operation.isCreate]
           by_cases hoverflow : 1024 < t.length
           · simp [I_b, hcontains, hoverflow]
@@ -5963,16 +5656,16 @@ theorem step_jump : ∀ (s : State),
             simp [I_b, hcontains, hoverflow]
             simp [bind, Except.bind]
             unfold step
-            simp [Stack.pop, Sat256_natsub_zero, UInt256_subzero']
+            simp [Stack.pop, Sat256.natSub_zero, UInt256_subzero']
 
 theorem step_jumpi : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.JUMPI, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Ghigh then .error .OutOfGass
-        else if b != ⟨0⟩ ∧ ¬ (D_J I_b ⟨0⟩).contains a then .error .BadJumpDestination
+        else if b != ⟨0⟩ ∧ ¬ (D_J I_b 0).contains a then .error .BadJumpDestination
         else
         if s.machineState.stack.length - 2 + 0 > 1024 then .error .StackOverflow
         else
@@ -5995,14 +5688,9 @@ theorem step_jumpi : ∀ (s : State),
       simp [hstacksize']
       simp [memoryExpansionCost, memoryExpansionCost.μᵢ']
       by_cases hgas :
-          ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Ghigh)
-      · have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Ghigh := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Ghigh := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, hstack]
+          (s.machineState.gasAvailable.toNat < GasConstants.Ghigh)
+      · simp [hgas]
+      · simp [hgas, hstack]
         cases hb : (b != (⟨0⟩ : UInt256))
         ·
           have hbeq : b = (⟨0⟩ : UInt256) :=
@@ -6017,13 +5705,17 @@ theorem step_jumpi : ∀ (s : State),
             simp [I_b, hb, hbeq, hoverflow]
             simp [bind, Except.bind]
             unfold step
-            simp [Stack.pop2, hb, hbeq, hzero_bne, Sat256_natsub_zero, UInt256_subzero']
+            simp [Stack.pop2, hb, hbeq, hzero_bne, Sat256.natSub_zero, UInt256_subzero']
         ·
           have hbne : b ≠ (⟨0⟩ : UInt256) :=
             UInt256_bne_zero_eq_true_ne b hb
-          cases hcontains : (D_J I_b ⟨0⟩).contains a
-          · simp [Z.notIn, Z.belongs, I_b, hb, hbne, hcontains]
-          · simp [Z.notIn, Z.belongs, I_b, hb, hbne, hcontains]
+          cases hcontains : (D_J I_b 0).contains a
+          ·
+            simp [Array.contains_iff_mem] at hcontains
+            simp [Z.notIn, Z.belongs, I_b, hb, hbne, hcontains]
+          ·
+            simp [Array.contains_iff_mem] at hcontains
+            simp [Z.notIn, Z.belongs, I_b, hb, hbne, hcontains]
             simp [α, Operation.isCreate]
             by_cases hoverflow : 1024 < t.length
             · simp [I_b, hb, hbne, hcontains, hoverflow]
@@ -6031,12 +5723,12 @@ theorem step_jumpi : ∀ (s : State),
               simp [I_b, hb, hbne, hcontains, hoverflow]
               simp [bind, Except.bind]
               unfold step
-              simp [Stack.pop2, hb, hbne, Sat256_natsub_zero, UInt256_subzero']
+              simp [Stack.pop2, hb, hbne, Sat256.natSub_zero, UInt256_subzero']
 
 theorem step_push0 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH0, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -6054,14 +5746,9 @@ theorem step_push0 : ∀ (s : State),
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
       , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
       , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase]
-    by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gbase)
+    by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gbase)
     · simp [hgas]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gbase := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, α, Operation.isCreate]
+    · simp [hgas, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -6074,14 +5761,14 @@ theorem step_push0 : ∀ (s : State),
         apply And.intro
         · simp [UInt256_ofNat_1]
         · simp [Stack.push]
-          rw [Sat256_natsub_zero]
+          rw [Sat256.natSub_zero]
 
 set_option maxHeartbeats 2000000 in
 theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWidth : Nat),
   op ≠ .PUSH0
   → let I_b := s.executionEnv.code
     decode I_b s.machineState.pc = some (.Push op, .some (arg, argWidth))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -6111,14 +5798,9 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
     simp [Xstep, Z, δ, I_b, hpush]
     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hcostCharged]
     by_cases hgas :
-      ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
     · simp [hgas, hcostCharged, chargedState]
-      have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas0]
-    · have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-        simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-      simp [hgas, hgas0, hcostCharged, chargedState, α, Operation.isCreate]
+    · simp [hgas, hcostCharged, chargedState, α, Operation.isCreate]
       by_cases hoverflow : 1024 < s.machineState.stack.length + 1
       · simp [hoverflow]
       ·
@@ -6128,12 +5810,12 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
         · contradiction
         all_goals
           simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            Stack.push, Sat256_natsub_zero, UInt256_subzero', Id.run]
+            Stack.push, Sat256.natSub_zero, UInt256_subzero', Id.run]
 
 theorem step_push1 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH1, .some (arg, 1))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6148,7 +5830,7 @@ theorem step_push1 : ∀ (s : State) (arg : UInt256),
 theorem step_push2 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH2, .some (arg, 2))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6163,7 +5845,7 @@ theorem step_push2 : ∀ (s : State) (arg : UInt256),
 theorem step_push3 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH3, .some (arg, 3))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6178,7 +5860,7 @@ theorem step_push3 : ∀ (s : State) (arg : UInt256),
 theorem step_push4 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH4, .some (arg, 4))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6193,7 +5875,7 @@ theorem step_push4 : ∀ (s : State) (arg : UInt256),
 theorem step_push5 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH5, .some (arg, 5))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6208,7 +5890,7 @@ theorem step_push5 : ∀ (s : State) (arg : UInt256),
 theorem step_push6 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH6, .some (arg, 6))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6223,7 +5905,7 @@ theorem step_push6 : ∀ (s : State) (arg : UInt256),
 theorem step_push7 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH7, .some (arg, 7))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6238,7 +5920,7 @@ theorem step_push7 : ∀ (s : State) (arg : UInt256),
 theorem step_push8 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH8, .some (arg, 8))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6253,7 +5935,7 @@ theorem step_push8 : ∀ (s : State) (arg : UInt256),
 theorem step_push9 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH9, .some (arg, 9))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6268,7 +5950,7 @@ theorem step_push9 : ∀ (s : State) (arg : UInt256),
 theorem step_push10 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH10, .some (arg, 10))
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -6282,7 +5964,7 @@ theorem step_push10 : ∀ (s : State) (arg : UInt256),
 theorem step_dup1 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP1, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6312,15 +5994,9 @@ theorem step_dup1 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 2
         · simp [hoverflow]
         ·
@@ -6332,12 +6008,12 @@ theorem step_dup1 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP2, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6368,15 +6044,9 @@ theorem step_dup2 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 3
         · simp [hoverflow]
         ·
@@ -6388,12 +6058,12 @@ theorem step_dup2 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap1 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP1, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6424,15 +6094,9 @@ theorem step_swap1 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 2
         · simp [hoverflow]
         ·
@@ -6444,11 +6108,11 @@ theorem step_swap1 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 theorem step_swap2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP2, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6480,15 +6144,9 @@ theorem step_swap2 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 3
         · simp [hoverflow]
         ·
@@ -6500,12 +6158,12 @@ theorem step_swap2 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup3 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP3, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6537,15 +6195,9 @@ theorem step_dup3 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 4
         · simp [hoverflow]
         ·
@@ -6557,12 +6209,12 @@ theorem step_dup3 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap3 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP3, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6595,15 +6247,9 @@ theorem step_swap3 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 4
         · simp [hoverflow]
         ·
@@ -6615,12 +6261,12 @@ theorem step_swap3 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup4 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP4, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6653,15 +6299,9 @@ theorem step_dup4 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 5
         · simp [hoverflow]
         ·
@@ -6673,12 +6313,12 @@ theorem step_dup4 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap4 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP4, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6712,15 +6352,9 @@ theorem step_swap4 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 5
         · simp [hoverflow]
         ·
@@ -6732,12 +6366,12 @@ theorem step_swap4 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup5 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP5, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6771,15 +6405,9 @@ theorem step_dup5 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 6
         · simp [hoverflow]
         ·
@@ -6791,12 +6419,12 @@ theorem step_dup5 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap5 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP5, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6831,15 +6459,9 @@ theorem step_swap5 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 6
         · simp [hoverflow]
         ·
@@ -6851,12 +6473,12 @@ theorem step_swap5 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup6 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP6, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6891,15 +6513,9 @@ theorem step_dup6 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 7
         · simp [hoverflow]
         ·
@@ -6911,12 +6527,12 @@ theorem step_dup6 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap6 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP6, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6952,15 +6568,9 @@ theorem step_swap6 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 7
         · simp [hoverflow]
         ·
@@ -6972,12 +6582,12 @@ theorem step_swap6 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup7 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP7, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7013,15 +6623,9 @@ theorem step_dup7 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 8
         · simp [hoverflow]
         ·
@@ -7033,12 +6637,12 @@ theorem step_dup7 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap7 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP7, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7075,15 +6679,9 @@ theorem step_swap7 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 8
         · simp [hoverflow]
         ·
@@ -7095,12 +6693,12 @@ theorem step_swap7 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup8 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP8, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7137,15 +6735,9 @@ theorem step_dup8 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 9
         · simp [hoverflow]
         ·
@@ -7157,12 +6749,12 @@ theorem step_dup8 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap8 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP8, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7200,15 +6792,9 @@ theorem step_swap8 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 9
         · simp [hoverflow]
         ·
@@ -7220,12 +6806,12 @@ theorem step_swap8 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup9 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP9, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7263,15 +6849,9 @@ theorem step_dup9 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 10
         · simp [hoverflow]
         ·
@@ -7283,12 +6863,12 @@ theorem step_dup9 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap9 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP9, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7327,15 +6907,9 @@ theorem step_swap9 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 10
         · simp [hoverflow]
         ·
@@ -7347,12 +6921,12 @@ theorem step_swap9 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup10 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP10, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7391,15 +6965,9 @@ theorem step_dup10 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 11
         · simp [hoverflow]
         ·
@@ -7411,12 +6979,12 @@ theorem step_dup10 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap10 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP10, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7456,15 +7024,9 @@ theorem step_swap10 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 11
         · simp [hoverflow]
         ·
@@ -7476,12 +7038,12 @@ theorem step_swap10 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup11 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP11, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7521,15 +7083,9 @@ theorem step_dup11 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 12
         · simp [hoverflow]
         ·
@@ -7541,12 +7097,12 @@ theorem step_dup11 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap11 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP11, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7587,15 +7143,9 @@ theorem step_swap11 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 12
         · simp [hoverflow]
         ·
@@ -7607,12 +7157,12 @@ theorem step_swap11 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup12 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP12, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7653,15 +7203,9 @@ theorem step_dup12 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 13
         · simp [hoverflow]
         ·
@@ -7673,12 +7217,12 @@ theorem step_dup12 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap12 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP12, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7720,15 +7264,9 @@ theorem step_swap12 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 13
         · simp [hoverflow]
         ·
@@ -7740,12 +7278,12 @@ theorem step_swap12 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup13 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP13, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7787,15 +7325,9 @@ theorem step_dup13 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 14
         · simp [hoverflow]
         ·
@@ -7807,12 +7339,12 @@ theorem step_dup13 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap13 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP13, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7855,15 +7387,9 @@ theorem step_swap13 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 14
         · simp [hoverflow]
         ·
@@ -7875,12 +7401,12 @@ theorem step_swap13 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup14 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP14, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7923,15 +7449,9 @@ theorem step_dup14 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 15
         · simp [hoverflow]
         ·
@@ -7943,12 +7463,12 @@ theorem step_dup14 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap14 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP14, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7992,15 +7512,9 @@ theorem step_swap14 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 15
         · simp [hoverflow]
         ·
@@ -8012,12 +7526,12 @@ theorem step_swap14 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup15 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP15, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -8061,15 +7575,9 @@ theorem step_dup15 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 16
         · simp [hoverflow]
         ·
@@ -8081,12 +7589,12 @@ theorem step_dup15 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap15 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP15, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -8131,15 +7639,9 @@ theorem step_swap15 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 16
         · simp [hoverflow]
         ·
@@ -8151,12 +7653,12 @@ theorem step_swap15 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_dup16 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP16, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -8201,15 +7703,9 @@ theorem step_dup16 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 17
         · simp [hoverflow]
         ·
@@ -8221,12 +7717,12 @@ theorem step_dup16 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]
 
 theorem step_swap16 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP16, .none)
-  → Xstep (D_J I_b ⟨0⟩) s =
+  → Xstep (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: q :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -8272,15 +7768,9 @@ theorem step_swap16 : ∀ (s : State),
         , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
         , InstructionGasGroups.Wverylow.dupInstrs
         , InstructionGasGroups.Wverylow.swapInstrs]
-      by_cases hgas: ((s.machineState.gasAvailable.natSub 0).toNat < GasConstants.Gverylow)
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Gverylow)
       · simp [hgas]
-        have hgas0 : s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas0]
-      ·
-        have hgas0 : ¬ s.machineState.gasAvailable.toNat < GasConstants.Gverylow := by
-          simpa [Sat256_natsub_zero, UInt256_subzero'] using hgas
-        simp [hgas, hgas0, α, Operation.isCreate]
+      · simp [hgas, α, Operation.isCreate]
         by_cases hoverflow : 1024 < t.length + 17
         · simp [hoverflow]
         ·
@@ -8292,4 +7782,4 @@ theorem step_swap16 : ∀ (s : State),
           simp
           apply And.intro
           · simp [UInt256_ofNat_1]
-          · rw [Sat256_natsub_zero]
+          · rw [Sat256.natSub_zero]

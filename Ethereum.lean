@@ -11,7 +11,9 @@ import Ethereum.EllipticCurves
 import Ethereum.PerformIO
 
 import Ethereum.Theory.ProgressLemmas
+import Ethereum.Theory.GasLemmas
 import Ethereum.Theory.NoOutOfFuel
+import Ethereum.Theory.OpcodeLemmas
 
 import Ethereum.SHA256
 import Ethereum.RIP160
