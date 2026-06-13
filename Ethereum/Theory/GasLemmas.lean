@@ -42,9 +42,6 @@ def ContinuesAfterXStep (w : Operation) : Prop :=
 def RecursiveSystemStep (w : Operation) : Prop :=
   w ∈ ([.CREATE, .CREATE2, .CALL, .CALLCODE, .DELEGATECALL, .STATICCALL] : List Operation)
 
-local instance : MonadLift Option (Except ExecutionException) :=
-  ⟨Option.option (.error .StackUnderflow) .ok⟩
-
 lemma Caccess_pos (a A) : 0 < Caccess a A := by
   unfold Caccess
   split <;> simp [Gwarmaccess, Gcoldaccountaccess]

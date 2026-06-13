@@ -144,7 +144,7 @@ def swap (n : ℕ) : Transformer :=
   else
     .error .StackUnderflow
 
-local instance : MonadLift Option (Except EVM.ExecutionException) :=
+instance instMonadLiftOptionExceptExecutionException : MonadLift Option (Except EVM.ExecutionException) :=
   ⟨Option.option (.error .StackUnderflow) .ok⟩
 
 inductive HaltCause where
