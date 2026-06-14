@@ -36,6 +36,14 @@ lemma natSub_zero (a : Sat256) : a.natSub 0 = a := by
     (Sat256.ofUInt256 self).toNat = self.toNat := by
   rfl
 
+lemma natSub_assoc (a : Sat256) (b c : ℕ) :
+    (a.natSub b).natSub c = (a.natSub c).natSub b := by
+      simp [Sat256.natSub]; omega
+
+lemma natSub_sub_add_of_sub_sub (a : Sat256) (b c : ℕ) :
+    (a.natSub b).natSub c = (a.natSub (c + b)) := by
+      simp [Sat256.natSub]; omega
+
 instance : Sub Sat256 := ⟨Sat256.sub⟩
 
 instance : LT Sat256 where
@@ -47,7 +55,9 @@ instance : LE Sat256 where
 instance : Inhabited Sat256 where
   default := ⟨0, by simp [UInt256.size]⟩
 
-instance : Repr UInt256 where
+instance {n : ℕ} : OfNat Sat256 n := ⟨min n (UInt256.size - 1), by apply Nat.min_le_right ⟩
+
+instance : Repr Sat256 where
   reprPrec n _ := repr n.toNat
 
 end Sat256
