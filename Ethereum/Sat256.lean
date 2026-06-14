@@ -55,7 +55,12 @@ instance : LE Sat256 where
 instance : Inhabited Sat256 where
   default := ⟨0, by simp [UInt256.size]⟩
 
-instance {n : ℕ} : OfNat Sat256 n := ⟨min n (UInt256.size - 1), by apply Nat.min_le_right ⟩
+instance {n : ℕ} : OfNat Sat256 n where
+  ofNat := ⟨min n (UInt256.size - 1),
+    by apply Nat.lt_of_le_of_lt
+       · apply Nat.min_le_right
+       · simp [UInt256.size]
+    ⟩ 
 
 instance : Repr Sat256 where
   reprPrec n _ := repr n.toNat
