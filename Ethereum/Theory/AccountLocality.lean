@@ -2440,6 +2440,215 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
             (by simpa [hfresh] using hacc)
           simpa [hfresh, hcreated] using hloc
 
+private lemma account_changes_consistent_if_empty_or_sendEth_prelude
+    (acc r s : AccountAddress) (v : UInt256) (σ τ : AccountMap)
+    (hτ : τ = ∅ ∨ τ = sendEth r s v true σ) :
+    account_changes_consistent acc σ (if τ == ∅ then σ else τ) := by
+  rcases hτ with hτ | hτ
+  · subst τ
+    simp [rbMap_empty_beq_empty, account_changes_consistent_rfl]
+  · subst τ
+    by_cases hEmpty : (sendEth r s v true σ == (∅ : AccountMap)) = true
+    · simp [hEmpty, account_changes_consistent_rfl]
+    · simp [hEmpty]
+      exact account_changes_consistent_sendEth_prelude acc r s v true σ
+
+private lemma account_changes_consistent_nonempty_or_sendEth_prelude
+    (acc r s : AccountAddress) (v : UInt256) (σ τ : AccountMap)
+    (hnot_empty : ¬(τ == ∅) = true)
+    (hτ : τ = ∅ ∨ τ = sendEth r s v true σ) :
+    account_changes_consistent acc σ τ := by
+  rcases hτ with hτ | hτ
+  · subst τ
+    exact False.elim (hnot_empty rbMap_empty_beq_empty)
+  · subst τ
+    exact account_changes_consistent_sendEth_prelude acc r s v true σ
+
+private lemma precompile_ECREC_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_ECREC σ g A I).1 = ∅ ∨ (Ξ_ECREC σ g A I).1 = σ := by
+  simp only [Ξ_ECREC]
+  split <;> simp
+
+private lemma precompile_SHA256_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_SHA256 σ g A I).1 = ∅ ∨ (Ξ_SHA256 σ g A I).1 = σ := by
+  simp only [Ξ_SHA256]
+  split <;> simp
+
+private lemma precompile_RIP160_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_RIP160 σ g A I).1 = ∅ ∨ (Ξ_RIP160 σ g A I).1 = σ := by
+  simp only [Ξ_RIP160]
+  split <;> simp
+
+private lemma precompile_ID_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_ID σ g A I).1 = ∅ ∨ (Ξ_ID σ g A I).1 = σ := by
+  simp only [Ξ_ID]
+  split <;> simp
+
+private lemma precompile_EXPMOD_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_EXPMOD σ g A I).1 = ∅ ∨ (Ξ_EXPMOD σ g A I).1 = σ := by
+  unfold Ξ_EXPMOD
+  set data := I.calldata
+  set base_length := nat_of_slice data 0 32
+  set exp_length := nat_of_slice data 32 32
+  set modulus_length := nat_of_slice data 64 32
+  set exp := fun _ : Unit => nat_of_slice data (96 + base_length) exp_length
+  set gᵣ :=
+    (let multiplication_complexity := fun x y => ((max x y + 7) / 8) ^ 2
+     let adjusted_exp_length :=
+      if exp_length ≤ 32 && exp () == 0 then
+        0
+      else if exp_length ≤ 32 then
+        Nat.log 2 (exp ())
+      else
+        let length_part := 8 * (exp_length - 32)
+        let bits_part :=
+          let exp_head := nat_of_slice data (96 + base_length) 32
+          if 32 < exp_length ∧ exp_head != 0 then Nat.log 2 exp_head else 0
+        length_part + bits_part
+     let iterations := max adjusted_exp_length 1
+     let G_quaddivisor := 3
+     max 200 (multiplication_complexity base_length modulus_length * iterations / G_quaddivisor))
+  simp only
+  repeat' (first | split | simp)
+
+private lemma precompile_BN_ADD_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_BN_ADD σ g A I).1 = ∅ ∨ (Ξ_BN_ADD σ g A I).1 = σ := by
+  simp only [Ξ_BN_ADD]
+  split
+  · exact Or.inl rfl
+  · split
+    · exact Or.inr rfl
+    · exact Or.inl rfl
+
+private lemma precompile_BN_MUL_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_BN_MUL σ g A I).1 = ∅ ∨ (Ξ_BN_MUL σ g A I).1 = σ := by
+  simp only [Ξ_BN_MUL]
+  split
+  · exact Or.inl rfl
+  · split
+    · exact Or.inr rfl
+    · exact Or.inl rfl
+
+private lemma precompile_SNARKV_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_SNARKV σ g A I).1 = ∅ ∨ (Ξ_SNARKV σ g A I).1 = σ := by
+  simp only [Ξ_SNARKV]
+  split
+  · exact Or.inl rfl
+  · split
+    · exact Or.inr rfl
+    · exact Or.inl rfl
+
+private lemma precompile_BLAKE2_F_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_BLAKE2_F σ g A I).1 = ∅ ∨ (Ξ_BLAKE2_F σ g A I).1 = σ := by
+  simp only [Ξ_BLAKE2_F]
+  split
+  · exact Or.inl rfl
+  · split
+    · exact Or.inr rfl
+    · exact Or.inl rfl
+
+private lemma precompile_PointEval_accountMap_empty_or_self
+    (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (Ξ_PointEval σ g A I).1 = ∅ ∨ (Ξ_PointEval σ g A I).1 = σ := by
+  simp only [Ξ_PointEval]
+  split
+  · exact Or.inl rfl
+  · split
+    · exact Or.inr rfl
+    · exact Or.inl rfl
+
+private lemma precompiled_Theta_accountMap_eq
+    (blobVersionedHashes : List ByteArray)
+    (createdAccounts : Batteries.RBSet AccountAddress compare)
+    (genesisBlockHeader : BlockHeader)
+    (blocks : ProcessedBlocks)
+    (σ σ₀ : AccountMap)
+    (A : Substate)
+    (s o r pc : AccountAddress)
+    (g p v v' : UInt256)
+    (d : ByteArray)
+    (e : Fin 1025)
+    (H : BlockHeader)
+    (w : Bool) :
+    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H w).2.1 =
+      (let σ₁ := sendEth r s v true σ
+       let I : ExecutionEnv :=
+        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+          blobVersionedHashes := blobVersionedHashes }
+       let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+        match pc with
+        | 1 => (∅, Ξ_ECREC σ₁ g A I)
+        | 2 => (∅, Ξ_SHA256 σ₁ g A I)
+        | 3 => (∅, Ξ_RIP160 σ₁ g A I)
+        | 4 => (∅, Ξ_ID σ₁ g A I)
+        | 5 => (∅, Ξ_EXPMOD σ₁ g A I)
+        | 6 => (∅, Ξ_BN_ADD σ₁ g A I)
+        | 7 => (∅, Ξ_BN_MUL σ₁ g A I)
+        | 8 => (∅, Ξ_SNARKV σ₁ g A I)
+        | 9 => (∅, Ξ_BLAKE2_F σ₁ g A I)
+        | 10 => (∅, Ξ_PointEval σ₁ g A I)
+        | _ => default
+       if result.2.1 == ∅ then σ else result.2.1) := by
+  unfold Θ sendEth
+  simp
+  rfl
+
+private lemma precompiled_result_accountMap_empty_or_self
+    (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
+    (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+      match pc with
+      | 1 => (∅, Ξ_ECREC σ g A I)
+      | 2 => (∅, Ξ_SHA256 σ g A I)
+      | 3 => (∅, Ξ_RIP160 σ g A I)
+      | 4 => (∅, Ξ_ID σ g A I)
+      | 5 => (∅, Ξ_EXPMOD σ g A I)
+      | 6 => (∅, Ξ_BN_ADD σ g A I)
+      | 7 => (∅, Ξ_BN_MUL σ g A I)
+      | 8 => (∅, Ξ_SNARKV σ g A I)
+      | 9 => (∅, Ξ_BLAKE2_F σ g A I)
+      | 10 => (∅, Ξ_PointEval σ g A I)
+      | _ => default
+     result.2.1) = ∅ ∨
+    (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+      match pc with
+      | 1 => (∅, Ξ_ECREC σ g A I)
+      | 2 => (∅, Ξ_SHA256 σ g A I)
+      | 3 => (∅, Ξ_RIP160 σ g A I)
+      | 4 => (∅, Ξ_ID σ g A I)
+      | 5 => (∅, Ξ_EXPMOD σ g A I)
+      | 6 => (∅, Ξ_BN_ADD σ g A I)
+      | 7 => (∅, Ξ_BN_MUL σ g A I)
+      | 8 => (∅, Ξ_SNARKV σ g A I)
+      | 9 => (∅, Ξ_BLAKE2_F σ g A I)
+      | 10 => (∅, Ξ_PointEval σ g A I)
+      | _ => default
+     result.2.1) = σ := by
+  repeat split
+  all_goals
+    first
+    | exact precompile_ECREC_accountMap_empty_or_self σ g A I
+    | exact precompile_SHA256_accountMap_empty_or_self σ g A I
+    | exact precompile_RIP160_accountMap_empty_or_self σ g A I
+    | exact precompile_ID_accountMap_empty_or_self σ g A I
+    | exact precompile_EXPMOD_accountMap_empty_or_self σ g A I
+    | exact precompile_BN_ADD_accountMap_empty_or_self σ g A I
+    | exact precompile_BN_MUL_accountMap_empty_or_self σ g A I
+    | exact precompile_SNARKV_accountMap_empty_or_self σ g A I
+    | exact precompile_BLAKE2_F_accountMap_empty_or_self σ g A I
+    | exact precompile_PointEval_accountMap_empty_or_self σ g A I
+    | exact Or.inl rfl
+
 theorem account_changes_consistent_of_precompiled_Theta :
     ∀ createdAccounts' σ' g' A' z o',
     Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
@@ -2449,7 +2658,21 @@ theorem account_changes_consistent_of_precompiled_Theta :
     ∀ acc, account_changes_consistent acc σ σ'
     := by
   intros createdAccounts' σ' g' A' z o' hTheta hPrecomp acc
-  sorry
+  rw [hPrecomp] at hTheta
+  have hσ_proj := congrArg (fun x => x.2.1) hTheta
+  have hσ : (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+      (.Precompiled pc) g p v v' d e H w).2.1 = σ' := by
+    simpa using hσ_proj
+  rw [← hσ]
+  rw [precompiled_Theta_accountMap_eq]
+  exact account_changes_consistent_if_empty_or_sendEth_prelude acc r s v σ _
+    (by
+      let σ₁ := sendEth r s v true σ
+      let I : ExecutionEnv :=
+        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+          blobVersionedHashes := blobVersionedHashes }
+      simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 theorem account_changes_consistent_except_owner_of_precompiled_Theta :
     ∀ createdAccounts' σ' g' A' z o',
@@ -2459,54 +2682,20 @@ theorem account_changes_consistent_except_owner_of_precompiled_Theta :
     ∀ acc, acc ≠ r → account_changes_consistent acc σ σ'
     := by
   intros createdAccounts' σ' g' A' z o' hTheta acc hacc_ne_r
-  -- Precompiled calls do not recurse through Ξ.  This proof should unfold Θ,
-  -- normalize the selected precompile branch, and use the call prelude plus
-  -- unchanged-map facts for the returned precompile state.
-  sorry
-
--- set_option maxRecDepth 10000000000
-theorem account_changes_consistent_of_Theta_max_depth :
-    ∀ createdAccounts' σ' g' A' z o',
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d (.ofNat 1025 1024) H w =
-      (createdAccounts', σ', g', A', z, o') →
-    ∀ acc, account_changes_consistent acc σ σ'
-    := by
-  intros createdAccounts' σ' g' A' z o' hTheta acc
-  sorry
-
-theorem account_changes_consistent_of_Lambda_max_depth :
-    ∀ a createdAccounts' σ' g' A' z o',
-    Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i
-        (.ofNat 1025 1024) ζ H w =
-      (a, createdAccounts', σ', g', A', z, o') →
-    ∀ acc, account_changes_consistent acc σ σ'
-    := by
-  intros a createdAccounts' σ' g' A' z o' hLambda acc
-  sorry
-
-theorem account_changes_consistent_of_Lambda_succ_depth {n : Nat} :
-    ∀ a createdAccounts' σ' g' A' z o',
-    (1024 - e.val) = n + 1 →
-    (ihTheta : ∀ acc createdAccountsᵢ (eᵢ : Fin 1025) σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ Hᵢ wᵢ
-        createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ,
-        1024 - eᵢ.val = n →
-          Θ blobVersionedHashes createdAccountsᵢ genesisBlockHeader blocks σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ
-              (toExecute σᵢ rᵢ) gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ wᵢ =
-            (createdAccounts'ᵢ, σ'ᵢ, g'ᵢ, A'ᵢ, zᵢ, o'ᵢ) →
-          account_changes_consistent acc σᵢ σ'ᵢ) →
-    (ihLambda : ∀ acc createdAccountsᵢ (eᵢ : Fin 1025) σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ ζᵢ Hᵢ wᵢ
-        aᵢ createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ,
-        1024 - eᵢ.val = n →
-          Lambda blobVersionedHashes createdAccountsᵢ genesisBlockHeader blocks σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ eᵢ ζᵢ Hᵢ wᵢ =
-            (aᵢ, createdAccounts'ᵢ, σ'ᵢ, g'ᵢ, A'ᵢ, zᵢ, o'ᵢ) →
-          account_changes_consistent acc σᵢ σ'ᵢ) →
-    Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w =
-      (a, createdAccounts', σ', g', A', z, o') →
-    ∀ acc, account_changes_consistent acc σ σ'
-    := by
-  intros a createdAccounts' σ' g' A' z o' hdepth ihTheta ihLambda hLambda acc
-  sorry
+  have hσ_proj := congrArg (fun x => x.2.1) hTheta
+  have hσ : (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+      (.Precompiled pc) g p v v' d e H w).2.1 = σ' := by
+    simpa using hσ_proj
+  rw [← hσ]
+  rw [precompiled_Theta_accountMap_eq]
+  exact account_changes_consistent_if_empty_or_sendEth_prelude acc r s v σ _
+    (by
+      let σ₁ := sendEth r s v true σ
+      let I : ExecutionEnv :=
+        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+          blobVersionedHashes := blobVersionedHashes }
+      simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 
 theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
