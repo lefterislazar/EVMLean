@@ -203,7 +203,7 @@ def sendEthCreate (a s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountM
 def account_dead (σ : AccountMap) (a : AccountAddress) : Prop :=
   match σ.find? a with
   | none => True
-  | some acc => acc.nonce = ⟨0⟩ ∧ acc.code.size = 0 ∧ acc.storage = default
+  | some acc => acc.nonce = ⟨0⟩ ∧ acc.code.size = 0 ∧ (acc.storage == default) = true
 
 inductive account_change_consistent (acc : AccountAddress) : AccountMap → AccountMap → Prop where
   | unchanged {σ σ'}:
@@ -2649,6 +2649,45 @@ private lemma precompiled_result_accountMap_empty_or_self
     | exact precompile_PointEval_accountMap_empty_or_self σ g A I
     | exact Or.inl rfl
 
+private lemma Xstep_invalid : ∀ (s : State),
+    let I_b := s.executionEnv.code
+    decode I_b s.machineState.pc = some (.INVALID, .none) →
+    Xstep (D_J I_b 0) s = .error .InvalidInstruction := by
+  intros s I_b hinvalid
+  simp [Xstep, Z, δ, I_b, hinvalid]
+
+private lemma Xi_invalid_singleton_ne_success
+    (createdAccounts : Batteries.RBSet AccountAddress compare)
+    (genesisBlockHeader : BlockHeader)
+    (blocks : ProcessedBlocks)
+    (σ σ₀ : AccountMap)
+    (g : UInt256)
+    (A : Substate)
+    (I : ExecutionEnv)
+    (result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)
+    (out : ByteArray) :
+    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A { I with code := ⟨#[0xfe]⟩ } ≠
+      Except.ok (ExecutionResult.success result out) := by
+  intro hXi
+  let freshEvmState : State :=
+    { (default : State) with
+      accountMap := σ
+      σ₀ := σ₀
+      executionEnv := { I with code := ⟨#[0xfe]⟩ }
+      substate := A
+      createdAccounts := createdAccounts
+      machineState.gasAvailable := .ofUInt256 g
+      blocks := blocks
+      genesisBlockHeader := genesisBlockHeader }
+  have hstep :
+      Xstep (D_J freshEvmState.executionEnv.code 0) freshEvmState =
+        .error .InvalidInstruction := by
+    apply Xstep_invalid
+    change decode ({ data := #[0xfe] } : ByteArray) ({ val := 0 } : UInt256) = some (.INVALID, .none)
+    native_decide
+  simp [Ξ, X, freshEvmState, hstep] at hXi
+  cases hXi
+
 theorem account_changes_consistent_of_precompiled_Theta :
     ∀ createdAccounts' σ' g' A' z o',
     Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
@@ -2797,9 +2836,61 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           by_cases hdead : account_dead σ acc
           · exact account_changes_consistent_init_dead hdead
           ·
-            -- Non-dead create targets should return the original map. Closing
-            -- this requires normalizing the EIP-7610 invalid-init-code branch.
-            sorry
+            have he_eq : e = 1024 := by omega
+            subst e
+            unfold Lambda at hLambda
+            simp [account_dead] at hLambda hdead
+            repeat split at hLambda <;> try contradiction
+            all_goals
+                simp at hLambda
+                rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+                rw [← hσ]
+                first
+                | exact account_changes_consistent_rfl acc
+                | split_ifs with hfinal
+                  · exact account_changes_consistent_rfl acc
+                  · simp [ha] at hdead hfinal
+                    rename_i xResult createdAccountsXi σStarStar gStarStar AStarStar returnedData hXi
+                    cases hfind : Batteries.RBMap.find? σ acc with
+                    | none =>
+                        simp [hfind] at hdead
+                    | some ac =>
+                        simp [hfind] at hdead hfinal
+                        have hstorage_bne : (ac.storage != ∅) = true := by
+                          have hs := hdead hfinal.1.2 hfinal.1.1
+                          simp [bne, hs]
+                        let σStarCollision : AccountMap :=
+                          match Batteries.RBMap.find? σ s with
+                          | none => σ
+                          | some senderAcc =>
+                            (Batteries.RBMap.insert σ s
+                                  { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
+                                    storage := senderAcc.storage, code := senderAcc.code,
+                                    tstorage := senderAcc.tstorage }).insert
+                              acc
+                              { nonce := ac.nonce + { val := 1 },
+                                balance := v + ac.balance,
+                                storage := ac.storage, code := ac.code, tstorage := ac.tstorage }
+                        exact False.elim
+                          (Xi_invalid_singleton_ne_success
+                            (createdAccounts := createdAccounts)
+                            (genesisBlockHeader := genesisBlockHeader)
+                            (blocks := blocks)
+                            (σ := σStarCollision)
+                            (σ₀ := σ₀)
+                            (g := g)
+                            (A := A.addAccessedAccount acc)
+                            (I :=
+                              { codeOwner := acc, sender := o, source := s, weiValue := v,
+                                calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
+                                header := H, depth := 1024, perm := w,
+                                blobVersionedHashes := blobVersionedHashes })
+                            (result := (createdAccountsXi, σStarStar, gStarStar, AStarStar))
+                            (out := returnedData)
+                            (by
+                              dsimp [σStarCollision]
+                              simpa [Batteries.RBMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                                hstorage_bne] using hXi))
   | succ n' ih =>
       constructor
       · intro hTheta acc hacc_ne_r
@@ -2924,9 +3015,59 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           by_cases hdead : account_dead σ acc
           · exact account_changes_consistent_init_dead hdead
           ·
-            -- Non-dead create targets should return the original map. Closing
-            -- this requires normalizing the EIP-7610 invalid-init-code branch.
-            sorry
+            unfold Lambda at hLambda
+            simp [account_dead] at hLambda hdead
+            repeat split at hLambda <;> try contradiction
+            all_goals
+                simp at hLambda
+                rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+                rw [← hσ]
+                first
+                | exact account_changes_consistent_rfl acc
+                | split_ifs with hfinal
+                  · exact account_changes_consistent_rfl acc
+                  · simp [ha] at hdead hfinal
+                    rename_i xResult createdAccountsXi σStarStar gStarStar AStarStar returnedData hXi
+                    cases hfind : Batteries.RBMap.find? σ acc with
+                    | none =>
+                        simp [hfind] at hdead
+                    | some ac =>
+                        simp [hfind] at hdead hfinal
+                        have hstorage_bne : (ac.storage != ∅) = true := by
+                          have hs := hdead hfinal.1.2 hfinal.1.1
+                          simp [bne, hs]
+                        let σStarCollision : AccountMap :=
+                          match Batteries.RBMap.find? σ s with
+                          | none => σ
+                          | some senderAcc =>
+                            (Batteries.RBMap.insert σ s
+                                  { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
+                                    storage := senderAcc.storage, code := senderAcc.code,
+                                    tstorage := senderAcc.tstorage }).insert
+                              acc
+                              { nonce := ac.nonce + { val := 1 },
+                                balance := v + ac.balance,
+                                storage := ac.storage, code := ac.code, tstorage := ac.tstorage }
+                        exact False.elim
+                          (Xi_invalid_singleton_ne_success
+                            (createdAccounts := createdAccounts)
+                            (genesisBlockHeader := genesisBlockHeader)
+                            (blocks := blocks)
+                            (σ := σStarCollision)
+                            (σ₀ := σ₀)
+                            (g := g)
+                            (A := A.addAccessedAccount acc)
+                            (I :=
+                              { codeOwner := acc, sender := o, source := s, weiValue := v,
+                                calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
+                                header := H, depth := e, perm := w,
+                                blobVersionedHashes := blobVersionedHashes })
+                            (result := (createdAccountsXi, σStarStar, gStarStar, AStarStar))
+                            (out := returnedData)
+                            (by
+                              dsimp [σStarCollision]
+                              simpa [Batteries.RBMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                                hstorage_bne] using hXi))
 
 theorem account_changes_consistent_of_Theta :
     ∀ createdAccounts' σ' g' A' z o' e,
