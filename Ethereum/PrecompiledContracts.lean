@@ -26,12 +26,12 @@ def Ξ_ECREC
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let gᵣ : ℕ := 3000
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let d := I.calldata
     let h := d.readBytes 0 32
@@ -51,7 +51,7 @@ def Ξ_ECREC
           | .error e =>
             dbg_trace s!"Ξ_ECREC failed: {e}"
             .empty
-    (true, σ, g - .ofNat gᵣ, A, o)
+    (σ, g - .ofNat gᵣ, A, o)
 
 def Ξ_SHA256
   (σ : AccountMap)
@@ -59,7 +59,7 @@ def Ξ_SHA256
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let gᵣ : ℕ :=
     let l := I.calldata.size
@@ -67,7 +67,7 @@ def Ξ_SHA256
     60 + 12 * ceil
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let o :=
       match ffi.SHA256 I.calldata with
@@ -75,7 +75,7 @@ def Ξ_SHA256
         | .error e =>
           dbg_trace s!"Ξ_SHA56 failed: {e}"
           .empty
-    (true, σ, g - .ofNat gᵣ, A, o)
+    (σ, g - .ofNat gᵣ, A, o)
 
 def Ξ_RIP160
   (σ : AccountMap)
@@ -83,7 +83,7 @@ def Ξ_RIP160
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let gᵣ : ℕ :=
     let l := I.calldata.size
@@ -91,7 +91,7 @@ def Ξ_RIP160
     600 + 120 * ceil
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let o :=
       match RIP160 I.calldata with
@@ -99,7 +99,7 @@ def Ξ_RIP160
         | .error e =>
           dbg_trace s!"Ξ_RIP160 failed: {e}"
           .empty
-    (true, σ, g - .ofNat gᵣ, A, o)
+    (σ, g - .ofNat gᵣ, A, o)
 
 def Ξ_ID
   (σ : AccountMap)
@@ -107,7 +107,7 @@ def Ξ_ID
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let gᵣ : ℕ :=
     let l := I.calldata.size
@@ -115,10 +115,10 @@ def Ξ_ID
     15 + 3 * ceil
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let o := I.calldata
-    (true, σ, g - .ofNat gᵣ, A, o)
+    (σ, g - .ofNat gᵣ, A, o)
 
 def nat_of_slice
   (B: ByteArray)
@@ -145,7 +145,7 @@ def Ξ_EXPMOD
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let data := I.calldata
   let base_length := nat_of_slice data 0 32
@@ -178,7 +178,7 @@ def Ξ_EXPMOD
     max 200 (multiplication_complexity base_length modulus_length * iterations / G_quaddivisor)
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let modulus := nat_of_slice data (96 + base_length + exp_length) modulus_length
     let o : ByteArray :=
@@ -194,10 +194,10 @@ def Ξ_EXPMOD
           else
             ByteArray.empty
         expmod_zeroes ++ expmod_base
-    (true, σ, g - .ofNat gᵣ, A, o)
+    (σ, g - .ofNat gᵣ, A, o)
 
 private def expmodOutput :=
-  let (_, _, _, _, o) :=
+  let (_, _, o) :=
     Ξ_EXPMOD
       default
       ⟨3000⟩
@@ -220,26 +220,26 @@ def Ξ_BN_ADD
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let gᵣ : ℕ := 150
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let d := I.calldata
     let x := (d.readBytes 0 32, d.readBytes 32 32)
     let y := (d.readBytes 64 32, d.readBytes 96 32)
     let o := BN_ADD x.1 x.2 y.1 y.2
     match o with
-      | .ok o => (true, σ, g - .ofNat gᵣ, A, o)
+      | .ok o => (σ, g - .ofNat gᵣ, A, o)
       | .error e =>
         dbg_trace s!"Ξ_BN_ADD failed: {e}"
         -- (σ, g - gᵣ, A, .empty)
-        (false, ∅, ⟨0⟩, A, .empty)
+        (∅, ⟨0⟩, A, .empty)
 
 private def bn_addOutput₀ :=
-  let (_, _, _, _, o) :=
+  let (_, _, _, o) :=
     Ξ_BN_ADD
       default
       ⟨3000⟩
@@ -255,7 +255,7 @@ private def bn_addOutput₀ :=
   y₂ : ByteArray := UInt256.toByteArray ⟨2⟩
 
 private def bn_addOutput₁ :=
-  let (_, _, _, _, o) :=
+  let (_, _, _, o) :=
     Ξ_BN_ADD
       default
       ⟨3000⟩
@@ -274,26 +274,26 @@ def Ξ_BN_MUL
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let gᵣ : ℕ := 6000
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let d := I.calldata
     let x := (d.readBytes 0 32, d.readBytes 32 32)
     let n := d.readBytes 64 32
     let o := BN_MUL x.1 x.2 n
     match o with
-      | .ok o => (true, σ, g - .ofNat gᵣ, A, o)
+      | .ok o => (σ, g - .ofNat gᵣ, A, o)
       | .error e =>
         dbg_trace s!"Ξ_BN_MUL failed: {e}"
         -- (σ, g - gᵣ, A, .empty)
-        (false, ∅, ⟨0⟩, A, .empty)
+        (∅, ⟨0⟩, A, .empty)
 
 private def bn_mulOutput :=
-  let (_, _, _, _, o) :=
+  let (_, _, _, o) :=
     Ξ_BN_MUL
       default
       ⟨100000⟩
@@ -313,24 +313,24 @@ def Ξ_SNARKV
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let d := I.calldata
   let k := d.size / 192
   let gᵣ : ℕ := 34000 * k + 45000
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let o := SNARKV d
     match o with
-      | .ok o => (true, σ, g - .ofNat gᵣ, A, o)
+      | .ok o => (σ, g - .ofNat gᵣ, A, o)
       | .error e =>
         dbg_trace s!"Ξ_SNARKV failed: {e}"
-        (false, ∅, ⟨0⟩, A, .empty)
+        (∅, ⟨0⟩, A, .empty)
 
 private def snarkvOutput :=
-  let (_, _, _, _, o) :=
+  let (_, _, _, o) :=
     Ξ_SNARKV
       default
       ⟨100000⟩
@@ -349,21 +349,21 @@ def Ξ_BLAKE2_F
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let d := I.calldata
   let gᵣ : ℕ := fromByteArrayBigEndian (d.extract 0 4)
 
   if g.toNat < gᵣ then
     dbg_trace "failed"
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let o := ffi.BLAKE2 d
     match o with
-      | .ok o => (true, σ, g - .ofNat gᵣ, A, o)
+      | .ok o => (σ, g - .ofNat gᵣ, A, o)
       | .error e =>
         dbg_trace s!"Ξ_BLAKE2_F failed: {e}"
-        (false, ∅, ⟨0⟩, A, .empty)
+        (∅, ⟨0⟩, A, .empty)
 
 def Ξ_PointEval
   (σ : AccountMap)
@@ -371,17 +371,17 @@ def Ξ_PointEval
   (A : Substate)
   (I : ExecutionEnv)
     :
-  (Bool × AccountMap × UInt256 × Substate × ByteArray)
+  (AccountMap × UInt256 × Substate × ByteArray)
 :=
   let d := I.calldata
   let gᵣ : ℕ := 50000
 
   if g.toNat < gᵣ then
-    (false, ∅, ⟨0⟩, A, .empty)
+    (∅, ⟨0⟩, A, .empty)
   else
     let o := PointEval d
     match o with
-      | .ok o => (true, σ, g - .ofNat gᵣ, A, o)
+      | .ok o => (σ, g - .ofNat gᵣ, A, o)
       | .error e =>
         dbg_trace s!"Ξ_PointEval failed: {e}"
-        (false, ∅, ⟨0⟩, A, .empty)
+        (∅, ⟨0⟩, A, .empty)

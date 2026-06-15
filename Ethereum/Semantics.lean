@@ -1097,7 +1097,7 @@ def Θ (blobVersionedHashes : List ByteArray)
 
   -- Equation (131)
   -- Note that the `c` used here is the actual code, not the address. TODO - Handle precompiled contracts.
-  let (createdAccounts, z, σ'', g', A'', out) :=
+  let (createdAccounts, σ'', g', A'', out) :=
     match c with
       | ToExecute.Precompiled p =>
         match p with
@@ -1117,17 +1117,20 @@ def Θ (blobVersionedHashes : List ByteArray)
           | .error _ =>
             -- Cannot techically happen
             -- if e == .OutOfFuel then throw .OutOfFuel
-            (createdAccounts, false, σ, ⟨0⟩, A, .empty)
+            (createdAccounts, ∅, ⟨0⟩, A, .empty)
           | .ok (.revert g' o) =>
-            (createdAccounts, false, σ, g', A, o)
+            (createdAccounts, ∅, g', A, o)
           | .ok (.success (a, b, c, d) o) =>
-            (a, true, b, c, d, o)
+            (a, b, c, d, o)
 
   -- Equation (127)
   let σ' := if σ'' == ∅ then σ else σ''
 
   -- Equation (129)
   let A' := if σ'' == ∅ then A else A''
+
+  -- Equation (130)
+  let z := if σ'' == ∅ then false else true
 
   -- Equation (119)
   (createdAccounts, σ', g', A', z, out)
