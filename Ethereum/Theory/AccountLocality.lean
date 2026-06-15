@@ -425,13 +425,6 @@ private lemma sendEth_true_find?_some_find?_some_ne
     exact hne hsr.symm)
   simp [sendEth, hr, Batteries.RBMap.find?_insert_of_ne, hcmp, hs]
 
-@[simp] private lemma UInt256_sub_self (a : UInt256) :
-    a - a = UInt256.ofNat 0 := by
-  cases a with
-  | mk v =>
-      change ({ val := v - v } : UInt256) = { val := (0 : Fin UInt256.size) }
-      simp
-
 private lemma depth_succ_measure {e : Fin 1025} {n : Nat}
     (hdepth : 1024 - e.val = n + 1) (hlt : e < 1024) :
     1024 - (e + 1).val = n := by
@@ -441,12 +434,6 @@ private lemma depth_succ_measure {e : Fin 1025} {n : Nat}
     simp
     omega
   omega
-
-private lemma accountAddress_ofUInt256_ofNat (a : AccountAddress) :
-    AccountAddress.ofUInt256 (UInt256.ofNat a.val) = a := by
-  ext
-  unfold AccountAddress.ofUInt256 UInt256.ofNat
-  simp [Id.run, AccountAddress.size, UInt256.size]
 
 private lemma account_changes_consistent_of_call_except_recipient_succ_depth
     {gasCost n : Nat}
@@ -1188,7 +1175,7 @@ private lemma step_system_consistent_except_owner_max_depth
           | some ownerAcc =>
               cases htarget : state.accountMap.find? target with
               | none =>
-                  by_cases hzero : (ownerAcc.balance == { val := 0 }) = true
+                  by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
                     rw [← h]
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -1201,7 +1188,7 @@ private lemma step_system_consistent_except_owner_max_depth
                     exact account_changes_consistent_insert_fresh_then_insert_ne
                       acc target state.executionEnv.codeOwner state.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
-                      ({ownerAcc with balance := UInt256.ofNat 0})
+                      ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
                   by_cases hsame : target = state.executionEnv.codeOwner
@@ -1214,12 +1201,12 @@ private lemma step_system_consistent_except_owner_max_depth
                       target, howner, hsame]
                     have h₁ := account_changes_consistent_insert_ne
                       acc state.executionEnv.codeOwner state.accountMap
-                      ({ownerAcc with balance := UInt256.ofNat 0}) hacc
+                      ({ownerAcc with balance := { val := 0 }}) hacc
                     have h₂ := account_changes_consistent_insert_ne
                       acc state.executionEnv.codeOwner
                       (state.accountMap.insert state.executionEnv.codeOwner
-                        {ownerAcc with balance := UInt256.ofNat 0})
-                      ({ownerAcc with balance := UInt256.ofNat 0}) hacc
+                        {ownerAcc with balance := { val := 0 }})
+                      ({ownerAcc with balance := { val := 0 }}) hacc
                     exact account_changes_consistent_trans h₁ h₂
                   · simp [hpop, hcreated, howner] at h
                     rw [← h]
@@ -1240,7 +1227,7 @@ private lemma step_system_consistent_except_owner_max_depth
           | some ownerAcc =>
               cases htarget : state.accountMap.find? target with
               | none =>
-                  by_cases hzero : (ownerAcc.balance == { val := 0 }) = true
+                  by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
                     rw [← h]
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -1253,7 +1240,7 @@ private lemma step_system_consistent_except_owner_max_depth
                     exact account_changes_consistent_insert_fresh_then_insert_ne
                       acc target state.executionEnv.codeOwner state.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
-                      ({ownerAcc with balance := UInt256.ofNat 0})
+                      ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
                   by_cases hsame : target = state.executionEnv.codeOwner
@@ -1469,7 +1456,7 @@ private lemma step_system_consistent_except_owner_succ_depth
       (evmState := {state with
         machineState := {state.machineState with execLength := state.machineState.execLength + 1}})
       hdepth ihTheta
-      (by simpa [accountAddress_ofUInt256_ofNat] using hacc)
+      (by simpa [AccountAddress.ofUInt256_ofNat] using hacc)
       hcall
   · simp [step] at h
     have hm := binaryMachineStateOp_accountMap_eq h
@@ -1490,7 +1477,7 @@ private lemma step_system_consistent_except_owner_succ_depth
       (evmState := {state with
         machineState := {state.machineState with execLength := state.machineState.execLength + 1}})
       hdepth ihTheta
-      (by simpa [accountAddress_ofUInt256_ofNat] using hacc)
+      (by simpa [AccountAddress.ofUInt256_ofNat] using hacc)
       hcall
   · simp [step] at h
     cases hpop : state.machineState.stack.pop4 with
@@ -1673,7 +1660,7 @@ private lemma step_system_consistent_except_owner_succ_depth
           | some ownerAcc =>
               cases htarget : state.accountMap.find? target with
               | none =>
-                  by_cases hzero : (ownerAcc.balance == { val := 0 }) = true
+                  by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
                     rw [← h]
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -1686,7 +1673,7 @@ private lemma step_system_consistent_except_owner_succ_depth
                     exact account_changes_consistent_insert_fresh_then_insert_ne
                       acc target state.executionEnv.codeOwner state.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
-                      ({ownerAcc with balance := UInt256.ofNat 0})
+                      ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
                   by_cases hsame : target = state.executionEnv.codeOwner
@@ -1699,12 +1686,12 @@ private lemma step_system_consistent_except_owner_succ_depth
                       target, howner, hsame]
                     have h₁ := account_changes_consistent_insert_ne
                       acc state.executionEnv.codeOwner state.accountMap
-                      ({ownerAcc with balance := UInt256.ofNat 0}) hacc
+                      ({ownerAcc with balance := { val := 0 }}) hacc
                     have h₂ := account_changes_consistent_insert_ne
                       acc state.executionEnv.codeOwner
                       (state.accountMap.insert state.executionEnv.codeOwner
-                        {ownerAcc with balance := UInt256.ofNat 0})
-                      ({ownerAcc with balance := UInt256.ofNat 0}) hacc
+                        {ownerAcc with balance := { val := 0 }})
+                      ({ownerAcc with balance := { val := 0 }}) hacc
                     exact account_changes_consistent_trans h₁ h₂
                   · simp [hpop, hcreated, howner] at h
                     rw [← h]
@@ -1725,7 +1712,7 @@ private lemma step_system_consistent_except_owner_succ_depth
           | some ownerAcc =>
               cases htarget : state.accountMap.find? target with
               | none =>
-                  by_cases hzero : (ownerAcc.balance == { val := 0 }) = true
+                  by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
                     rw [← h]
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -1738,7 +1725,7 @@ private lemma step_system_consistent_except_owner_succ_depth
                     exact account_changes_consistent_insert_fresh_then_insert_ne
                       acc target state.executionEnv.codeOwner state.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
-                      ({ownerAcc with balance := UInt256.ofNat 0})
+                      ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
                   by_cases hsame : target = state.executionEnv.codeOwner

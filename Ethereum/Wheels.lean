@@ -83,6 +83,12 @@ def ofNat (n : ℕ) : AccountAddress := Fin.ofNat _ n
 def ofUInt256 (v : UInt256) : AccountAddress := Fin.ofNat _ (v.val % AccountAddress.size)
 instance {n : Nat} : OfNat AccountAddress n := ⟨Fin.ofNat _ n⟩
 
+lemma ofUInt256_ofNat (a : AccountAddress) :
+    AccountAddress.ofUInt256 (UInt256.ofNat a.val) = a := by
+  ext
+  unfold AccountAddress.ofUInt256 UInt256.ofNat
+  simp [Id.run, AccountAddress.size, UInt256.size]
+
 def toByteArray (a : AccountAddress) : ByteArray :=
   let b := BE a
   ffi.ByteArray.zeroes ⟨20 - b.size⟩ ++ b

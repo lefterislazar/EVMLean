@@ -146,6 +146,24 @@ instance : DecidableEq UInt256 := λ a b ↦
         contradiction
       exact isFalse neq
 
+instance : LawfulBEq UInt256 where
+  eq_of_beq := by
+    intro a b h
+    cases a with
+    | mk aval =>
+    cases b with
+    | mk bval =>
+    change (aval == bval) = true at h
+    have hv : aval = bval := beq_iff_eq.mp h
+    subst hv
+    rfl
+  rfl := by
+    intro a
+    cases a with
+    | mk aval =>
+    change (aval == aval) = true
+    exact BEq.rfl
+
 def decLt (a b : UInt256) : Decidable (a < b) :=
   match a, b with
     | n, m => inferInstanceAs (Decidable (n < m))
@@ -254,7 +272,104 @@ def eq (a b : UInt256) := fromBool (a = b)
 def isZero (a : UInt256) :=
   fromBool (eq0 a)
 
+lemma toNat_ofNat_of_lt {n : Nat} (h : n < UInt256.size) :
+    (UInt256.ofNat n).toNat = n := by
+  unfold UInt256.ofNat UInt256.toNat
+  simp [Id.run, Nat.mod_eq_of_lt h]
+
+lemma toNat_ofNat_le (n : Nat) :
+    (UInt256.ofNat n).toNat ≤ n := by
+  unfold UInt256.ofNat UInt256.toNat
+  simp [Id.run]
+  exact Nat.mod_le n UInt256.size
+
+@[simp] lemma zero_toNat : (⟨0⟩ : UInt256).toNat = 0 := by
+  rfl
+
+@[simp] lemma default_toNat : (default : UInt256).toNat = 0 := by
+  rfl
+
+lemma toNat_sub_ofNat_of_le {g : UInt256} {n : Nat}
+    (h : n ≤ g.toNat) :
+    (g - UInt256.ofNat n).toNat = g.toNat - n := by
+  change (UInt256.sub g (UInt256.ofNat n)).toNat = g.toNat - n
+  unfold UInt256.toNat UInt256.ofNat UInt256.sub
+  rw [Fin.sub_val_of_le]
+  · simp [Id.run, Nat.mod_eq_of_lt (lt_of_le_of_lt h g.val.isLt)]
+  · change (Fin.ofNat UInt256.size n).val ≤ g.val.val
+    simp [Nat.mod_eq_of_lt (lt_of_le_of_lt h g.val.isLt)]
+    simpa [UInt256.toNat] using h
+
+lemma toNat_sub_ofNat_le {g : UInt256} {n : Nat}
+    (h : n ≤ g.toNat) :
+    (g - UInt256.ofNat n).toNat ≤ g.toNat := by
+  rw [UInt256.toNat_sub_ofNat_of_le h]
+  exact Nat.sub_le _ _
+
 end UInt256
+
+lemma UInt256_lt_to_Nat : ∀ (a b : UInt256), a < b → a.toNat < b.toNat := by
+  intros a b hlt
+  exact hlt
+
+lemma UInt256_subzero : ∀ (a : UInt256), a - { val := 0 } = a := by
+  intros a
+  simp [Sub.sub, HSub.hSub, Sub.sub, UInt256.sub]
+  simp [Fin.sub]
+  have ha : a.1 % UInt256.size = a.1 := by
+    apply Nat.mod_eq_of_lt
+    simp
+  cases a with
+  | mk a' =>
+      cases a' with
+      | mk n hn =>
+          simp [*] at ha
+          simp
+          assumption
+
+lemma UInt256_subzero' : ∀ (a : UInt256), a - UInt256.ofNat 0 = a := by
+  intros a
+  simp [UInt256.ofNat, Id.run]
+  apply UInt256_subzero a
+
+@[simp] lemma UInt256_sub_self (a : UInt256) :
+    a - a = UInt256.ofNat 0 := by
+  cases a with
+  | mk v =>
+      change ({ val := v - v } : UInt256) = { val := (0 : Fin UInt256.size) }
+      simp
+
+lemma UInt256_ofNat_0 : UInt256.ofNat 0 = (⟨0⟩ : UInt256) := by
+  simp [UInt256.ofNat, Id.run]
+
+lemma UInt256_ofNat_1 : UInt256.ofNat 1 = (⟨1⟩ : UInt256) := by
+  rfl
+
+lemma UInt256_bne_zero_eq_false_eq (b : UInt256)
+    (h : (b != (⟨0⟩ : UInt256)) = false) : b = (⟨0⟩ : UInt256) := by
+  cases b with
+  | mk bv =>
+      cases bv with
+      | mk n hn =>
+          change (! (⟨n, hn⟩ == (0 : Fin UInt256.size))) = false at h
+          have hbeq : (⟨n, hn⟩ == (0 : Fin UInt256.size)) = true := by
+            cases hb : (⟨n, hn⟩ == (0 : Fin UInt256.size)) <;> simp [hb] at h ⊢
+          have hfin : ⟨n, hn⟩ = (0 : Fin UInt256.size) := LawfulBEq.eq_of_beq hbeq
+          cases hfin
+          rfl
+
+lemma UInt256_bne_zero_eq_true_ne (b : UInt256)
+    (h : (b != (⟨0⟩ : UInt256)) = true) : b ≠ (⟨0⟩ : UInt256) := by
+  cases b with
+  | mk bv =>
+      cases bv with
+      | mk n hn =>
+          intro hz
+          cases hz
+          have hfalse : (({ val := ⟨0, hn⟩ } : UInt256) != (⟨0⟩ : UInt256)) = false := by
+            simp
+          rw [hfalse] at h
+          contradiction
 
 -- | Convert from a list of little-endian bytes to a natural number.
 def fromBytes' : List UInt8 → ℕ

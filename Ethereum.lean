@@ -14,6 +14,7 @@ import Ethereum.Theory.ProgressLemmas
 import Ethereum.Theory.GasLemmas
 import Ethereum.Theory.NoOutOfFuel
 import Ethereum.Theory.OpcodeLemmas
+import Ethereum.Theory.AccountLocality
 
 import Ethereum.SHA256
 import Ethereum.RIP160

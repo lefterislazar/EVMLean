@@ -18,24 +18,6 @@ set_option linter.unreachableTactic false
 set_option linter.unnecessarySeqFocus false
 set_option linter.unnecessarySimpa false
 
-instance : LawfulBEq UInt256 where
-  eq_of_beq := by
-    intro a b h
-    cases a with
-    | mk aval =>
-    cases b with
-    | mk bval =>
-    change (aval == bval) = true at h
-    have hv : aval = bval := beq_iff_eq.mp h
-    subst hv
-    rfl
-  rfl := by
-    intro a
-    cases a with
-    | mk aval =>
-    change (aval == aval) = true
-    exact BEq.rfl
-
 def ContinuesAfterXStep (w : Operation) : Prop :=
   δ w ≠ none ∧ w ∉ [.STOP, .RETURN, .REVERT, .SELFDESTRUCT]
 
@@ -80,23 +62,6 @@ lemma Ccallgas_lt_Ccall (t r val g σ μ A) :
 lemma L_le_self (n : Nat) : L n ≤ n := by
   unfold L
   omega
-
-lemma UInt256.toNat_ofNat_of_lt {n : Nat} (h : n < UInt256.size) :
-    (UInt256.ofNat n).toNat = n := by
-  unfold UInt256.ofNat UInt256.toNat
-  simp [Id.run, Nat.mod_eq_of_lt h]
-
-lemma UInt256.toNat_ofNat_le (n : Nat) :
-    (UInt256.ofNat n).toNat ≤ n := by
-  unfold UInt256.ofNat UInt256.toNat
-  simp [Id.run]
-  exact Nat.mod_le n UInt256.size
-
-lemma AccountAddress.ofUInt256_ofNat (a : AccountAddress) :
-    AccountAddress.ofUInt256 (UInt256.ofNat a.val) = a := by
-  ext
-  unfold AccountAddress.ofUInt256 UInt256.ofNat
-  simp [Id.run, AccountAddress.size, UInt256.size]
 
 lemma option_liftM_eq_some {α : Type} {x : Option α} {y : α}
     (h : (liftM x : Except ExecutionException α) = .ok y) :
@@ -160,29 +125,6 @@ lemma Stack.pop6_get! {stack rest : Stack UInt256} {x0 x1 x2 x3 x4 x5 : UInt256}
                           simp [Stack.pop6] at h
                           rcases h with ⟨_, h0, h1, _, _, _, _⟩
                           exact ⟨h0, h1⟩
-
-@[simp] lemma UInt256.zero_toNat : (⟨0⟩ : UInt256).toNat = 0 := by
-  rfl
-
-@[simp] lemma UInt256.default_toNat : (default : UInt256).toNat = 0 := by
-  rfl
-
-lemma UInt256.toNat_sub_ofNat_of_le {g : UInt256} {n : Nat}
-    (h : n ≤ g.toNat) :
-    (g - UInt256.ofNat n).toNat = g.toNat - n := by
-  change (UInt256.sub g (UInt256.ofNat n)).toNat = g.toNat - n
-  unfold UInt256.toNat UInt256.ofNat UInt256.sub
-  rw [Fin.sub_val_of_le]
-  · simp [Id.run, Nat.mod_eq_of_lt (lt_of_le_of_lt h g.val.isLt)]
-  · change (Fin.ofNat UInt256.size n).val ≤ g.val.val
-    simp [Nat.mod_eq_of_lt (lt_of_le_of_lt h g.val.isLt)]
-    simpa [UInt256.toNat] using h
-
-lemma UInt256.toNat_sub_ofNat_le {g : UInt256} {n : Nat}
-    (h : n ≤ g.toNat) :
-    (g - UInt256.ofNat n).toNat ≤ g.toNat := by
-  rw [UInt256.toNat_sub_ofNat_of_le h]
-  exact Nat.sub_le _ _
 
 lemma Csload_pos (μₛ A I) : 0 < Csload μₛ A I := by
   unfold Csload
@@ -1212,14 +1154,14 @@ theorem Xi_gas_le {createdAccounts genesisBlockHeader blocks σ σ₀ g A I resu
         simpa [XiResultGas, ExecutionResultGas] using X_gas_le hx
 
 lemma precompile_ECREC_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_ECREC σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_ECREC σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_ECREC
   by_cases hgas : g.toNat < 3000
   · simp [hgas]
   · simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_SHA256_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_SHA256 σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_SHA256 σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_SHA256
   by_cases hgas : g.toNat < 60 + 12 * ((I.calldata.size + 31) / 32)
   · simp [hgas]
@@ -1227,7 +1169,7 @@ lemma precompile_SHA256_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
       simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_RIP160_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_RIP160 σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_RIP160 σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_RIP160
   by_cases hgas : g.toNat < 600 + 120 * ((I.calldata.size + 31) / 32)
   · simp [hgas]
@@ -1235,14 +1177,14 @@ lemma precompile_RIP160_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
       simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_ID_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_ID σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_ID σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_ID
   by_cases hgas : g.toNat < 15 + 3 * ((I.calldata.size + 31) / 32)
   · simp [hgas]
   · simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_EXPMOD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_EXPMOD σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_EXPMOD σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_EXPMOD
   set foo : Nat :=
     ((max (nat_of_slice I.calldata 0 32) (nat_of_slice I.calldata 64 32) + 7) / 8) ^ 2 *
@@ -1278,7 +1220,7 @@ lemma precompile_EXPMOD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
     simp [hgas, foo, UInt256.toNat_sub_ofNat_le hle]
 
 lemma precompile_BN_ADD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_BN_ADD σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_BN_ADD σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_BN_ADD
   by_cases hgas : g.toNat < 150
   · simp [hgas]
@@ -1290,7 +1232,7 @@ lemma precompile_BN_ADD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
         simp [hgas, hres, dbgTrace]
 
 lemma precompile_BN_MUL_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_BN_MUL σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_BN_MUL σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_BN_MUL
   by_cases hgas : g.toNat < 6000
   · simp [hgas]
@@ -1302,7 +1244,7 @@ lemma precompile_BN_MUL_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
         simp [hgas, hres, dbgTrace]
 
 lemma precompile_SNARKV_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_SNARKV σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_SNARKV σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_SNARKV
   by_cases hgas : g.toNat < 34000 * (I.calldata.size / 192) + 45000
   · simp [hgas]
@@ -1313,7 +1255,7 @@ lemma precompile_SNARKV_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
         simp [hgas, hres, dbgTrace]
 
 lemma precompile_BLAKE2_F_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_BLAKE2_F σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_BLAKE2_F σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_BLAKE2_F
   by_cases hgas : g.toNat < fromByteArrayBigEndian (I.calldata.extract 0 4)
   · simp [hgas, dbgTrace]
@@ -1324,7 +1266,7 @@ lemma precompile_BLAKE2_F_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
         simp [hgas, hres, dbgTrace]
 
 lemma precompile_PointEval_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_PointEval σ g A I).2.2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_PointEval σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_PointEval
   by_cases hgas : g.toNat < 50000
   · simp [hgas]
@@ -1347,46 +1289,46 @@ lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
       | 8 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_SNARKV σ g A I)
       | 9 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_BLAKE2_F σ g A I)
       | 10 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_PointEval σ g A I)
-      | _ => default).2.2.2.1.toNat ≤ g.toNat := by
+      | _ => default).2.2.1.toNat ≤ g.toNat := by
   by_cases h1 : p = 1
   · subst p
-    change (Ξ_ECREC σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_ECREC σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_ECREC_gas_le _ _ _ _
   by_cases h2 : p = 2
   · subst p
-    change (Ξ_SHA256 σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_SHA256 σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_SHA256_gas_le _ _ _ _
   by_cases h3 : p = 3
   · subst p
-    change (Ξ_RIP160 σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_RIP160 σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_RIP160_gas_le _ _ _ _
   by_cases h4 : p = 4
   · subst p
-    change (Ξ_ID σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_ID σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_ID_gas_le _ _ _ _
   by_cases h5 : p = 5
   · subst p
-    change (Ξ_EXPMOD σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_EXPMOD σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_EXPMOD_gas_le _ _ _ _
   by_cases h6 : p = 6
   · subst p
-    change (Ξ_BN_ADD σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_BN_ADD σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_BN_ADD_gas_le _ _ _ _
   by_cases h7 : p = 7
   · subst p
-    change (Ξ_BN_MUL σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_BN_MUL σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_BN_MUL_gas_le _ _ _ _
   by_cases h8 : p = 8
   · subst p
-    change (Ξ_SNARKV σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_SNARKV σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_SNARKV_gas_le _ _ _ _
   by_cases h9 : p = 9
   · subst p
-    change (Ξ_BLAKE2_F σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_BLAKE2_F σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_BLAKE2_F_gas_le _ _ _ _
   by_cases h10 : p = 10
   · subst p
-    change (Ξ_PointEval σ g A I).2.2.1.toNat ≤ g.toNat
+    change (Ξ_PointEval σ g A I).2.1.toNat ≤ g.toNat
     exact precompile_PointEval_gas_le _ _ _ _
   repeat split
   all_goals try contradiction

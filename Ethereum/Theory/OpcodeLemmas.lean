@@ -10,34 +10,6 @@ namespace EVM
 
 set_option linter.unusedSimpArgs false
 
-/-
- -  Helper lemmas
- -/
-
-lemma UInt256_lt_to_Nat : ∀ (a b : UInt256), a < b → a.toNat < b.toNat := by
-  intros a b hlt; exact hlt
-
-lemma UInt256_subzero : ∀ (a : UInt256), a - { val := 0 } = a := by
-  intros a
-  simp [Sub.sub, HSub.hSub, Sub.sub, UInt256.sub]
-  simp [Fin.sub]
-  have ha : a.1 % UInt256.size = a.1 := by
-    apply Nat.mod_eq_of_lt; simp
-  cases a with
-  | mk a' => cases a' with
-    | mk n hn =>
-      simp [*] at ha
-      simp; assumption
-
-lemma UInt256_subzero' : ∀ (a : UInt256), a - UInt256.ofNat 0 = a :=
-  by intros a; simp [UInt256.ofNat, Id.run]; apply UInt256_subzero a
-
-lemma UInt256_ofNat_0 : UInt256.ofNat 0 = (⟨0⟩ : UInt256) := by
-  simp [UInt256.ofNat, Id.run]
-
-lemma UInt256_ofNat_1 : UInt256.ofNat 1 = (⟨1⟩ : UInt256) := by
-  rfl
-
 lemma extCodeHash_executionEnv_eq (s : State) (env : ExecutionEnv) (v : UInt256) :
     Ethereum.State.extCodeHash {s with executionEnv := env} v =
       let result := Ethereum.State.extCodeHash s v
@@ -74,33 +46,6 @@ lemma extCodeHash_executionEnv_eq (s : State) (env : ExecutionEnv) (v : UInt256)
 @[simp] lemma Account_fst_storage (acc : Account) :
     acc.1.storage = acc.storage := by
   rfl
-
-lemma UInt256_bne_zero_eq_false_eq (b : UInt256)
-    (h : (b != (⟨0⟩ : UInt256)) = false) : b = (⟨0⟩ : UInt256) := by
-  cases b with
-  | mk bv =>
-    cases bv with
-    | mk n hn =>
-      change (! (⟨n, hn⟩ == (0 : Fin UInt256.size))) = false at h
-      have hbeq : (⟨n, hn⟩ == (0 : Fin UInt256.size)) = true := by
-        cases hb : (⟨n, hn⟩ == (0 : Fin UInt256.size)) <;> simp [hb] at h ⊢
-      have hfin : ⟨n, hn⟩ = (0 : Fin UInt256.size) := LawfulBEq.eq_of_beq hbeq
-      cases hfin
-      rfl
-
-lemma UInt256_bne_zero_eq_true_ne (b : UInt256)
-    (h : (b != (⟨0⟩ : UInt256)) = true) : b ≠ (⟨0⟩ : UInt256) := by
-  cases b with
-  | mk bv =>
-    cases bv with
-    | mk n hn =>
-      intro hz
-      cases hz
-      have hfalse : (({ val := ⟨0, hn⟩ } : UInt256) != (⟨0⟩ : UInt256)) = false := by
-        simp
-      rw [hfalse] at h
-      contradiction
-
 
 /-
  -         Opcode Step Results
