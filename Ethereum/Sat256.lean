@@ -28,6 +28,7 @@ lemma natSub_zero (a : Sat256) : a.natSub 0 = a := by
     (self.natSub d).toNat = self.toNat - d := by
   rfl
 
+
 @[simp] lemma toUInt256_toNat (self : Sat256) :
     self.toUInt256.toNat = self.toNat := by
   rfl
@@ -41,7 +42,7 @@ lemma natSub_assoc (a : Sat256) (b c : ℕ) :
       simp [Sat256.natSub]; omega
 
 lemma natSub_sub_add_of_sub_sub (a : Sat256) (b c : ℕ) :
-    (a.natSub b).natSub c = (a.natSub (c + b)) := by
+    (a.natSub b).natSub c = (a.natSub (b + c)) := by
       simp [Sat256.natSub]; omega
 
 instance : Sub Sat256 := ⟨Sat256.sub⟩
