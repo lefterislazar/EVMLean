@@ -12,7 +12,7 @@ namespace Sat256
 def sub (a b : Sat256) : Sat256 :=
   ⟨a.val - b.val, Nat.lt_of_le_of_lt (m := a.val) (Nat.sub_le a.val b.val) a.2⟩
 
-def natSub (a : Sat256) (b : ℕ) : Sat256 :=
+def subNat (a : Sat256) (b : ℕ) : Sat256 :=
   ⟨a.val - b, Nat.lt_of_le_of_lt (m := a.val) (Nat.sub_le a.val b) a.2⟩
 
 def toUInt256 (a : Sat256) : UInt256 := ⟨⟨a.val, a.isLt⟩⟩
@@ -20,30 +20,6 @@ def toUInt256 (a : Sat256) : UInt256 := ⟨⟨a.val, a.isLt⟩⟩
 def toNat (a : Sat256) : ℕ := a.val
 
 def ofUInt256 (a : UInt256) : Sat256 := ⟨a.val.val, a.val.isLt⟩
-
-lemma natSub_zero (a : Sat256) : a.natSub 0 = a := by
-  simp [natSub]
-
-@[simp] lemma natSub_toNat (self : Sat256) (d : Nat) :
-    (self.natSub d).toNat = self.toNat - d := by
-  rfl
-
-
-@[simp] lemma toUInt256_toNat (self : Sat256) :
-    self.toUInt256.toNat = self.toNat := by
-  rfl
-
-@[simp] lemma ofUInt256_toNat (self : UInt256) :
-    (Sat256.ofUInt256 self).toNat = self.toNat := by
-  rfl
-
-lemma natSub_assoc (a : Sat256) (b c : ℕ) :
-    (a.natSub b).natSub c = (a.natSub c).natSub b := by
-      simp [Sat256.natSub]; omega
-
-lemma natSub_sub_add_of_sub_sub (a : Sat256) (b c : ℕ) :
-    (a.natSub b).natSub c = (a.natSub (b + c)) := by
-      simp [Sat256.natSub]; omega
 
 instance : Sub Sat256 := ⟨Sat256.sub⟩
 
@@ -58,12 +34,84 @@ instance : Inhabited Sat256 where
 
 instance {n : ℕ} : OfNat Sat256 n where
   ofNat := ⟨min n (UInt256.size - 1),
-    by apply Nat.lt_of_le_of_lt
-       · apply Nat.min_le_right
-       · simp [UInt256.size]
-    ⟩ 
+    by
+      apply Nat.lt_of_le_of_lt
+      · apply Nat.min_le_right
+      · simp [UInt256.size]⟩
 
 instance : Repr Sat256 where
   reprPrec n _ := repr n.toNat
 
+@[ext] theorem ext {a b : Sat256} (h : a.toNat = b.toNat) : a = b := by
+  cases a
+  cases b
+  simp [toNat] at h
+  subst h
+  rfl
+
+@[simp] theorem eq_iff_toNat {a b : Sat256} :
+    a = b ↔ a.toNat = b.toNat := by
+  constructor
+  · intro h
+    rw [h]
+  · exact ext
+
+@[simp] theorem le_iff_toNat {a b : Sat256} :
+    a ≤ b ↔ a.toNat ≤ b.toNat := Iff.rfl
+
+@[simp] theorem lt_iff_toNat {a b : Sat256} :
+    a < b ↔ a.toNat < b.toNat := Iff.rfl
+
+@[simp] theorem subNat_toNat (a : Sat256) (n : Nat) :
+    (a.subNat n).toNat = a.toNat - n := rfl
+
+@[simp] theorem toUInt256_toNat (a : Sat256) :
+    a.toUInt256.toNat = a.toNat := rfl
+
+@[simp] theorem ofUInt256_toNat (a : UInt256) :
+    (Sat256.ofUInt256 a).toNat = a.toNat := rfl
+
+@[simp] theorem subNat_zero (a : Sat256) :
+    a.subNat 0 = a := by
+  ext
+  simp
+
+@[simp] theorem subNat_subNat (a : Sat256) (m n : Nat) :
+    (a.subNat m).subNat n = a.subNat (m + n) := by
+  ext
+  simp
+  omega
+
+theorem subNat_assoc (a : Sat256) (m n : Nat) :
+    (a.subNat m).subNat n = (a.subNat n).subNat m := by
+  ext
+  simp
+  omega
+
+theorem subNat_sub_add_of_sub_sub (a : Sat256) (m n : Nat) :
+    (a.subNat m).subNat n = a.subNat (m + n) :=
+  a.subNat_subNat m n
+
+theorem subNat_le (a : Sat256) (n : Nat) :
+    (a.subNat n).toNat ≤ a.toNat := by
+  simp
+
+theorem subNat_eq_zero_of_le {a : Sat256} {n : Nat}
+    (h : a.toNat ≤ n) :
+    a.subNat n = 0 := by
+  cases a with
+  | mk val isLt =>
+    apply ext
+    change val - n = 0
+    simp [toNat] at h
+    omega
+
+theorem subNat_add_cancel {a : Sat256} {n : Nat}
+    (h : n ≤ a.toNat) :
+    (a.subNat n).toNat + n = a.toNat := by
+  simp
+  omega
+
 end Sat256
+
+end Ethereum

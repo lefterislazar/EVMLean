@@ -5,7 +5,7 @@ namespace Ethereum
 namespace State
 
 def subtractGas (self : State) (d : Nat) : State :=
-  { self with machineState.gasAvailable := self.machineState.gasAvailable.natSub d }
+  { self with machineState.gasAvailable := self.machineState.gasAvailable.subNat d }
 
 end State
 
@@ -166,7 +166,7 @@ lemma C'_pos_of_continuesAfterXStep (s : State) {w : Operation}
 
 @[simp] lemma State.subtractGas_gasAvailable (self : State) (d : Nat) :
     (self.subtractGas d).machineState.gasAvailable =
-      self.machineState.gasAvailable.natSub d := by
+      self.machineState.gasAvailable.subNat d := by
   rfl
 
 @[simp] lemma State.subtractGas_gasAvailable_toNat (self : State) (d : Nat) :
@@ -338,7 +338,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_stoparith_gas {gasCost : Nat} {op : Operation.SAOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.StopArith op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, execBinOp, execTriOp,
       Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
@@ -354,7 +354,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_compbit_gas {gasCost : Nat} {op : Operation.CBLOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.CompBit op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, execUnOp, execBinOp,
       Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
@@ -370,7 +370,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_keccak_gas {gasCost : Nat} {op : Operation.KOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Keccak op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, binaryMachineStateOp',
       Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -387,7 +387,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_env_gas {gasCost : Nat} {op : Operation.EOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Env op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, executionEnvOp, unaryExecutionEnvOp,
       unaryStateOp, ternaryCopyOp, quaternaryCopyOp, machineStateOp,
@@ -406,7 +406,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_block_gas {gasCost : Nat} {op : Operation.BOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Block op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, executionEnvOp, unaryExecutionEnvOp,
       stateOp, unaryStateOp, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -425,7 +425,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_stackmemflow_gas {gasCost : Nat} {op : Operation.SMSFOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.StackMemFlow op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, machineStateOp, binaryMachineStateOp,
       binaryMachineStateOp', ternaryMachineStateOp, binaryStateOp, unaryStateOp,
@@ -445,7 +445,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_push_gas {gasCost : Nat} {op : Operation.POp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Push op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure,
       Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
@@ -461,7 +461,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_dup_gas {gasCost : Nat} {op : Operation.DOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Dup op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, dup,
       Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
@@ -477,7 +477,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_exchange_gas {gasCost : Nat} {op : Operation.ExOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Exchange op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, swap,
       Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
@@ -493,7 +493,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_log_gas {gasCost : Nat} {op : Operation.LOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Log op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, log0Op, log1Op, log2Op, log3Op,
       log4Op, evmLogOp, logOp, Ethereum.State.replaceStackAndIncrPC,
@@ -513,7 +513,7 @@ lemma step_system_nonrecursive_gas {gasCost : Nat} {op : Operation.SOp}
       ([Operation.CREATE, Operation.CREATE2, Operation.CALL, Operation.CALLCODE,
         Operation.DELEGATECALL, Operation.STATICCALL] : List Operation))
     (h : step gasCost (Operation.System op, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> first | (exfalso; simpa using hop) | skip
   all_goals
     rw [step.eq_1] at h
@@ -557,13 +557,7 @@ lemma step_create_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   all_goals
     try contradiction
     first
-    | rw [← h]
-      simp
-      omega
-    | injection h with hs
-      rw [← hs]
-      simp
-      omega
+    | simp [← h]
 
 set_option linter.unusedSimpArgs false in
 lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -582,10 +576,7 @@ lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     | rw [← h]
       simp
       omega
-    | injection h with hs
-      rw [← hs]
-      simp
-      omega
+    | simp [← h]
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -602,10 +593,7 @@ lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     | rw [← h]
       simp
       omega
-    | injection h with hs
-      rw [← hs]
-      simp
-      omega
+    | simp [← h]
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -693,7 +681,7 @@ lemma step_nonrecursive_gas {gasCost : Nat} {w : Operation}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (hnrec : ¬ RecursiveSystemStep w)
     (h : step gasCost (w, arg) s = .ok s') :
-    s'.machineState.gasAvailable = s.machineState.gasAvailable.natSub gasCost := by
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases w with
   | StopArith op => exact step_stoparith_gas h
   | CompBit op => exact step_compbit_gas h
@@ -1657,7 +1645,7 @@ lemma step_gas_decreases_of_cost_eq_C'
         | INVALID => simp [RecursiveSystemStep] at hnrec
         | SELFDESTRUCT => simp [RecursiveSystemStep] at hnrec
   · rw [step_nonrecursive_gas hnrec h]
-    rw [Sat256.natSub_toNat]
+    rw [Sat256.subNat_toNat]
     omega
 
 lemma C'_set_depth (s : State) (d : Fin 1025) (w : Operation) :

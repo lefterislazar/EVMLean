@@ -1765,7 +1765,7 @@ theorem account_changes_consistent_of_Z
   rw [if_neg hcost₁] at hZ
   set state₁ : State :=
     { state with machineState.gasAvailable :=
-        state.machineState.gasAvailable.natSub (memoryExpansionCost state op) } with hstate₁
+        state.machineState.gasAvailable.subNat (memoryExpansionCost state op) } with hstate₁
   by_cases hcost₂ : state₁.machineState.gasAvailable.toNat < C' state₁ op
   · rw [if_pos (by simpa [state₁] using hcost₂)] at hZ
     contradiction
@@ -1839,7 +1839,7 @@ theorem Z_executionEnv_eq
   rw [if_neg hcost₁] at hZ
   set state₁ : State :=
     { state with machineState.gasAvailable :=
-        state.machineState.gasAvailable.natSub (memoryExpansionCost state op) } with hstate₁
+        state.machineState.gasAvailable.subNat (memoryExpansionCost state op) } with hstate₁
   by_cases hcost₂ : state₁.machineState.gasAvailable.toNat < C' state₁ op
   · rw [if_pos (by simpa [state₁] using hcost₂)] at hZ
     contradiction

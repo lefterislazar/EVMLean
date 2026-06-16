@@ -213,7 +213,7 @@ def call
       let μ'incomplete : MachineState :=
         { μ'ₘ with
             returnData   := μ'ₒ
-            gasAvailable := evmState.machineState.gasAvailable.natSub (gasCost - g'.toNat)
+            gasAvailable := evmState.machineState.gasAvailable.subNat (gasCost - g'.toNat)
             activeWords :=
               let m : ℕ:= MachineState.M evmState.machineState.activeWords.toNat inOffset.toNat inSize.toNat
               .ofNat <| MachineState.M m outOffset.toNat outSize.toNat
@@ -237,7 +237,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
     -- That said, we sometimes want a `step : EVM.Transformer` and as such, we can decode on demand.
     let (instr, arg) := (instr.1, instr.2)
     let evmState := { evmState with machineState.execLength := evmState.machineState.execLength + 1 }
-    let evmStateCharged := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.natSub gasCost }
+    let evmStateCharged := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.subNat gasCost }
     match instr with
       | .CREATE =>
         let evmState := evmStateCharged
@@ -301,7 +301,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
               { evmState' with
                   machineState.activeWords := .ofNat <| MachineState.M evmState.machineState.activeWords.toNat μ₁.toNat μ₂.toNat
                   machineState.returnData := newReturnData
-                  machineState.gasAvailable := evmState.machineState.gasAvailable.natSub (L (evmState.machineState.gasAvailable.toNat) - g'.toNat)
+                  machineState.gasAvailable := evmState.machineState.gasAvailable.subNat (L (evmState.machineState.gasAvailable.toNat) - g'.toNat)
               }
             .ok <| evmState'.replaceStackAndIncrPC (stack.push x)
           | _ =>
@@ -357,7 +357,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
               { evmState' with
                 machineState.activeWords := .ofNat <| MachineState.M evmState.machineState.activeWords.toNat μ₁.toNat μ₂.toNat
                 machineState.returnData := newReturnData
-                machineState.gasAvailable := evmState.machineState.gasAvailable.natSub (L (evmState.machineState.gasAvailable.toNat) - g'.toNat)
+                machineState.gasAvailable := evmState.machineState.gasAvailable.subNat (L (evmState.machineState.gasAvailable.toNat) - g'.toNat)
               }
             .ok <| evmState'.replaceStackAndIncrPC (stack.push x)
           | _ =>
@@ -725,7 +725,7 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
     if evmState.machineState.gasAvailable.toNat < cost₁ then
       .error .OutOfGass
     else
-      let evmState := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.natSub cost₁ }
+      let evmState := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.subNat cost₁ }
       let cost₂ := C' evmState w
       if evmState.machineState.gasAvailable.toNat < cost₂ then
         .error .OutOfGass
