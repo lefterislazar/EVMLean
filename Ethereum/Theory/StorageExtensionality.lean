@@ -2448,14 +2448,14 @@ theorem exceptUIntStateExtensionalEq_replaceStackAndIncrPC
           rfl
       | ok ok₂ =>
           have hfalse : False := by
-            simpa [exceptUIntStateExtensionalEq] using h
+            simp [exceptUIntStateExtensionalEq] at h
           exact False.elim hfalse
   | ok ok₁ =>
       rcases ok₁ with ⟨x₁, state₁⟩
       cases r₂ with
       | error e₂ =>
           have hfalse : False := by
-            simpa [exceptUIntStateExtensionalEq] using h
+            simp [exceptUIntStateExtensionalEq] at h
           exact False.elim hfalse
       | ok ok₂ =>
           rcases ok₂ with ⟨x₂, state₂⟩
@@ -4332,9 +4332,7 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
             machine₁.gasAvailable.toNat - gasCost +
                 (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
               L (machine₁.gasAvailable.toNat - gasCost)
-        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-            Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            stateExtensionalEq, hσ]
+        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq]
         · simp [hlimit₁, hlimit₂, hog, exceptStateExtensionalEq,
             Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
             stateExtensionalEq, hσ]
@@ -4386,10 +4384,8 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
               by_cases hog :
                   machine₁.gasAvailable.toNat - gasCost + gΛ₁.toNat <
                     L (machine₁.gasAvailable.toNat - gasCost)
-              · simp [hog, hbalance, hΛ₁, hΛ₂, bind, Except.bind,
-                  exceptStateExtensionalEq, stateExtensionalEq,
-                  Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
-              · simp [hog, hbalance, hΛ₁, hΛ₂, exceptStateExtensionalEq, stateExtensionalEq,
+              · simp [hog, bind, Except.bind, exceptStateExtensionalEq]
+              · simp [hog, hbalance, exceptStateExtensionalEq, stateExtensionalEq,
                   Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
         · have hcond₂ :
               ¬(μ₀ ≤ (σ₂.find? env₁.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
@@ -4401,9 +4397,7 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
               machine₁.gasAvailable.toNat - gasCost +
                   (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
                 L (machine₁.gasAvailable.toNat - gasCost)
-          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-              Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-              stateExtensionalEq, hσ]
+          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq]
           · simp [hcond₁, hcond₂, hog, exceptStateExtensionalEq,
               Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
               stateExtensionalEq, hσ]
@@ -4454,9 +4448,7 @@ theorem step_CREATE_extensional_max_depth {state₁ state₂ : State}
             machine₁.gasAvailable.toNat - gasCost +
                 (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
               L (machine₁.gasAvailable.toNat - gasCost)
-        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-            Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            stateExtensionalEq, hσ]
+        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq]
         · simp [hlimit₁, hlimit₂, hog, exceptStateExtensionalEq,
             Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
             stateExtensionalEq, hσ]
@@ -4486,9 +4478,7 @@ theorem step_CREATE_extensional_max_depth {state₁ state₂ : State}
               machine₁.gasAvailable.toNat - gasCost +
                   (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
                 L (machine₁.gasAvailable.toNat - gasCost)
-          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-              Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-              stateExtensionalEq, hσ]
+          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq]
           · simp [hcond₁, hcond₂, hog, exceptStateExtensionalEq,
               Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
               stateExtensionalEq, hσ]
@@ -4587,9 +4577,7 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
             machine₁.gasAvailable.toNat - gasCost +
                 (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
               L (machine₁.gasAvailable.toNat - gasCost)
-        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-            Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            stateExtensionalEq, hσ]
+        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq]
         · simp [hlimit₁, hlimit₂, hog, exceptStateExtensionalEq,
             Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
             stateExtensionalEq, hσ]
@@ -4646,10 +4634,8 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
               by_cases hog :
                   machine₁.gasAvailable.toNat - gasCost + gΛ₁.toNat <
                     L (machine₁.gasAvailable.toNat - gasCost)
-              · simp [hog, hbalance, hΛ₁, hΛ₂, bind, Except.bind,
-                  exceptStateExtensionalEq, stateExtensionalEq,
-                  Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
-              · simp [hog, hbalance, hΛ₁, hΛ₂, exceptStateExtensionalEq, stateExtensionalEq,
+              · simp [hog, bind, Except.bind, exceptStateExtensionalEq]
+              · simp [hog, hbalance, exceptStateExtensionalEq, stateExtensionalEq,
                   Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
         · have hcond₂ :
               ¬(μ₀ ≤ (σ₂.find? env₁.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
@@ -4661,9 +4647,7 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
               machine₁.gasAvailable.toNat - gasCost +
                   (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
                 L (machine₁.gasAvailable.toNat - gasCost)
-          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-              Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-              stateExtensionalEq, hσ]
+          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq]
           · simp [hcond₁, hcond₂, hog, exceptStateExtensionalEq,
               Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
               stateExtensionalEq, hσ]
@@ -4760,9 +4744,7 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
             machine₁.gasAvailable.toNat - gasCost +
                 (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
               L (machine₁.gasAvailable.toNat - gasCost)
-        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-            Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            stateExtensionalEq, hσ]
+        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq]
         · simp [hlimit₁, hlimit₂, hog, exceptStateExtensionalEq,
             Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
             stateExtensionalEq, hσ]
@@ -4814,10 +4796,8 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
               by_cases hog :
                   machine₁.gasAvailable.toNat - gasCost + gΛ₁.toNat <
                     L (machine₁.gasAvailable.toNat - gasCost)
-              · simp [hog, hbalance, hΛ₁, hΛ₂, bind, Except.bind,
-                  exceptStateExtensionalEq, stateExtensionalEq,
-                  Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
-              · simp [hog, hbalance, hΛ₁, hΛ₂, exceptStateExtensionalEq, stateExtensionalEq,
+              · simp [hog, bind, Except.bind, exceptStateExtensionalEq]
+              · simp [hog, hbalance, exceptStateExtensionalEq, stateExtensionalEq,
                   Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
         · have hcond₂ :
               ¬(μ₀ ≤ (σ₂.find? env₁.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
@@ -4829,9 +4809,7 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
               machine₁.gasAvailable.toNat - gasCost +
                   (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
                 L (machine₁.gasAvailable.toNat - gasCost)
-          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-              Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-              stateExtensionalEq, hσ]
+          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq]
           · simp [hcond₁, hcond₂, hog, exceptStateExtensionalEq,
               Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
               stateExtensionalEq, hσ]
@@ -4882,9 +4860,7 @@ theorem step_CREATE2_extensional_max_depth {state₁ state₂ : State}
             machine₁.gasAvailable.toNat - gasCost +
                 (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
               L (machine₁.gasAvailable.toNat - gasCost)
-        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-            Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            stateExtensionalEq, hσ]
+        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq]
         · simp [hlimit₁, hlimit₂, hog, exceptStateExtensionalEq,
             Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
             stateExtensionalEq, hσ]
@@ -4914,9 +4890,7 @@ theorem step_CREATE2_extensional_max_depth {state₁ state₂ : State}
               machine₁.gasAvailable.toNat - gasCost +
                   (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
                 L (machine₁.gasAvailable.toNat - gasCost)
-          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-              Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-              stateExtensionalEq, hσ]
+          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq]
           · simp [hcond₁, hcond₂, hog, exceptStateExtensionalEq,
               Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
               stateExtensionalEq, hσ]
@@ -5015,9 +4989,7 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
             machine₁.gasAvailable.toNat - gasCost +
                 (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
               L (machine₁.gasAvailable.toNat - gasCost)
-        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-            Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-            stateExtensionalEq, hσ]
+        · simp [hlimit₁, hlimit₂, hog, bind, Except.bind, exceptStateExtensionalEq]
         · simp [hlimit₁, hlimit₂, hog, exceptStateExtensionalEq,
             Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
             stateExtensionalEq, hσ]
@@ -5074,10 +5046,8 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
               by_cases hog :
                   machine₁.gasAvailable.toNat - gasCost + gΛ₁.toNat <
                     L (machine₁.gasAvailable.toNat - gasCost)
-              · simp [hog, hbalance, hΛ₁, hΛ₂, bind, Except.bind,
-                  exceptStateExtensionalEq, stateExtensionalEq,
-                  Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
-              · simp [hog, hbalance, hΛ₁, hΛ₂, exceptStateExtensionalEq, stateExtensionalEq,
+              · simp [hog, bind, Except.bind, exceptStateExtensionalEq]
+              · simp [hog, hbalance, exceptStateExtensionalEq, stateExtensionalEq,
                   Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hσΛ]
         · have hcond₂ :
               ¬(μ₀ ≤ (σ₂.find? env₁.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
@@ -5089,9 +5059,7 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
               machine₁.gasAvailable.toNat - gasCost +
                   (UInt256.ofNat (L (machine₁.gasAvailable.toNat - gasCost))).toNat <
                 L (machine₁.gasAvailable.toNat - gasCost)
-          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq,
-              Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-              stateExtensionalEq, hσ]
+          · simp [hcond₁, hcond₂, hog, bind, Except.bind, exceptStateExtensionalEq]
           · simp [hcond₁, hcond₂, hog, exceptStateExtensionalEq,
               Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
               stateExtensionalEq, hσ]
@@ -6579,7 +6547,6 @@ theorem lambdaFinalize_extensional {σ₁ σ₂ τ₁ τ₂ : AccountMap}
     | exact ⟨hcreated, hσ⟩
     | exact ⟨hcreated, by simp [hg], hA, accountMapExtensionalEq_insert_same hτ
         (accountExtensionalEq_with_code (accountMapExtensionalEq_findD hτ a) returnedData)⟩
-    | contradiction
 
 private theorem lambdaCollision_code_eq {σ₁ σ₂ : AccountMap}
     (hσ : accountMapExtensionalEq σ₁ σ₂) (a : AccountAddress) (i : ByteArray) :
@@ -7059,7 +7026,7 @@ private theorem precompile_PointEval_extensional {σ₁ σ₂ : AccountMap}
     unfold Ξ_PointEval
     let d := I.calldata
     by_cases hg : g.toNat < 50000
-    · simp [d, hg]
+    · simp [hg]
     · cases hres : PointEval d <;> simp [d, hg, hres, dbgTrace]
 
 private theorem precompile_dispatch_accountMap_extensional {σ₁ σ₂ : AccountMap}
@@ -7230,7 +7197,33 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
       · intro hTheta₁ hTheta₂
         cases hc : c with
         | Precompiled pc =>
-            sorry
+            have hpre := accountMapExtensionalEq_call_prelude hσ r s v
+            let I : ExecutionEnv :=
+              { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
+                source := s, weiValue := v', depth := (1024 : Fin 1025), perm := w,
+                code := default, header := H, blobVersionedHashes := blobVersionedHashes }
+            have hdispatch := precompile_dispatch_extensional hpre pc g A I
+            have hrel :
+                thetaResultExtensionalEq
+                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                    (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w)
+                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                    (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w) := by
+              unfold Θ
+              dsimp [I]
+              exact thetaPrecompiledResult_extensional_of_dispatch A hσ hdispatch
+            have hTheta₁' :
+                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                  (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w =
+                (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') := by
+              simpa [hc] using hTheta₁
+            have hTheta₂' :
+                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                  (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w =
+                (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') := by
+              simpa [hc] using hTheta₂
+            rw [hTheta₁', hTheta₂'] at hrel
+            simpa [thetaResultExtensionalEq] using hrel
         | Code code =>
             have hpre := accountMapExtensionalEq_call_prelude hσ r s v
             have hXi :
@@ -7283,7 +7276,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 have hvb : (!v == UInt256.ofNat 0) = true := by
                   simpa [bne] using hv
                 have hXi' := hXi
-                simp [bne, hv, hvb, hvne] at hXi'
+                simp [bne, hvb] at hXi'
                 simpa [bne, hv, hvb, hvne] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
                     (createdAccounts := createdAccounts) (A := A) hσ hXi')
@@ -7292,7 +7285,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 have hvb : (!v == UInt256.ofNat 0) = false := by
                   simpa [bne] using hv
                 have hXi' := hXi
-                simp [bne, hv, hvb, hveq] at hXi'
+                simp [bne, hveq] at hXi'
                 simpa [bne, hv, hvb, hveq] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
                     (createdAccounts := createdAccounts) (A := A) hσ hXi')
@@ -7505,7 +7498,33 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
       · intro hTheta₁ hTheta₂
         cases hc : c with
         | Precompiled pc =>
-            sorry
+            have hpre := accountMapExtensionalEq_call_prelude hσ r s v
+            let I : ExecutionEnv :=
+              { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
+                source := s, weiValue := v', depth := e, perm := w,
+                code := default, header := H, blobVersionedHashes := blobVersionedHashes }
+            have hdispatch := precompile_dispatch_extensional hpre pc g A I
+            have hrel :
+                thetaResultExtensionalEq
+                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                    (ToExecute.Precompiled pc) g p v v' d e H w)
+                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                    (ToExecute.Precompiled pc) g p v v' d e H w) := by
+              unfold Θ
+              dsimp [I]
+              exact thetaPrecompiledResult_extensional_of_dispatch A hσ hdispatch
+            have hTheta₁' :
+                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                  (ToExecute.Precompiled pc) g p v v' d e H w =
+                (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') := by
+              simpa [hc] using hTheta₁
+            have hTheta₂' :
+                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                  (ToExecute.Precompiled pc) g p v v' d e H w =
+                (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') := by
+              simpa [hc] using hTheta₂
+            rw [hTheta₁', hTheta₂'] at hrel
+            simpa [thetaResultExtensionalEq] using hrel
         | Code code =>
             have hpre := accountMapExtensionalEq_call_prelude hσ r s v
             have hXi :
@@ -7588,7 +7607,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 have hvb : (!v == UInt256.ofNat 0) = true := by
                   simpa [bne] using hv
                 have hXi' := hXi
-                simp [bne, hv, hvb, hvne] at hXi'
+                simp [bne, hvb] at hXi'
                 simpa [bne, hv, hvb, hvne] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
                     (createdAccounts := createdAccounts) (A := A) hσ hXi')
@@ -7597,7 +7616,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 have hvb : (!v == UInt256.ofNat 0) = false := by
                   simpa [bne] using hv
                 have hXi' := hXi
-                simp [bne, hv, hvb, hveq] at hXi'
+                simp [bne, hveq] at hXi'
                 simpa [bne, hv, hvb, hveq] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
                     (createdAccounts := createdAccounts) (A := A) hσ hXi')
