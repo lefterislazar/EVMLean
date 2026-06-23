@@ -140,8 +140,9 @@ private theorem rbMap_beq_empty_iff_forall_find?_none {α β}
 
 def storageExtensionalEq (st₁ st₂ : Storage) : Prop :=
   ∀ slot,
-    (st₁.find? slot = none ∧ st₂.find? slot = none) ∨
-    ∃ value, st₁.find? slot = some value ∧ st₂.find? slot = some value
+    st₁.find? slot = st₂.find? slot
+    -- (st₁.find? slot = none ∧ st₂.find? slot = none) ∨
+    -- ∃ value, st₁.find? slot = some value ∧ st₂.find? slot = some value
 
 def accountExtensionalEq (acc₁ acc₂ : Account) : Prop :=
   acc₁.nonce = acc₂.nonce ∧
@@ -161,8 +162,8 @@ theorem storageExtensionalEq_refl (st : Storage) :
     storageExtensionalEq st st := by
   intro slot
   cases h : st.find? slot with
-  | none => exact Or.inl ⟨rfl, rfl⟩
-  | some value => exact Or.inr ⟨value, rfl, rfl⟩
+  | none => rfl
+  | some value => rfl
 
 theorem accountExtensionalEq_refl (acc : Account) :
     accountExtensionalEq acc acc := by
@@ -183,16 +184,16 @@ theorem storageExtensionalEq_symm {st₁ st₂ : Storage}
     (h : storageExtensionalEq st₁ st₂) :
     storageExtensionalEq st₂ st₁ := by
   intro slot
-  rcases h slot with ⟨h₁, h₂⟩ | ⟨value, h₁, h₂⟩
-  · exact Or.inl ⟨h₂, h₁⟩
-  · exact Or.inr ⟨value, h₂, h₁⟩
+  simp [storageExtensionalEq] at h
+  apply h at slot
+  symm 
+  exact slot
 
 theorem storageExtensionalEq_findD {st₁ st₂ : Storage}
     (h : storageExtensionalEq st₁ st₂) (slot defaultValue : UInt256) :
     st₁.findD slot defaultValue = st₂.findD slot defaultValue := by
-  rcases h slot with ⟨h₁, h₂⟩ | ⟨value, h₁, h₂⟩
-  · simp [Batteries.RBMap.findD, h₁, h₂]
-  · simp [Batteries.RBMap.findD, h₁, h₂]
+  apply h at slot
+  simp [Batteries.RBMap.findD, slot]
 
 theorem storageExtensionalEq_beq_empty {st₁ st₂ : Storage}
     (h : storageExtensionalEq st₁ st₂) :
@@ -203,10 +204,8 @@ theorem storageExtensionalEq_beq_empty {st₁ st₂ : Storage}
       (rbMap_beq_empty_iff_forall_find?_none st₂).1 h₂
     have hnone₁ : ∀ slot, st₁.find? slot = none := by
       intro slot
-      rcases h slot with ⟨hslot₁, _hslot₂⟩ | ⟨value, _hslot₁, hslot₂⟩
-      · exact hslot₁
-      · rw [hnone₂ slot] at hslot₂
-        contradiction
+      apply h at slot
+      simp [slot, hnone₂]
     have h₁true : (st₁ == (∅ : Storage)) = true :=
       (rbMap_beq_empty_iff_forall_find?_none st₁).2 hnone₁
     simp [h₁] at h₁true
@@ -214,10 +213,8 @@ theorem storageExtensionalEq_beq_empty {st₁ st₂ : Storage}
       (rbMap_beq_empty_iff_forall_find?_none st₁).1 h₁
     have hnone₂ : ∀ slot, st₂.find? slot = none := by
       intro slot
-      rcases h slot with ⟨_hslot₁, hslot₂⟩ | ⟨value, hslot₁, _hslot₂⟩
-      · exact hslot₂
-      · rw [hnone₁ slot] at hslot₁
-        contradiction
+      apply h at slot
+      simp [← slot, hnone₁]
     have h₂true : (st₂ == (∅ : Storage)) = true :=
       (rbMap_beq_empty_iff_forall_find?_none st₂).2 hnone₂
     simp [h₂] at h₂true
