@@ -484,6 +484,243 @@ lemma theta_toExecute_output_size_lt_uint256
     out.size < UInt256.size := by
   exact theta_output_size_lt_uint256 h hd
 
+lemma theta_projection_output_size_lt_uint256
+    (blobVersionedHashes : List ByteArray)
+    (createdAccounts : Batteries.RBSet AccountAddress compare)
+    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
+    (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
+    (c : ToExecute) (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
+    (H : BlockHeader) (w : Bool)
+    (hd : d.size < UInt256.size) :
+    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).2.2.2.2.2.size < UInt256.size := by
+  exact theta_output_size_lt_uint256
+    (createdAccounts' :=
+      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).1)
+    (σ' :=
+      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).2.1)
+    (g' :=
+      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).2.2.1)
+    (A' :=
+      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).2.2.2.1)
+    (z :=
+      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).2.2.2.2.1)
+    (out :=
+      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        c g p v v' d e H w).2.2.2.2.2)
+    rfl hd
+
+lemma theta_toExecute_projection_output_size_lt_uint256
+    (blobVersionedHashes : List ByteArray)
+    (createdAccounts : Batteries.RBSet AccountAddress compare)
+    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
+    (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
+    (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
+    (H : BlockHeader) (w : Bool)
+    (hd : d.size < UInt256.size) :
+    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H w).2.2.2.2.2.size < UInt256.size := by
+  exact theta_projection_output_size_lt_uint256 blobVersionedHashes createdAccounts
+    genesisBlockHeader blocks σ σ₀ A s o r (toExecute σ r) d g p v v' e H w hd
+
+set_option linter.unusedSimpArgs false in
+lemma call_returnData_size_lt_uint256 {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+    {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
+    {permission : Bool} {evmState state' : State} {x : UInt256}
+    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+      inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
+    state'.machineState.returnData.size < UInt256.size := by
+  unfold call at h
+  simp [Id.run, bind, Except.bind, pure, Except.pure,
+    Ethereum.State.addAccessedAccount, Ethereum.State.replaceStackAndIncrPC,
+    Ethereum.State.incrPC] at h
+  repeat split at h
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    rw [← hstate]
+    simp
+    first
+    | solve
+        | simpa using
+          (theta_projection_output_size_lt_uint256
+          blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
+          evmState.blocks evmState.accountMap evmState.σ₀
+          (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
+          (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
+          (AccountAddress.ofUInt256 recipient)
+          (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+          (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
+          (.ofNat
+            (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
+              evmState.accountMap evmState.machineState evmState.substate))
+          (.ofNat evmState.executionEnv.gasPrice) value value'
+          (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission
+          (ByteArray.readWithPadding_size_lt_uint256 _ _ _))
+    | solve
+        | simp [UInt256.size]
+
+set_option linter.unusedSimpArgs false in
+lemma step_call_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (Operation.CALL, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCall hCall
+  rcases vCall with ⟨_, _⟩
+  have hout := call_returnData_size_lt_uint256 hCall
+  rw [← h]
+  simpa using hout
+
+set_option linter.unusedSimpArgs false in
+lemma step_callcode_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCall hCall
+  rcases vCall with ⟨_, _⟩
+  have hout := call_returnData_size_lt_uint256 hCall
+  rw [← h]
+  simpa using hout
+
+set_option linter.unusedSimpArgs false in
+lemma step_delegatecall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCall hCall
+  rcases vCall with ⟨_, _⟩
+  have hout := call_returnData_size_lt_uint256 hCall
+  rw [← h]
+  simpa using hout
+
+set_option linter.unusedSimpArgs false in
+lemma step_staticcall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCall hCall
+  rcases vCall with ⟨_, _⟩
+  have hout := call_returnData_size_lt_uint256 hCall
+  rw [← h]
+  simpa using hout
+
+set_option linter.unusedSimpArgs false in
+lemma step_create_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (Operation.CREATE, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rw [← h]
+    simp
+    first
+    | solve
+        | simpa using
+          (lambda_projection_output_size_lt_uint256 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+    | solve
+        | simp [UInt256.size]
+
+set_option linter.unusedSimpArgs false in
+lemma step_create2_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (Operation.CREATE2, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rw [← h]
+    simp
+    first
+    | solve
+        | simpa using
+          (lambda_projection_output_size_lt_uint256 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+    | solve
+        | simp [UInt256.size]
+
+lemma step_recursive_returnData_size_lt_uint256 {gasCost : Nat}
+    {op : Operation} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (hop : op ∈
+      ([Operation.CALL, Operation.CALLCODE, Operation.DELEGATECALL, Operation.STATICCALL,
+        Operation.CREATE, Operation.CREATE2] : List Operation))
+    (h : step gasCost (op, arg) state = .ok state') :
+    state'.machineState.returnData.size < UInt256.size := by
+  simp at hop
+  rcases hop with hcall | hcallcode | hdelegatecall | hstaticcall | hcreate | hcreate2
+  · subst op
+    exact step_call_returnData_size_lt_uint256 h
+  · subst op
+    exact step_callcode_returnData_size_lt_uint256 h
+  · subst op
+    exact step_delegatecall_returnData_size_lt_uint256 h
+  · subst op
+    exact step_staticcall_returnData_size_lt_uint256 h
+  · subst op
+    exact step_create_returnData_size_lt_uint256 h
+  · subst op
+    exact step_create2_returnData_size_lt_uint256 h
+
+set_option linter.unusedSimpArgs false in
+lemma Xstep_recursive_returnData_size_lt_uint256 {validJumps : Array UInt256}
+    {state state' : State} {ret : Option (HaltCause × ByteArray)}
+    (hop :
+      ((decode state.executionEnv.code state.machineState.pc).getD
+        (Operation.STOP, (none : Option (UInt256 × Nat)))).1 ∈
+      ([Operation.CALL, Operation.CALLCODE, Operation.DELEGATECALL, Operation.STATICCALL,
+        Operation.CREATE, Operation.CREATE2] : List Operation))
+    (h : Xstep validJumps state = .ok (state', ret)) :
+    state'.machineState.returnData.size < UInt256.size := by
+  unfold Xstep at h
+  generalize hdecode :
+      (decode state.executionEnv.code state.machineState.pc).getD
+        (Operation.STOP, (none : Option (UInt256 × Nat))) = instr at h hop
+  rcases instr with ⟨op, arg⟩
+  simp at hop
+  rcases hop with hcall | hcallcode | hdelegatecall | hstaticcall | hcreate | hcreate2
+  all_goals
+    subst op
+    simp [bind, Except.bind, hdecode] at h
+    split at h
+    · contradiction
+    · rename_i cost hZ
+      split at h
+      · contradiction
+      · rename_i stepped hstep
+        have hout :=
+          step_recursive_returnData_size_lt_uint256
+            (by simp)
+            hstep
+        injection h with hp
+        cases hp
+        simpa using hout
+
 end EVM
 
 end Ethereum
