@@ -445,6 +445,7 @@ axiom theta_precompiled_output_size_lt_uint256
     Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H w =
         (createdAccounts', σ', g', A', z, out) →
+    d.size < UInt256.size →
     out.size < UInt256.size
 
 lemma theta_output_size_lt_uint256
@@ -458,13 +459,14 @@ lemma theta_output_size_lt_uint256
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
         c g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+        (createdAccounts', σ', g', A', z, out))
+    (hd : d.size < UInt256.size) :
     out.size < UInt256.size := by
   cases c with
   | Code code =>
       exact theta_code_output_size_lt_uint256 h
   | Precompiled pc =>
-      exact theta_precompiled_output_size_lt_uint256 h
+      exact theta_precompiled_output_size_lt_uint256 h hd
 
 lemma theta_toExecute_output_size_lt_uint256
     {blobVersionedHashes : List ByteArray}
@@ -477,9 +479,10 @@ lemma theta_toExecute_output_size_lt_uint256
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
         (toExecute σ r) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+        (createdAccounts', σ', g', A', z, out))
+    (hd : d.size < UInt256.size) :
     out.size < UInt256.size := by
-  exact theta_output_size_lt_uint256 h
+  exact theta_output_size_lt_uint256 h hd
 
 end EVM
 
