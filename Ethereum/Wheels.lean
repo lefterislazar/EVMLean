@@ -27,7 +27,8 @@ lemma BE_le' {n : ℕ} : (BE n).size ≤ ((Nat.log2 n)/8) + 1 := by
 def BEwithSizeProof (n : ℕ) : { b : ByteArray // b.size ≤ ((Nat.log2 n)/8) + 1 } :=
   ⟨BE n, BE_le'⟩
 
-axiom ByteArray_zeroes_size : ∀ n, (ffi.ByteArray.zeroes n).size = n.toNat
+theorem ByteArray_zeroes_size : ∀ n, (ffi.ByteArray.zeroes n).size = n.toNat := by
+  intro n; simp [ffi.ByteArray.zeroes, ← ByteArray.size_data, Array.size_replicate]
 
 namespace Ethereum
 
