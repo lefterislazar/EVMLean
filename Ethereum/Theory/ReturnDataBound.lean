@@ -655,6 +655,76 @@ lemma lambda_projection_output_size_lt_uint256
       createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w)
     maxReturnDataSizeByGas_lt_uint256
 
+lemma lambda_output_size_eq_zero_of_success
+    {blobVersionedHashes : List ByteArray}
+    {createdAccounts : Batteries.RBSet AccountAddress compare}
+    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
+    {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
+    {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
+    {H : BlockHeader} {w : Bool}
+    {a : AccountAddress} {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
+    (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', true, out)) :
+    out.size = 0 := by
+  unfold Lambda at h
+  simp only at h
+  split at h
+  · simp at h
+  · simp at h
+  · simp at h
+    rcases h with ⟨_, _, _, _, _, _hz, hout⟩
+    cases hout
+    rfl
+
+lemma lambda_output_size_le_zero_of_success
+    {blobVersionedHashes : List ByteArray}
+    {createdAccounts : Batteries.RBSet AccountAddress compare}
+    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
+    {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
+    {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
+    {H : BlockHeader} {w : Bool}
+    {a : AccountAddress} {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
+    (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', true, out)) :
+    out.size ≤ 0 := by
+  exact Nat.le_of_eq (lambda_output_size_eq_zero_of_success h)
+
+lemma lambda_projection_output_size_eq_zero_of_success
+    (blobVersionedHashes : List ByteArray)
+    (createdAccounts : Batteries.RBSet AccountAddress compare)
+    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
+    (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
+    (g p v : UInt256) (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray)
+    (H : BlockHeader) (w : Bool)
+    (hz :
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).2.2.2.2.2.1 = true) :
+    (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+      s o g p v i e ζ H w).2.2.2.2.2.2.size = 0 := by
+  exact lambda_output_size_eq_zero_of_success
+    (a :=
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).1)
+    (createdAccounts' :=
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).2.1)
+    (σ' :=
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).2.2.1)
+    (g' :=
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).2.2.2.1)
+    (A' :=
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).2.2.2.2.1)
+    (out :=
+      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
+        s o g p v i e ζ H w).2.2.2.2.2.2)
+    (by
+      rw [← hz])
+
 lemma lambda_output_size_le_maxReturnDataSizeByGas
     {blobVersionedHashes : List ByteArray}
     {createdAccounts : Batteries.RBSet AccountAddress compare}
@@ -667,6 +737,9 @@ lemma lambda_output_size_le_maxReturnDataSizeByGas
     (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
         s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
+  by_cases hz : z = true
+  · subst z
+    exact Nat.le_trans (lambda_output_size_le_zero_of_success h) (Nat.zero_le _)
   have hout : out =
       (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
         s o g p v i e ζ H w).2.2.2.2.2.2 := by
