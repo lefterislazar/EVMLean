@@ -2671,7 +2671,7 @@ private lemma Xi_invalid_singleton_ne_success
         .error .InvalidInstruction := by
     apply Xstep_invalid
     change decode ({ data := #[0xfe] } : ByteArray) ({ val := 0 } : UInt256) = some (.INVALID, .none)
-    native_decide
+    decide
   simp [Ξ, X, freshEvmState, hstep] at hXi
   cases hXi
 

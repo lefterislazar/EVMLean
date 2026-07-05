@@ -26,7 +26,7 @@ def maxReturnDataSizeByGas : Nat :=
 lemma maxReturnDataWordsByGas_spec :
     Cₘ (.ofNat maxReturnDataWordsByGas) < UInt256.size ∧
       ¬ Cₘ (.ofNat (maxReturnDataWordsByGas + 1)) < UInt256.size := by
-  native_decide
+  decide
 
 lemma maxReturnDataSizeByGas_lt_uint256 :
     maxReturnDataSizeByGas < UInt256.size := by
@@ -983,7 +983,7 @@ private lemma EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_cost_lt
   have hm : maxReturnDataSizeByGas + 1 ≤ modulus_length := Nat.succ_le_of_lt (Nat.lt_of_not_ge hle)
   let k := (maxReturnDataSizeByGas + 8) / 8
   have hkbound : UInt256.size ≤ k ^ 2 / 3 := by
-    native_decide
+    decide
   have hkarg : maxReturnDataSizeByGas + 8 ≤ max base_length modulus_length + 7 := by
     have hmodle : modulus_length ≤ max base_length modulus_length := le_max_right _ _
     omega
