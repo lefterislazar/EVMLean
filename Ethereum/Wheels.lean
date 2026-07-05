@@ -264,11 +264,8 @@ def ByteArray.readWithoutPadding (source : ByteArray) (addr len : ℕ) : ByteArr
 private def inf := 2^66
 
 def ByteArray.readWithPadding (source : ByteArray) (addr len : ℕ) : ByteArray :=
-  if len ≥ 2^64 then
-    panic! s!"ByteArray.readWithPadding: can not handle byte arrays of length {len}"
-  else
-    let read := source.readWithoutPadding addr len
-    read ++ ffi.ByteArray.zeroes (len - read.size)
+  let read := source.readWithoutPadding addr len
+  read ++ ffi.ByteArray.zeroes (len - read.size)
 
 inductive 𝕋 where
   | 𝔹 : ByteArray → 𝕋
