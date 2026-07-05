@@ -1063,7 +1063,6 @@ lemma precompile_EXPMOD_output_size_le_modulus_length
     · simp [Ξ_EXPMOD, hgasImpl, data, base_length, exp_length,
         modulus_length, modulus, hzero,
         ByteArray_zeroes_size]
-      exact USize.toNat_ofNat_le _
     ·
       have hmod_ne : modulus ≠ 0 := by
         intro hz
@@ -1178,7 +1177,7 @@ lemma precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
     · simp [maxReturnDataSizeByGas, maxReturnDataWordsByGas]
     · split
       · simp [ByteArray.size_append, ByteArray_zeroes_size, ByteArray.size_extract,
-          h12, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
+          maxReturnDataSizeByGas, maxReturnDataWordsByGas]
         omega
       · simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 

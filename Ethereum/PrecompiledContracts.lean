@@ -47,7 +47,7 @@ def Ξ_ECREC
       else
         match ECDSARECOVER h ⟨#[.ofNat v' - 27]⟩ r s with
           | .ok s =>
-              ffi.ByteArray.zeroes ⟨12⟩ ++ (ffi.KEC s).extract 12 32
+              ffi.ByteArray.zeroes 12 ++ (ffi.KEC s).extract 12 32
           | .error e =>
             dbg_trace s!"Ξ_ECREC failed: {e}"
             .empty
@@ -183,14 +183,14 @@ def Ξ_EXPMOD
     let modulus := nat_of_slice data (96 + base_length + exp_length) modulus_length
     let o : ByteArray :=
       if modulus_length == 0 || modulus == 0 then
-        ffi.ByteArray.zeroes ⟨modulus_length⟩
+        ffi.ByteArray.zeroes modulus_length
       else
         let base := nat_of_slice data 96 base_length
         let exp := nat_of_slice data (96 + base_length) exp_length
         let expmod_base := BE (expMod modulus (.ofNat base) exp)
         let expmod_zeroes :=
           if modulus_length ≥ expmod_base.size then
-            ffi.ByteArray.zeroes ⟨modulus_length - expmod_base.size⟩
+            ffi.ByteArray.zeroes (modulus_length - expmod_base.size)
           else
             ByteArray.empty
         expmod_zeroes ++ expmod_base
@@ -336,7 +336,7 @@ private def snarkvOutput :=
       ⟨100000⟩
       default
       { (default : ExecutionEnv) with
-        calldata := x ++ y ++ ffi.ByteArray.zeroes ⟨32 * 4⟩
+        calldata := x ++ y ++ ffi.ByteArray.zeroes (32 * 4)
       }
   o
  where

@@ -27,7 +27,7 @@ lemma BE_le' {n : ℕ} : (BE n).size ≤ ((Nat.log2 n)/8) + 1 := by
 def BEwithSizeProof (n : ℕ) : { b : ByteArray // b.size ≤ ((Nat.log2 n)/8) + 1 } :=
   ⟨BE n, BE_le'⟩
 
-theorem ByteArray_zeroes_size : ∀ n, (ffi.ByteArray.zeroes n).size = n.toNat := by
+theorem ByteArray_zeroes_size : ∀ n, (ffi.ByteArray.zeroes n).size = n := by
   intro n; simp [ffi.ByteArray.zeroes, ← ByteArray.size_data, Array.size_replicate]
 
 namespace Ethereum
@@ -36,11 +36,11 @@ def chainId : ℕ := 1
 
 def UInt256.toByteArray (val : UInt256) : ByteArray :=
   let b := BE val.toNat
-  ffi.ByteArray.zeroes ⟨32 - b.size⟩ ++ b
+  ffi.ByteArray.zeroes (32 - b.size) ++ b
 
 def UInt256.toByteArrayWithSizeProof (val : UInt256) : { b : ByteArray // b.size = 32 } :=
   let b := BE val.toNat
-  let pad := ffi.ByteArray.zeroes ⟨32 - b.size⟩
+  let pad := ffi.ByteArray.zeroes (32 - b.size)
   ⟨pad ++ b,
     by
       simp
@@ -50,17 +50,7 @@ def UInt256.toByteArrayWithSizeProof (val : UInt256) : { b : ByteArray // b.size
         have ha : (val.toNat : ℕ) < 2 ^ (8 * 32) := by
           simp [UInt256.size, UInt256.toNat]
         simpa [b, BE] using toBytesBigEndian_le (k := 32) ha
-      have h32 : 32 < USize.size := by
-        rcases System.Platform.numBits_eq with h | h <;> rw [USize.size, h] <;> norm_num
-      have h32' : (OfNat.ofNat 32 : USize).toNat = 32 := by
-        exact USize.toNat_ofNat_of_le_of_lt (n := 32) (i := 32) h32 le_rfl
-      have hbsize : (OfNat.ofNat b.size : USize).toNat = b.size := by
-        exact USize.toNat_ofNat_of_le_of_lt (n := 32) (i := b.size) h32 hb
-      rw [USize.toNat_sub_of_le]
-      · rw [h32', hbsize]
-        omega
-      · rw [USize.le_iff_toNat_le, h32', hbsize]
-        exact hb
+      omega
       ⟩
 
 abbrev Literal := UInt256
@@ -92,11 +82,11 @@ lemma ofUInt256_ofNat (a : AccountAddress) :
 
 def toByteArray (a : AccountAddress) : ByteArray :=
   let b := BE a
-  ffi.ByteArray.zeroes ⟨20 - b.size⟩ ++ b
+  ffi.ByteArray.zeroes (20 - b.size) ++ b
 
 def toByteArrayWithSizeProof (a : AccountAddress) : { b : ByteArray // b.size = 20 }  :=
   let b := BE a
-  let pad := ffi.ByteArray.zeroes ⟨20 - b.size⟩
+  let pad := ffi.ByteArray.zeroes (20 - b.size)
   ⟨pad ++ b,
     by
       simp
@@ -106,17 +96,7 @@ def toByteArrayWithSizeProof (a : AccountAddress) : { b : ByteArray // b.size = 
         have ha : (a : ℕ) < 2 ^ (8 * 20) := by
           simp [AccountAddress.size]
         simpa [b, BE] using toBytesBigEndian_le (k := 20) ha
-      have h20_lt_usize : 20 < USize.size := by
-        rcases System.Platform.numBits_eq with h | h <;> rw [USize.size, h] <;> norm_num
-      have h20 : (OfNat.ofNat 20 : USize).toNat = 20 := by
-        exact USize.toNat_ofNat_of_le_of_lt (n := 20) (i := 20) h20_lt_usize le_rfl
-      have hbsize : (OfNat.ofNat b.size : USize).toNat = b.size := by
-        exact USize.toNat_ofNat_of_le_of_lt (n := 20) (i := b.size) h20_lt_usize hb
-      rw [USize.toNat_sub_of_le]
-      · rw [h20, hbsize]
-        omega
-      · rw [USize.le_iff_toNat_le, h20, hbsize]
-        exact hb
+      omega
       ⟩
 
 end AccountAddress
@@ -274,7 +254,7 @@ def ByteArray.readBytes (source : ByteArray) (start size : ℕ) : ByteArray :=
       source.copySlice start empty 0 size
     else
       ⟨⟨source.toList.drop start |>.take size⟩⟩
-  read ++ ffi.ByteArray.zeroes ⟨size - read.size⟩
+  read ++ ffi.ByteArray.zeroes (size - read.size)
 
 def ByteArray.readWithoutPadding (source : ByteArray) (addr len : ℕ) : ByteArray :=
   if addr ≥ source.size then .empty else
@@ -288,7 +268,7 @@ def ByteArray.readWithPadding (source : ByteArray) (addr len : ℕ) : ByteArray 
     panic! s!"ByteArray.readWithPadding: can not handle byte arrays of length {len}"
   else
     let read := source.readWithoutPadding addr len
-    read ++ ffi.ByteArray.zeroes ⟨len - read.size⟩
+    read ++ ffi.ByteArray.zeroes (len - read.size)
 
 inductive 𝕋 where
   | 𝔹 : ByteArray → 𝕋
@@ -476,14 +456,14 @@ def ByteArray.write
     if sourceAddr ≥ source.size then
       let len := min len (dest.size - destAddr)
       let destAddr := min destAddr dest.size
-      (ffi.ByteArray.zeroes ⟨len⟩).copySlice 0 dest destAddr len
+      (ffi.ByteArray.zeroes len).copySlice 0 dest destAddr len
     else
       let practicalLen := min len (source.size - sourceAddr)
       let endPaddingAddr := min dest.size (destAddr + len)
       let sourcePaddingLength : ℕ := endPaddingAddr - (destAddr + practicalLen)
-      let sourcePadding := ffi.ByteArray.zeroes ⟨sourcePaddingLength⟩
+      let sourcePadding := ffi.ByteArray.zeroes sourcePaddingLength
       let destPaddingLength : ℕ := destAddr - dest.size
-      let destPadding := ffi.ByteArray.zeroes ⟨destPaddingLength⟩
+      let destPadding := ffi.ByteArray.zeroes destPaddingLength
       (source ++ sourcePadding).copySlice sourceAddr
         (dest ++ destPadding)
         destAddr
