@@ -1,4 +1,4 @@
-import Ethereum.Semantics
+import Ethereum.Theory.OpcodeLemmas
 
 import Mathlib.Tactic
 
@@ -35,6 +35,1576 @@ lemma maxReturnDataSizeByGas_lt_uint256 :
 lemma pow_two_64_le_maxReturnDataSizeByGas :
     2 ^ 64 ≤ maxReturnDataSizeByGas := by
   norm_num [maxReturnDataSizeByGas, maxReturnDataWordsByGas]
+
+def memoryPaidByGas (state : State) : Prop :=
+  Cₘ state.machineState.activeWords + state.machineState.gasAvailable.toNat < UInt256.size
+
+def memoryExpansionWords (state : State) (instr : Operation) : Nat :=
+  match instr with
+  | .KECCAK256 =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[0]!.toNat state.machineState.stack[1]!.toNat
+  | .CALLDATACOPY | .CODECOPY =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[0]!.toNat state.machineState.stack[2]!.toNat
+  | .MCOPY =>
+      MachineState.M state.machineState.activeWords.toNat
+        (max state.machineState.stack[0]!.toNat state.machineState.stack[1]!.toNat)
+        state.machineState.stack[2]!.toNat
+  | .EXTCODECOPY =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[1]!.toNat state.machineState.stack[3]!.toNat
+  | .RETURNDATACOPY =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[0]!.toNat state.machineState.stack[2]!.toNat
+  | .MLOAD | .MSTORE =>
+      MachineState.M state.machineState.activeWords.toNat state.machineState.stack[0]!.toNat 32
+  | .MSTORE8 =>
+      MachineState.M state.machineState.activeWords.toNat state.machineState.stack[0]!.toNat 1
+  | .LOG0 | .LOG1 | .LOG2 | .LOG3 | .LOG4 =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[0]!.toNat state.machineState.stack[1]!.toNat
+  | .CREATE | .CREATE2 =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[1]!.toNat state.machineState.stack[2]!.toNat
+  | .CALL | .CALLCODE =>
+      let m := MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[3]!.toNat state.machineState.stack[4]!.toNat
+      MachineState.M m state.machineState.stack[5]!.toNat state.machineState.stack[6]!.toNat
+  | .DELEGATECALL | .STATICCALL =>
+      let m := MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[2]!.toNat state.machineState.stack[3]!.toNat
+      MachineState.M m state.machineState.stack[4]!.toNat state.machineState.stack[5]!.toNat
+  | .RETURN | .REVERT =>
+      MachineState.M state.machineState.activeWords.toNat
+        state.machineState.stack[0]!.toNat state.machineState.stack[1]!.toNat
+  | _ => state.machineState.activeWords.toNat
+
+lemma Cₘ_monotone_of_lt {a b : Nat} (hab : a ≤ b) (hb : b < UInt256.size) :
+    Cₘ (.ofNat a) ≤ Cₘ (.ofNat b) := by
+  unfold Cₘ
+  rw [UInt256.toNat_ofNat_of_lt (lt_of_le_of_lt hab hb),
+    UInt256.toNat_ofNat_of_lt hb]
+  unfold GasConstants.Gmemory
+  apply Nat.add_le_add
+  · exact Nat.mul_le_mul_left 3 hab
+  · apply Nat.div_le_div_right
+    exact Nat.mul_le_mul hab hab
+
+lemma maxReturnDataWordsByGas_ge_of_Cₘ_lt {w : Nat}
+    (hwlt : w < UInt256.size)
+    (hcost : Cₘ (.ofNat w) < UInt256.size) :
+    w ≤ maxReturnDataWordsByGas := by
+  by_contra hnot
+  have hsucc : maxReturnDataWordsByGas + 1 ≤ w :=
+    Nat.succ_le_of_lt (Nat.lt_of_not_ge hnot)
+  have hmono :
+      Cₘ (.ofNat (maxReturnDataWordsByGas + 1)) ≤ Cₘ (.ofNat w) :=
+    Cₘ_monotone_of_lt hsucc hwlt
+  exact maxReturnDataWordsByGas_spec.2 (Nat.lt_of_le_of_lt hmono hcost)
+
+lemma MachineState.M_ge_active (s f l : Nat) :
+    s ≤ MachineState.M s f l := by
+  unfold MachineState.M
+  cases l <;> simp
+
+lemma MachineState.M_lt_uint256_size {s f l : Nat}
+    (hs : s < UInt256.size) (hf : f < UInt256.size) (hl : l < UInt256.size) :
+    MachineState.M s f l < UInt256.size := by
+  unfold MachineState.M
+  cases l with
+  | zero => simpa using hs
+  | succ l' =>
+      apply max_lt hs
+      rw [Nat.div_lt_iff_lt_mul (by decide : 0 < 32)]
+      have hsize_pos : 0 < UInt256.size := by simp [UInt256.size]
+      have hl' : l' + 1 < UInt256.size := hl
+      nlinarith [hf, hl', hsize_pos]
+
+lemma MachineState.M_M_ge_active (s f l f' l' : Nat) :
+    s ≤ MachineState.M (MachineState.M s f l) f' l' := by
+  exact Nat.le_trans (MachineState.M_ge_active s f l)
+    (MachineState.M_ge_active (MachineState.M s f l) f' l')
+
+lemma MachineState.M_M_lt_uint256_size {s f l f' l' : Nat}
+    (hs : s < UInt256.size) (hf : f < UInt256.size) (hl : l < UInt256.size)
+    (hf' : f' < UInt256.size) (hl' : l' < UInt256.size) :
+    MachineState.M (MachineState.M s f l) f' l' < UInt256.size := by
+  exact MachineState.M_lt_uint256_size
+    (MachineState.M_lt_uint256_size hs hf hl) hf' hl'
+
+lemma Z_memoryExpansionCost_le {validJumps : Array UInt256} {w : Operation}
+    {state state' : State} {cost : Nat}
+    (h : Z validJumps w state = .ok (state', cost)) :
+    memoryExpansionCost state w ≤ state.machineState.gasAvailable.toNat := by
+  unfold Z at h
+  by_cases hδ : δ w = none
+  · rw [if_pos hδ] at h
+    contradiction
+  rw [if_neg hδ] at h
+  by_cases hstack : state.machineState.stack.length < (δ w).getD 0
+  · rw [if_pos hstack] at h
+    contradiction
+  rw [if_neg hstack] at h
+  by_cases hcost₁ : state.machineState.gasAvailable.toNat < memoryExpansionCost state w
+  · rw [if_pos hcost₁] at h
+    contradiction
+  exact Nat.le_of_not_gt hcost₁
+
+lemma Z_stack_active_eq {validJumps : Array UInt256} {w : Operation}
+    {state stateZ : State} {cost : Nat}
+    (h : Z validJumps w state = .ok (stateZ, cost)) :
+    stateZ.machineState.stack = state.machineState.stack ∧
+      stateZ.machineState.activeWords = state.machineState.activeWords ∧
+      stateZ.machineState.memory = state.machineState.memory := by
+  unfold Z at h
+  by_cases hδ : δ w = none
+  · rw [if_pos hδ] at h
+    contradiction
+  rw [if_neg hδ] at h
+  by_cases hstack : state.machineState.stack.length < (δ w).getD 0
+  · rw [if_pos hstack] at h
+    contradiction
+  rw [if_neg hstack] at h
+  by_cases hcost₁ : state.machineState.gasAvailable.toNat < memoryExpansionCost state w
+  · rw [if_pos hcost₁] at h
+    contradiction
+  rw [if_neg hcost₁] at h
+  by_cases hcost₂ :
+      (state.subtractGas (memoryExpansionCost state w)).machineState.gasAvailable.toNat <
+        C' (state.subtractGas (memoryExpansionCost state w)) w
+  · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
+    contradiction
+  rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
+  set state₁ : State := state.subtractGas (memoryExpansionCost state w)
+  by_cases hjump :
+      w = Operation.JUMP ∧ Z.notIn state₁.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [state₁] using hjump)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hjump)] at h
+  by_cases hjumpi :
+      w = Operation.JUMPI ∧
+        state₁.machineState.stack[1]? ≠ some (⟨0⟩ : UInt256) ∧
+        Z.notIn state₁.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [state₁] using hjumpi)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hjumpi)] at h
+  by_cases hreturndata :
+      w = Operation.RETURNDATACOPY ∧
+        (state₁.machineState.stack.getD 1 (⟨0⟩ : UInt256)).toNat +
+            (state₁.machineState.stack.getD 2 (⟨0⟩ : UInt256)).toNat >
+          state₁.machineState.returnData.size
+  · rw [if_pos (by simpa [state₁] using hreturndata)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hreturndata)] at h
+  by_cases hoverflow :
+      state₁.machineState.stack.length - (δ w).getD 0 + (α w).getD 0 > 1024
+  · rw [if_pos (by simpa [state₁] using hoverflow)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hoverflow)] at h
+  by_cases hstatic :
+      ¬state₁.executionEnv.perm ∧
+        (w ∈ ([.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2,
+            .LOG3, .LOG4, .TSTORE] : List Operation) ∨
+          (w = .CALL ∧ ¬state₁.machineState.stack[2]? = some (⟨0⟩ : UInt256)))
+  · rw [if_pos (by simpa [state₁] using hstatic)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hstatic)] at h
+  by_cases hsstore :
+      w = Operation.SSTORE ∧ state₁.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend
+  · rw [if_pos (by simpa [state₁] using hsstore)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hsstore)] at h
+  by_cases hcreate :
+      w.isCreate ∧ state₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+  · rw [if_pos (by simpa [state₁] using hcreate)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hcreate)] at h
+  injection h with hp
+  have hstate : state₁ = stateZ := congrArg Prod.fst hp
+  subst stateZ
+  simp [state₁, State.subtractGas]
+
+lemma Z_gasAvailable_eq {validJumps : Array UInt256} {w : Operation}
+    {state stateZ : State} {cost : Nat}
+    (h : Z validJumps w state = .ok (stateZ, cost)) :
+    stateZ.machineState.gasAvailable.toNat =
+      state.machineState.gasAvailable.toNat - memoryExpansionCost state w := by
+  unfold Z at h
+  by_cases hδ : δ w = none
+  · rw [if_pos hδ] at h
+    contradiction
+  rw [if_neg hδ] at h
+  by_cases hstack : state.machineState.stack.length < (δ w).getD 0
+  · rw [if_pos hstack] at h
+    contradiction
+  rw [if_neg hstack] at h
+  by_cases hcost₁ : state.machineState.gasAvailable.toNat < memoryExpansionCost state w
+  · rw [if_pos hcost₁] at h
+    contradiction
+  rw [if_neg hcost₁] at h
+  by_cases hcost₂ :
+      (state.subtractGas (memoryExpansionCost state w)).machineState.gasAvailable.toNat <
+        C' (state.subtractGas (memoryExpansionCost state w)) w
+  · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
+    contradiction
+  rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
+  set state₁ : State := state.subtractGas (memoryExpansionCost state w)
+  by_cases hjump :
+      w = Operation.JUMP ∧ Z.notIn state₁.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [state₁] using hjump)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hjump)] at h
+  by_cases hjumpi :
+      w = Operation.JUMPI ∧
+        state₁.machineState.stack[1]? ≠ some (⟨0⟩ : UInt256) ∧
+        Z.notIn state₁.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [state₁] using hjumpi)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hjumpi)] at h
+  by_cases hreturndata :
+      w = Operation.RETURNDATACOPY ∧
+        (state₁.machineState.stack.getD 1 (⟨0⟩ : UInt256)).toNat +
+            (state₁.machineState.stack.getD 2 (⟨0⟩ : UInt256)).toNat >
+          state₁.machineState.returnData.size
+  · rw [if_pos (by simpa [state₁] using hreturndata)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hreturndata)] at h
+  by_cases hoverflow :
+      state₁.machineState.stack.length - (δ w).getD 0 + (α w).getD 0 > 1024
+  · rw [if_pos (by simpa [state₁] using hoverflow)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hoverflow)] at h
+  by_cases hstatic :
+      ¬state₁.executionEnv.perm ∧
+        (w ∈ ([.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2,
+            .LOG3, .LOG4, .TSTORE] : List Operation) ∨
+          (w = .CALL ∧ ¬state₁.machineState.stack[2]? = some (⟨0⟩ : UInt256)))
+  · rw [if_pos (by simpa [state₁] using hstatic)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hstatic)] at h
+  by_cases hsstore :
+      w = Operation.SSTORE ∧ state₁.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend
+  · rw [if_pos (by simpa [state₁] using hsstore)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hsstore)] at h
+  by_cases hcreate :
+      w.isCreate ∧ state₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+  · rw [if_pos (by simpa [state₁] using hcreate)] at h
+    contradiction
+  rw [if_neg (by simpa [state₁] using hcreate)] at h
+  injection h with hp
+  have hstate : state₁ = stateZ := congrArg Prod.fst hp
+  subst stateZ
+  simp [state₁, State.subtractGas]
+
+private lemma UInt256.ofNat_toNat (u : UInt256) :
+    UInt256.ofNat u.toNat = u := by
+  cases u with
+  | mk v =>
+      cases v with
+      | mk n hn =>
+          apply congrArg UInt256.mk
+          apply Fin.ext
+          simp [UInt256.toNat, Nat.mod_eq_of_lt hn]
+
+private lemma UInt256.toNat_lt_size (u : UInt256) :
+    u.toNat < UInt256.size := u.val.isLt
+
+private lemma UInt256.max_toNat_lt_size (a b : UInt256) :
+    max a.toNat b.toNat < UInt256.size := by
+  exact Nat.max_lt.2 ⟨UInt256.toNat_lt_size a, UInt256.toNat_lt_size b⟩
+
+lemma memoryExpansionCost_eq (state : State) (w : Operation) :
+    memoryExpansionCost state w =
+      Cₘ (.ofNat (memoryExpansionWords state w)) - Cₘ state.machineState.activeWords := by
+  cases w <;> rename_i op <;> cases op <;>
+    simp [memoryExpansionCost, memoryExpansionCost.μᵢ', memoryExpansionWords, UInt256.ofNat_toNat]
+
+lemma memoryExpansionWords_ge_active (state : State) (w : Operation) :
+    state.machineState.activeWords.toNat ≤ memoryExpansionWords state w := by
+  cases w <;> rename_i op <;> cases op <;>
+    simp [memoryExpansionWords, MachineState.M_ge_active, MachineState.M_M_ge_active]
+
+lemma memoryExpansionWords_lt_uint256_size (state : State) (w : Operation) :
+    memoryExpansionWords state w < UInt256.size := by
+  cases w <;> rename_i op <;> cases op <;>
+    simp [memoryExpansionWords]
+  all_goals
+    first
+    | exact UInt256.toNat_lt_size _
+    | exact (MachineState.M_lt_uint256_size (UInt256.toNat_lt_size _)
+        (UInt256.max_toNat_lt_size _ _)
+        (UInt256.toNat_lt_size _))
+    | exact (MachineState.M_lt_uint256_size (UInt256.toNat_lt_size _)
+        (UInt256.toNat_lt_size _) (by decide : 32 < UInt256.size))
+    | exact (MachineState.M_lt_uint256_size (UInt256.toNat_lt_size _)
+        (UInt256.toNat_lt_size _) (by decide : 1 < UInt256.size))
+    | exact (MachineState.M_M_lt_uint256_size (UInt256.toNat_lt_size _)
+        (UInt256.toNat_lt_size _) (UInt256.toNat_lt_size _)
+        (UInt256.toNat_lt_size _) (UInt256.toNat_lt_size _))
+    | exact (MachineState.M_lt_uint256_size (UInt256.toNat_lt_size _)
+        (UInt256.toNat_lt_size _) (UInt256.toNat_lt_size _))
+
+lemma memoryPaidByGas_after_Z_target {validJumps : Array UInt256} {w : Operation}
+    {state stateZ : State} {cost : Nat}
+    (hpaid : memoryPaidByGas state)
+    (hZ : Z validJumps w state = .ok (stateZ, cost)) :
+    Cₘ (.ofNat (memoryExpansionWords state w)) +
+        stateZ.machineState.gasAvailable.toNat < UInt256.size := by
+  have hwords_lt := memoryExpansionWords_lt_uint256_size state w
+  have hactive_le := memoryExpansionWords_ge_active state w
+  have hmono : Cₘ state.machineState.activeWords ≤
+      Cₘ (.ofNat (memoryExpansionWords state w)) := by
+    rw [← UInt256.ofNat_toNat state.machineState.activeWords]
+    exact Cₘ_monotone_of_lt hactive_le hwords_lt
+  have hmem := Z_memoryExpansionCost_le hZ
+  have hgas := Z_gasAvailable_eq hZ
+  rw [memoryExpansionCost_eq] at hmem hgas
+  rw [hgas]
+  have hle :
+      Cₘ (.ofNat (memoryExpansionWords state w)) +
+          (state.machineState.gasAvailable.toNat -
+            (Cₘ (.ofNat (memoryExpansionWords state w)) -
+              Cₘ state.machineState.activeWords)) ≤
+        Cₘ state.machineState.activeWords + state.machineState.gasAvailable.toNat := by
+    omega
+  exact Nat.lt_of_le_of_lt hle hpaid
+
+private lemma UInt256.toNat_ofNat_M (a b c : UInt256) :
+    (UInt256.ofNat (MachineState.M a.toNat b.toNat c.toNat)).toNat =
+      MachineState.M a.toNat b.toNat c.toNat := by
+  rw [UInt256.toNat_ofNat_of_lt]
+  exact MachineState.M_lt_uint256_size a.val.isLt b.val.isLt c.val.isLt
+
+private lemma UInt256.toNat_ofNat_M_M (a b c d e : UInt256) :
+    (UInt256.ofNat
+      (MachineState.M (MachineState.M a.toNat b.toNat c.toNat) d.toNat e.toNat)).toNat =
+      MachineState.M (MachineState.M a.toNat b.toNat c.toNat) d.toNat e.toNat := by
+  rw [UInt256.toNat_ofNat_of_lt]
+  exact MachineState.M_M_lt_uint256_size a.val.isLt b.val.isLt c.val.isLt d.val.isLt e.val.isLt
+
+private lemma UInt256.toNat_ofNat_M_nat (a b : UInt256) {c : Nat} (hc : c < UInt256.size) :
+    (UInt256.ofNat (MachineState.M a.toNat b.toNat c)).toNat =
+      MachineState.M a.toNat b.toNat c := by
+  rw [UInt256.toNat_ofNat_of_lt]
+  exact MachineState.M_lt_uint256_size a.val.isLt b.val.isLt hc
+
+private lemma MachineState.M_idem (s f l : Nat) :
+    MachineState.M (MachineState.M s f l) f l = MachineState.M s f l := by
+  unfold MachineState.M
+  cases l <;> simp
+
+set_option linter.unusedSimpArgs false in
+lemma call_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {blobVersionedHashes : List ByteArray}
+    {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
+    {permission : Bool} {state : State} {x : UInt256} {state' : State}
+    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+        inOffset inSize outOffset outSize permission state = .ok (x, state')) :
+    state'.machineState.activeWords.toNat ≤
+      MachineState.M
+        (MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat)
+        outOffset.toNat outSize.toNat := by
+  rw [call.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure, writeBytes] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    rw [← hstate]
+    simp [UInt256.toNat_ofNat_M, UInt256.toNat_ofNat_M_M]
+
+private lemma Stack.pop7_get!3456_active {s stack : Stack UInt256}
+    {x0 x1 x2 x3 x4 x5 x6 : UInt256}
+    (h : s.pop7 = some (stack, x0, x1, x2, x3, x4, x5, x6)) :
+    s[3]! = x3 ∧ s[4]! = x4 ∧ s[5]! = x5 ∧ s[6]! = x6 := by
+  cases s with
+  | nil => simp [Stack.pop7] at h
+  | cons y0 ys0 =>
+      cases ys0 with
+      | nil => simp [Stack.pop7] at h
+      | cons y1 ys1 =>
+          cases ys1 with
+          | nil => simp [Stack.pop7] at h
+          | cons y2 ys2 =>
+              cases ys2 with
+              | nil => simp [Stack.pop7] at h
+              | cons y3 ys3 =>
+                  cases ys3 with
+                  | nil => simp [Stack.pop7] at h
+                  | cons y4 ys4 =>
+                      cases ys4 with
+                      | nil => simp [Stack.pop7] at h
+                      | cons y5 ys5 =>
+                          cases ys5 with
+                          | nil => simp [Stack.pop7] at h
+                          | cons y6 ys6 =>
+                              simp [Stack.pop7] at h
+                              rcases h with ⟨_, _, _, _, h3, h4, h5, h6⟩
+                              exact ⟨h3, h4, h5, h6⟩
+
+private lemma Stack.pop6_get!2345_active {s stack : Stack UInt256}
+    {x0 x1 x2 x3 x4 x5 : UInt256}
+    (h : s.pop6 = some (stack, x0, x1, x2, x3, x4, x5)) :
+    s[2]! = x2 ∧ s[3]! = x3 ∧ s[4]! = x4 ∧ s[5]! = x5 := by
+  cases s with
+  | nil => simp [Stack.pop6] at h
+  | cons y0 ys0 =>
+      cases ys0 with
+      | nil => simp [Stack.pop6] at h
+      | cons y1 ys1 =>
+          cases ys1 with
+          | nil => simp [Stack.pop6] at h
+          | cons y2 ys2 =>
+              cases ys2 with
+              | nil => simp [Stack.pop6] at h
+              | cons y3 ys3 =>
+                  cases ys3 with
+                  | nil => simp [Stack.pop6] at h
+                  | cons y4 ys4 =>
+                      cases ys4 with
+                      | nil => simp [Stack.pop6] at h
+                      | cons y5 ys5 =>
+                          simp [Stack.pop6] at h
+                          rcases h with ⟨_, _, _, h2, h3, h4, h5⟩
+                          exact ⟨h2, h3, h4, h5⟩
+
+private lemma Stack.pop2_get!01 {s stack : Stack UInt256} {a b : UInt256}
+    (h : s.pop2 = some (stack, a, b)) :
+    s[0]! = a ∧ s[1]! = b := by
+  cases s with
+  | nil => simp [Stack.pop2] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop2] at h
+      | cons y ys =>
+          simp [Stack.pop2] at h
+          rcases h with ⟨_, rfl, rfl⟩
+          simp
+
+private lemma Stack.pop_get!0 {s stack : Stack UInt256} {a : UInt256}
+    (h : s.pop = some (stack, a)) :
+    s[0]! = a := by
+  cases s with
+  | nil => simp [Stack.pop] at h
+  | cons x xs =>
+      simp [Stack.pop] at h
+      rcases h with ⟨_, rfl⟩
+      simp
+
+private lemma Stack.pop3_get!012 {s stack : Stack UInt256} {a b c : UInt256}
+    (h : s.pop3 = some (stack, a, b, c)) :
+    s[0]! = a ∧ s[1]! = b ∧ s[2]! = c := by
+  cases s with
+  | nil => simp [Stack.pop3] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop3] at h
+      | cons y ys =>
+          cases ys with
+          | nil => simp [Stack.pop3] at h
+          | cons z zs =>
+              simp [Stack.pop3] at h
+              rcases h with ⟨_, rfl, rfl, rfl⟩
+              simp
+
+private lemma Stack.pop4_get!013 {s stack : Stack UInt256} {a b c d : UInt256}
+    (h : s.pop4 = some (stack, a, b, c, d)) :
+    s[0]! = a ∧ s[1]! = b ∧ s[3]! = d := by
+  cases s with
+  | nil => simp [Stack.pop4] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop4] at h
+      | cons y ys =>
+          cases ys with
+          | nil => simp [Stack.pop4] at h
+          | cons z zs =>
+              cases zs with
+              | nil => simp [Stack.pop4] at h
+              | cons q qs =>
+                  simp [Stack.pop4] at h
+                  rcases h with ⟨_, rfl, rfl, _, rfl⟩
+                  simp
+
+private lemma Stack.pop5_get!01 {s stack : Stack UInt256} {a b c d e : UInt256}
+    (h : s.pop5 = some (stack, a, b, c, d, e)) :
+    s[0]! = a ∧ s[1]! = b := by
+  cases s with
+  | nil => simp [Stack.pop5] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop5] at h
+      | cons y ys =>
+          cases ys with
+          | nil => simp [Stack.pop5] at h
+          | cons z zs =>
+              cases zs with
+              | nil => simp [Stack.pop5] at h
+              | cons q qs =>
+                  cases qs with
+                  | nil => simp [Stack.pop5] at h
+                  | cons r rs =>
+                      simp [Stack.pop5] at h
+                      rcases h with ⟨_, rfl, rfl, _, _, _⟩
+                      simp
+
+private lemma Stack.pop6_get!01_active {s stack : Stack UInt256} {a b c d e f : UInt256}
+    (h : s.pop6 = some (stack, a, b, c, d, e, f)) :
+    s[0]! = a ∧ s[1]! = b := by
+  cases s with
+  | nil => simp [Stack.pop6] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop6] at h
+      | cons y ys =>
+          cases ys with
+          | nil => simp [Stack.pop6] at h
+          | cons z zs =>
+              cases zs with
+              | nil => simp [Stack.pop6] at h
+              | cons q qs =>
+                  cases qs with
+                  | nil => simp [Stack.pop6] at h
+                  | cons r rs =>
+                      cases rs with
+                      | nil => simp [Stack.pop6] at h
+                      | cons t ts =>
+                          simp [Stack.pop6] at h
+                          rcases h with ⟨_, rfl, rfl, _, _, _, _⟩
+                          simp
+
+private lemma step_log_activeWords_norm (state : State) (offset len : UInt256) :
+    (UInt256.ofNat
+      (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat =
+      MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat := by
+  rw [UInt256.toNat_ofNat_of_lt]
+  exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+    offset.val.isLt len.val.isLt
+
+set_option linter.unusedSimpArgs false in
+lemma step_call_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CALL, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CALL := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rename_i _ popped hLift _ callResult hCall
+    have hpop := option_liftM_eq_some hLift
+    have hcallActive := call_activeWords_le_memoryExpansionWords hCall
+    rw [← h]
+    have hidx := Stack.pop7_get!3456_active hpop
+    simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2] using hcallActive
+
+set_option linter.unusedSimpArgs false in
+lemma step_callcode_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CALLCODE := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rename_i _ popped hLift _ callResult hCall
+    have hpop := option_liftM_eq_some hLift
+    have hcallActive := call_activeWords_le_memoryExpansionWords hCall
+    rw [← h]
+    have hidx := Stack.pop7_get!3456_active hpop
+    simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2] using hcallActive
+
+set_option linter.unusedSimpArgs false in
+lemma step_delegatecall_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.DELEGATECALL := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rename_i _ popped hLift _ callResult hCall
+    have hpop := option_liftM_eq_some hLift
+    have hcallActive := call_activeWords_le_memoryExpansionWords hCall
+    rw [← h]
+    have hidx := Stack.pop6_get!2345_active hpop
+    simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2] using hcallActive
+
+set_option linter.unusedSimpArgs false in
+lemma step_staticcall_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.STATICCALL := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rename_i _ popped hLift _ callResult hCall
+    have hpop := option_liftM_eq_some hLift
+    have hcallActive := call_activeWords_le_memoryExpansionWords hCall
+    rw [← h]
+    have hidx := Stack.pop6_get!2345_active hpop
+    simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2] using hcallActive
+
+set_option linter.unusedSimpArgs false in
+lemma step_create_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CREATE, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CREATE := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rw [← h]
+    cases hs : state.machineState.stack with
+    | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop3]
+    | cons x xs =>
+        cases xs with
+        | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop3]
+        | cons y ys =>
+            cases ys with
+            | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop3]
+            | cons z zs => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop3]
+
+set_option linter.unusedSimpArgs false in
+lemma step_create2_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CREATE2, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CREATE2 := by
+  rw [step.eq_1] at h
+  simp [bind, Except.bind, pure, Except.pure,
+    Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rw [← h]
+    cases hs : state.machineState.stack with
+    | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop4]
+    | cons x xs =>
+        cases xs with
+        | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop4]
+        | cons y ys =>
+            cases ys with
+            | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop4]
+            | cons z zs =>
+                cases zs with
+                | nil => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop4]
+                | cons w ws => simp_all [memoryExpansionWords, UInt256.toNat_ofNat_M, Stack.pop4]
+
+lemma step_return_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.RETURN, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.RETURN := by
+  unfold step at h
+  simp [binaryMachineStateOp] at h
+  cases hpop : state.machineState.stack.pop2 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len⟩
+      simp [hpop, MachineState.evmReturn, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop2_get!01 hpop
+      simp [memoryExpansionWords, hidx.1, hidx.2, UInt256.toNat_ofNat_M]
+
+lemma step_revert_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.REVERT, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.REVERT := by
+  unfold step at h
+  simp [binaryMachineStateOp] at h
+  cases hpop : state.machineState.stack.pop2 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len⟩
+      simp [hpop, MachineState.evmRevert, MachineState.evmReturn,
+        Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop2_get!01 hpop
+      simp [memoryExpansionWords, hidx.1, hidx.2, UInt256.toNat_ofNat_M, MachineState.M_idem]
+
+set_option linter.unusedSimpArgs false in
+lemma step_mload_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.MLOAD, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MLOAD := by
+  unfold step at h
+  simp [MachineState.mload, MachineState.lookupMemory, Ethereum.State.replaceStackAndIncrPC,
+    Ethereum.State.incrPC] at h
+  cases hpop : state.machineState.stack.pop with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset⟩
+      simp [hpop, MachineState.mload, MachineState.lookupMemory, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop_get!0 hpop
+      simp [memoryExpansionWords, hidx, UInt256.toNat_ofNat_M_nat,
+        (by decide : 32 < UInt256.size)]
+
+set_option linter.unusedSimpArgs false in
+lemma step_mstore_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.MSTORE, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MSTORE := by
+  unfold step at h
+  simp [binaryMachineStateOp] at h
+  cases hpop : state.machineState.stack.pop2 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, val⟩
+      simp [hpop, MachineState.mstore, MachineState.writeWord, writeBytes,
+        Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := (Stack.pop2_get!01 hpop).1
+      simp [memoryExpansionWords, hidx, UInt256.toNat_ofNat_M_nat,
+        (by decide : 32 < UInt256.size)]
+
+set_option linter.unusedSimpArgs false in
+lemma step_mstore8_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.MSTORE8, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MSTORE8 := by
+  unfold step at h
+  simp [binaryMachineStateOp] at h
+  cases hpop : state.machineState.stack.pop2 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, val⟩
+      simp [hpop, MachineState.mstore8, writeBytes, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := (Stack.pop2_get!01 hpop).1
+      simp [memoryExpansionWords, hidx, UInt256.toNat_ofNat_M_nat,
+        (by decide : 1 < UInt256.size)]
+
+set_option linter.unusedSimpArgs false in
+lemma step_keccak_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.KECCAK256, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.KECCAK256 := by
+  unfold step at h
+  simp [binaryMachineStateOp'] at h
+  cases hpop : state.machineState.stack.pop2 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len⟩
+      simp [hpop, MachineState.keccak256, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop2_get!01 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat ≤
+        memoryExpansionWords state Operation.KECCAK256
+      have hnorm :
+          (UInt256.ofNat
+            (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat =
+            MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat := by
+        rw [UInt256.toNat_ofNat_of_lt]
+        exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+          offset.val.isLt len.val.isLt
+      rw [hnorm]
+      simp [memoryExpansionWords, hidx.1, hidx.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_calldatacopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CALLDATACOPY, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CALLDATACOPY := by
+  unfold step at h
+  simp [ternaryCopyOp] at h
+  cases hpop : state.machineState.stack.pop3 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, mstart, datastart, size⟩
+      simp [hpop, calldatacopy, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop3_get!012 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat ≤
+        memoryExpansionWords state Operation.CALLDATACOPY
+      have hnorm :
+          (UInt256.ofNat
+            (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat =
+            MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat := by
+        rw [UInt256.toNat_ofNat_of_lt]
+        exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+          mstart.val.isLt size.val.isLt
+      rw [hnorm]
+      simp [memoryExpansionWords, hidx.1, hidx.2.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_codecopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CODECOPY, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CODECOPY := by
+  unfold step at h
+  simp [ternaryCopyOp] at h
+  cases hpop : state.machineState.stack.pop3 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, mstart, cstart, size⟩
+      simp [hpop, codeCopy, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop3_get!012 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat ≤
+        memoryExpansionWords state Operation.CODECOPY
+      have hnorm :
+          (UInt256.ofNat
+            (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat =
+            MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat := by
+        rw [UInt256.toNat_ofNat_of_lt]
+        exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+          mstart.val.isLt size.val.isLt
+      rw [hnorm]
+      simp [memoryExpansionWords, hidx.1, hidx.2.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_returndatacopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.RETURNDATACOPY, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.RETURNDATACOPY := by
+  unfold step at h
+  cases hpop : state.machineState.stack.pop3 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, mstart, rstart, size⟩
+      simp [hpop, MachineState.returndatacopy, writeBytes, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      rw [← h]
+      have hidx := Stack.pop3_get!012 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat ≤
+        memoryExpansionWords state Operation.RETURNDATACOPY
+      have hnorm :
+          (UInt256.ofNat
+            (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat =
+            MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat := by
+        rw [UInt256.toNat_ofNat_of_lt]
+        exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+          mstart.val.isLt size.val.isLt
+      rw [hnorm]
+      simp [memoryExpansionWords, hidx.1, hidx.2.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_extcodecopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.EXTCODECOPY, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.EXTCODECOPY := by
+  unfold step at h
+  simp [quaternaryCopyOp] at h
+  cases hpop : state.machineState.stack.pop4 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, acc, mstart, cstart, size⟩
+      simp [hpop, extCodeCopy', Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop4_get!013 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat ≤
+        memoryExpansionWords state Operation.EXTCODECOPY
+      have hnorm :
+          (UInt256.ofNat
+            (MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat)).toNat =
+            MachineState.M state.machineState.activeWords.toNat mstart.toNat size.toNat := by
+        rw [UInt256.toNat_ofNat_of_lt]
+        exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+          mstart.val.isLt size.val.isLt
+      rw [hnorm]
+      simp [memoryExpansionWords, hidx.2.1, hidx.2.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_mcopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.MCOPY, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MCOPY := by
+  unfold step at h
+  simp [ternaryMachineStateOp] at h
+  cases hpop : state.machineState.stack.pop3 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, writeStart, readStart, size⟩
+      simp [hpop, MachineState.mcopy, writeBytes, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop3_get!012 hpop
+      have hmax : max writeStart.toNat readStart.toNat < UInt256.size :=
+        max_lt writeStart.val.isLt readStart.val.isLt
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat
+            (max writeStart.toNat readStart.toNat) size.toNat)).toNat ≤
+        memoryExpansionWords state Operation.MCOPY
+      have hnorm :
+          (UInt256.ofNat
+            (MachineState.M state.machineState.activeWords.toNat
+              (max writeStart.toNat readStart.toNat) size.toNat)).toNat =
+            MachineState.M state.machineState.activeWords.toNat
+              (max writeStart.toNat readStart.toNat) size.toNat := by
+        rw [UInt256.toNat_ofNat_of_lt]
+        exact MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt hmax
+          size.val.isLt
+      rw [hnorm]
+      simp [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_log0_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.LOG0, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG0 := by
+  unfold step at h
+  simp [log0Op] at h
+  cases hpop : state.machineState.stack.pop2 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len⟩
+      simp [hpop, evmLogOp, logOp, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop2_get!01 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat ≤
+        memoryExpansionWords state Operation.LOG0
+      rw [step_log_activeWords_norm]
+      simp [memoryExpansionWords, hidx.1, hidx.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_log1_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.LOG1, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG1 := by
+  unfold step at h
+  simp [log1Op] at h
+  cases hpop : state.machineState.stack.pop3 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len, t0⟩
+      simp [hpop, evmLogOp, logOp, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop3_get!012 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat ≤
+        memoryExpansionWords state Operation.LOG1
+      rw [step_log_activeWords_norm]
+      simp [memoryExpansionWords, hidx.1, hidx.2.1]
+
+set_option linter.unusedSimpArgs false in
+lemma step_log2_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.LOG2, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG2 := by
+  unfold step at h
+  simp [log2Op] at h
+  cases hpop : state.machineState.stack.pop4 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len, t0, t1⟩
+      simp [hpop, evmLogOp, logOp, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop4_get!013 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat ≤
+        memoryExpansionWords state Operation.LOG2
+      rw [step_log_activeWords_norm]
+      simp [memoryExpansionWords, hidx.1, hidx.2.1]
+
+set_option linter.unusedSimpArgs false in
+lemma step_log3_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.LOG3, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG3 := by
+  unfold step at h
+  simp [log3Op] at h
+  cases hpop : state.machineState.stack.pop5 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len, t0, t1, t2⟩
+      simp [hpop, evmLogOp, logOp, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop5_get!01 hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat ≤
+        memoryExpansionWords state Operation.LOG3
+      rw [step_log_activeWords_norm]
+      simp [memoryExpansionWords, hidx.1, hidx.2]
+
+set_option linter.unusedSimpArgs false in
+lemma step_log4_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.LOG4, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG4 := by
+  unfold step at h
+  simp [log4Op] at h
+  cases hpop : state.machineState.stack.pop6 with
+  | none => simp [hpop] at h
+  | some popped =>
+      rcases popped with ⟨stack, offset, len, t0, t1, t2, t3⟩
+      simp [hpop, evmLogOp, logOp, Ethereum.State.replaceStackAndIncrPC,
+        Ethereum.State.incrPC] at h
+      injection h with hstate
+      subst state'
+      have hidx := Stack.pop6_get!01_active hpop
+      change (UInt256.ofNat
+          (MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat)).toNat ≤
+        memoryExpansionWords state Operation.LOG4
+      rw [step_log_activeWords_norm]
+      simp [memoryExpansionWords, hidx.1, hidx.2]
+
+private lemma State.sstore_activeWords (state : State) (spos sval : UInt256) :
+    (state.sstore spos sval).machineState.activeWords = state.machineState.activeWords := by
+  unfold State.sstore
+  cases hlookup : state.lookupAccount state.executionEnv.codeOwner <;>
+    simp [hlookup, Option.option, State.setAccount, State.addAccessedStorageKey]
+
+private lemma State.tstore_activeWords (state : State) (spos sval : UInt256) :
+    (state.tstore spos sval).machineState.activeWords = state.machineState.activeWords := by
+  unfold State.tstore
+  cases hlookup : state.lookupAccount state.executionEnv.codeOwner <;>
+    simp [hlookup, Option.option, State.updateAccount]
+
+set_option linter.unusedSimpArgs false in
+lemma step_stoparith_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.SAOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.StopArith op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.StopArith op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, execBinOp, execTriOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC, MachineState.setReturnData] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
+set_option linter.unusedSimpArgs false in
+lemma step_compbit_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.CBLOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.CompBit op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.CompBit op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, execUnOp, execBinOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
+set_option linter.unusedSimpArgs false in
+lemma step_env_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.EOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Env op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Env op) := by
+  cases op
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, unaryStateOp, Ethereum.State.balance, Ethereum.State.addAccessedAccount,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, unaryStateOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · exact step_calldatacopy_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, executionEnvOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · exact step_codecopy_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp [memoryExpansionWords, unaryStateOp, Ethereum.State.extCodeSize,
+      Ethereum.State.addAccessedAccount, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · exact step_extcodecopy_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp [memoryExpansionWords, machineStateOp, MachineState.returndatasize,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · exact step_returndatacopy_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp [memoryExpansionWords, unaryStateOp, Ethereum.State.extCodeHash,
+      Ethereum.State.addAccessedAccount, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+
+set_option linter.unusedSimpArgs false in
+lemma step_block_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.BOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Block op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Block op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, stateOp, executionEnvOp, unaryExecutionEnvOp, unaryStateOp,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
+set_option linter.unusedSimpArgs false in
+lemma step_stackmemflow_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.SMSFOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.StackMemFlow op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.StackMemFlow op) := by
+  cases op
+  · unfold step at h
+    simp [memoryExpansionWords, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · exact step_mload_activeWords_le_memoryExpansionWords h
+  · exact step_mstore_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp [memoryExpansionWords, unaryStateOp, Ethereum.State.sload,
+      Ethereum.State.addAccessedStorageKey, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, binaryStateOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords, State.sstore_activeWords]
+  · exact step_mstore8_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp [memoryExpansionWords] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, machineStateOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    rw [← h]
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, machineStateOp, MachineState.msize,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, machineStateOp, MachineState.gas,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    injection h with hstate
+    subst state'
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    rw [← h]
+    simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, unaryStateOp, Ethereum.State.tload,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try simp [memoryExpansionWords]
+  · unfold step at h
+    simp [memoryExpansionWords, binaryStateOp, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords, State.tstore_activeWords]
+  · exact step_mcopy_activeWords_le_memoryExpansionWords h
+
+set_option linter.unusedSimpArgs false in
+lemma step_push_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.POp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Push op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Push op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, bind, Except.bind, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
+set_option linter.unusedSimpArgs false in
+lemma step_dup_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.DOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Dup op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Dup op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, dup, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
+set_option linter.unusedSimpArgs false in
+lemma step_exchange_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.ExOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Exchange op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Exchange op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, swap, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
+lemma step_keccak_group_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.KOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Keccak op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Keccak op) := by
+  cases op
+  exact step_keccak_activeWords_le_memoryExpansionWords h
+
+lemma step_log_group_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.LOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.Log op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Log op) := by
+  cases op
+  · exact step_log0_activeWords_le_memoryExpansionWords h
+  · exact step_log1_activeWords_le_memoryExpansionWords h
+  · exact step_log2_activeWords_le_memoryExpansionWords h
+  · exact step_log3_activeWords_le_memoryExpansionWords h
+  · exact step_log4_activeWords_le_memoryExpansionWords h
+
+set_option linter.unusedSimpArgs false in
+lemma step_selfdestruct_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.SELFDESTRUCT, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.SELFDESTRUCT := by
+  unfold step at h
+  simp [memoryExpansionWords, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    try injection h with hstate
+    try subst state'
+    try cases h
+    try simp [memoryExpansionWords]
+
+lemma step_system_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.SOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.System op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.System op) := by
+  cases op
+  · exact step_create_activeWords_le_memoryExpansionWords h
+  · exact step_call_activeWords_le_memoryExpansionWords h
+  · exact step_callcode_activeWords_le_memoryExpansionWords h
+  · exact step_return_activeWords_le_memoryExpansionWords h
+  · exact step_delegatecall_activeWords_le_memoryExpansionWords h
+  · exact step_create2_activeWords_le_memoryExpansionWords h
+  · exact step_staticcall_activeWords_le_memoryExpansionWords h
+  · exact step_revert_activeWords_le_memoryExpansionWords h
+  · unfold step at h
+    simp at h
+  · exact step_selfdestruct_activeWords_le_memoryExpansionWords h
+
+lemma step_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {w : Operation} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (w, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state w := by
+  cases w with
+  | StopArith op => exact step_stoparith_activeWords_le_memoryExpansionWords h
+  | CompBit op => exact step_compbit_activeWords_le_memoryExpansionWords h
+  | Keccak op => exact step_keccak_group_activeWords_le_memoryExpansionWords h
+  | Env op => exact step_env_activeWords_le_memoryExpansionWords h
+  | Block op => exact step_block_activeWords_le_memoryExpansionWords h
+  | StackMemFlow op => exact step_stackmemflow_activeWords_le_memoryExpansionWords h
+  | Push op => exact step_push_activeWords_le_memoryExpansionWords h
+  | Dup op => exact step_dup_activeWords_le_memoryExpansionWords h
+  | Exchange op => exact step_exchange_activeWords_le_memoryExpansionWords h
+  | Log op => exact step_log_group_activeWords_le_memoryExpansionWords h
+  | System op => exact step_system_activeWords_le_memoryExpansionWords h
+
+private lemma Stack.pop2_getD0 {s stack : Stack UInt256} {a b : UInt256}
+    (h : s.pop2 = some (stack, a, b)) :
+    (s[0]?.getD default).toNat = a.toNat := by
+  cases s with
+  | nil => simp [Stack.pop2] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop2] at h
+      | cons y ys =>
+          simp [Stack.pop2] at h
+          rcases h with ⟨_, rfl, _⟩
+          simp
+
+private lemma Stack.pop2_getD1 {s stack : Stack UInt256} {a b : UInt256}
+    (h : s.pop2 = some (stack, a, b)) :
+    (s[1]?.getD default).toNat = b.toNat := by
+  cases s with
+  | nil => simp [Stack.pop2] at h
+  | cons x xs =>
+      cases xs with
+      | nil => simp [Stack.pop2] at h
+      | cons y ys =>
+          simp [Stack.pop2] at h
+          rcases h with ⟨_, _, rfl⟩
+          simp
+
+private lemma Stack.pop7_get!3456 {s stack : Stack UInt256}
+    {x0 x1 x2 x3 x4 x5 x6 : UInt256}
+    (h : s.pop7 = some (stack, x0, x1, x2, x3, x4, x5, x6)) :
+    s[3]! = x3 ∧ s[4]! = x4 ∧ s[5]! = x5 ∧ s[6]! = x6 := by
+  cases s with
+  | nil => simp [Stack.pop7] at h
+  | cons y0 ys0 =>
+      cases ys0 with
+      | nil => simp [Stack.pop7] at h
+      | cons y1 ys1 =>
+          cases ys1 with
+          | nil => simp [Stack.pop7] at h
+          | cons y2 ys2 =>
+              cases ys2 with
+              | nil => simp [Stack.pop7] at h
+              | cons y3 ys3 =>
+                  cases ys3 with
+                  | nil => simp [Stack.pop7] at h
+                  | cons y4 ys4 =>
+                      cases ys4 with
+                      | nil => simp [Stack.pop7] at h
+                      | cons y5 ys5 =>
+                          cases ys5 with
+                          | nil => simp [Stack.pop7] at h
+                          | cons y6 ys6 =>
+                              simp [Stack.pop7] at h
+                              rcases h with ⟨_, _, _, _, h3, h4, h5, h6⟩
+                              exact ⟨h3, h4, h5, h6⟩
+
+private lemma Stack.pop6_get!2345 {s stack : Stack UInt256}
+    {x0 x1 x2 x3 x4 x5 : UInt256}
+    (h : s.pop6 = some (stack, x0, x1, x2, x3, x4, x5)) :
+    s[2]! = x2 ∧ s[3]! = x3 ∧ s[4]! = x4 ∧ s[5]! = x5 := by
+  cases s with
+  | nil => simp [Stack.pop6] at h
+  | cons y0 ys0 =>
+      cases ys0 with
+      | nil => simp [Stack.pop6] at h
+      | cons y1 ys1 =>
+          cases ys1 with
+          | nil => simp [Stack.pop6] at h
+          | cons y2 ys2 =>
+              cases ys2 with
+              | nil => simp [Stack.pop6] at h
+              | cons y3 ys3 =>
+                  cases ys3 with
+                  | nil => simp [Stack.pop6] at h
+                  | cons y4 ys4 =>
+                      cases ys4 with
+                      | nil => simp [Stack.pop6] at h
+                      | cons y5 ys5 =>
+                          simp [Stack.pop6] at h
+                          rcases h with ⟨_, _, _, h2, h3, h4, h5⟩
+                          exact ⟨h2, h3, h4, h5⟩
+
+lemma return_words_le_maxReturnDataWordsByGas_of_Z
+    {validJumps : Array UInt256} {state stateZ : State} {cost : Nat}
+    {stack : Stack UInt256} {offset len : UInt256}
+    (hpaid : memoryPaidByGas state)
+    (hpop : state.machineState.stack.pop2 = some (stack, offset, len))
+    (hZ : Z validJumps Operation.RETURN state = .ok (stateZ, cost)) :
+    MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
+      maxReturnDataWordsByGas := by
+  let words := MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat
+  have hwords_lt : words < UInt256.size :=
+    MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+      offset.val.isLt len.val.isLt
+  have hactive_le : state.machineState.activeWords.toNat ≤ words :=
+    MachineState.M_ge_active _ _ _
+  have hmono : Cₘ state.machineState.activeWords ≤ Cₘ (.ofNat words) := by
+    rw [← UInt256.ofNat_toNat state.machineState.activeWords]
+    exact Cₘ_monotone_of_lt hactive_le hwords_lt
+  have hmem := Z_memoryExpansionCost_le hZ
+  have hmem' :
+      Cₘ (.ofNat words) - Cₘ state.machineState.activeWords ≤
+        state.machineState.gasAvailable.toNat := by
+    have h0 := Stack.pop2_getD0 hpop
+    have h1 := Stack.pop2_getD1 hpop
+    simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', h0, h1, words] using hmem
+  have hcost_lt : Cₘ (.ofNat words) < UInt256.size := by
+    have hadd :
+        Cₘ (.ofNat words) =
+          Cₘ state.machineState.activeWords +
+            (Cₘ (.ofNat words) - Cₘ state.machineState.activeWords) := by
+      omega
+    rw [hadd]
+    exact Nat.lt_of_le_of_lt (Nat.add_le_add_left hmem' _ ) hpaid
+  exact maxReturnDataWordsByGas_ge_of_Cₘ_lt hwords_lt hcost_lt
+
+lemma revert_words_le_maxReturnDataWordsByGas_of_Z
+    {validJumps : Array UInt256} {state stateZ : State} {cost : Nat}
+    {stack : Stack UInt256} {offset len : UInt256}
+    (hpaid : memoryPaidByGas state)
+    (hpop : state.machineState.stack.pop2 = some (stack, offset, len))
+    (hZ : Z validJumps Operation.REVERT state = .ok (stateZ, cost)) :
+    MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
+      maxReturnDataWordsByGas := by
+  let words := MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat
+  have hwords_lt : words < UInt256.size :=
+    MachineState.M_lt_uint256_size state.machineState.activeWords.val.isLt
+      offset.val.isLt len.val.isLt
+  have hactive_le : state.machineState.activeWords.toNat ≤ words :=
+    MachineState.M_ge_active _ _ _
+  have hmono : Cₘ state.machineState.activeWords ≤ Cₘ (.ofNat words) := by
+    rw [← UInt256.ofNat_toNat state.machineState.activeWords]
+    exact Cₘ_monotone_of_lt hactive_le hwords_lt
+  have hmem := Z_memoryExpansionCost_le hZ
+  have hmem' :
+      Cₘ (.ofNat words) - Cₘ state.machineState.activeWords ≤
+        state.machineState.gasAvailable.toNat := by
+    have h0 := Stack.pop2_getD0 hpop
+    have h1 := Stack.pop2_getD1 hpop
+    simpa [memoryExpansionCost, memoryExpansionCost.μᵢ', h0, h1, words] using hmem
+  have hcost_lt : Cₘ (.ofNat words) < UInt256.size := by
+    have hadd :
+        Cₘ (.ofNat words) =
+          Cₘ state.machineState.activeWords +
+            (Cₘ (.ofNat words) - Cₘ state.machineState.activeWords) := by
+      omega
+    rw [hadd]
+    exact Nat.lt_of_le_of_lt (Nat.add_le_add_left hmem' _ ) hpaid
+  exact maxReturnDataWordsByGas_ge_of_Cₘ_lt hwords_lt hcost_lt
 
 lemma ByteArray.readWithoutPadding_size_le (b : ByteArray) (addr len : Nat) :
     (b.readWithoutPadding addr len).size ≤ len := by
@@ -122,36 +1692,20 @@ private lemma USize.toNat_ofNat_le (n : Nat) :
 lemma ByteArray.readWithPadding_size_le (b : ByteArray) (addr len : Nat) :
     (b.readWithPadding addr len).size ≤ len := by
   unfold ByteArray.readWithPadding
-  split
-  · change (default : ByteArray).size ≤ len
-    simp [default, Inhabited.default]
-  · rw [ByteArray.size_append, ByteArray_zeroes_size]
-    have hread := ByteArray.readWithoutPadding_size_le b addr len
-    have hzero :
-        (USize.ofBitVec
-          ((len : BitVec System.Platform.numBits) -
-            ((b.readWithoutPadding addr len).size :
-              BitVec System.Platform.numBits))).toNat ≤
-          len - (b.readWithoutPadding addr len).size :=
-      USize.toNat_ofBitVec_sub_ofNat_le hread
-    omega
+  rw [ByteArray.size_append, ByteArray_zeroes_size]
+  have hread := ByteArray.readWithoutPadding_size_le b addr len
+  omega
 
 lemma ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas
-    (b : ByteArray) (addr len : Nat) :
+    (b : ByteArray) (addr len : Nat) (hlen : len ≤ maxReturnDataSizeByGas) :
     (b.readWithPadding addr len).size ≤ maxReturnDataSizeByGas := by
-  by_cases hlen : len ≥ 2 ^ 64
-  · have hlen' : 2 ^ 64 ≤ len := by simpa using hlen
-    norm_num at hlen'
-    simp [ByteArray.readWithPadding, hlen', default, Inhabited.default]
-  ·
-    have hsize := ByteArray.readWithPadding_size_le b addr len
-    have h64 : len ≤ 2 ^ 64 := by omega
-    exact Nat.le_trans hsize (Nat.le_trans h64 pow_two_64_le_maxReturnDataSizeByGas)
+  exact Nat.le_trans (ByteArray.readWithPadding_size_le b addr len) hlen
 
-lemma ByteArray.readWithPadding_size_lt_uint256 (b : ByteArray) (addr len : Nat) :
+lemma ByteArray.readWithPadding_size_lt_uint256
+    (b : ByteArray) (addr len : Nat) (hlen : len ≤ maxReturnDataSizeByGas) :
     (b.readWithPadding addr len).size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas b addr len)
+    (ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas b addr len hlen)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma MachineState.M_len_le_words_mul (s f l : Nat) :
@@ -170,6 +1724,89 @@ lemma MachineState.M_len_le_words_mul (s f l : Nat) :
           max s ((f + (l + 1) + 31) / 32) := by
         exact Nat.le_max_right _ _
       nlinarith
+
+lemma ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas_of_words
+    (b : ByteArray) (active offset len : Nat)
+    (hwords : MachineState.M active offset len ≤ maxReturnDataWordsByGas) :
+    (b.readWithPadding offset len).size ≤ maxReturnDataSizeByGas := by
+  have hread := ByteArray.readWithPadding_size_le b offset len
+  have hlen_words := MachineState.M_len_le_words_mul active offset len
+  unfold maxReturnDataSizeByGas
+  exact Nat.le_trans hread (by nlinarith)
+
+private lemma call_input_size_le_maxReturnDataSizeByGas_of_Z
+    {validJumps : Array UInt256} {op : Operation}
+    {state stateZ : State} {cost : Nat}
+    {stack : Stack UInt256}
+    {gas target value inOffset inSize outOffset outSize : UInt256}
+    (hop : op = Operation.CALL ∨ op = Operation.CALLCODE)
+    (hpaid : memoryPaidByGas state)
+    (hpop : state.machineState.stack.pop7 =
+      some (stack, gas, target, value, inOffset, inSize, outOffset, outSize))
+    (hZ : Z validJumps op state = .ok (stateZ, cost)) :
+    (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+      maxReturnDataSizeByGas := by
+  have htarget := memoryPaidByGas_after_Z_target hpaid hZ
+  have hcost_lt :
+      Cₘ (.ofNat (memoryExpansionWords state op)) < UInt256.size := by
+    omega
+  have htarget_words :
+      memoryExpansionWords state op ≤ maxReturnDataWordsByGas :=
+    maxReturnDataWordsByGas_ge_of_Cₘ_lt
+      (memoryExpansionWords_lt_uint256_size state op) hcost_lt
+  have hidx := Stack.pop7_get!3456 hpop
+  have hinput :
+      MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat ≤
+        memoryExpansionWords state op := by
+    rcases hop with rfl | rfl
+    · simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2]
+        using MachineState.M_ge_active
+          (MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat)
+          outOffset.toNat outSize.toNat
+    · simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2]
+        using MachineState.M_ge_active
+          (MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat)
+          outOffset.toNat outSize.toNat
+  exact ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas_of_words
+    state.machineState.memory state.machineState.activeWords.toNat inOffset.toNat inSize.toNat
+    (Nat.le_trans hinput htarget_words)
+
+private lemma delegate_input_size_le_maxReturnDataSizeByGas_of_Z
+    {validJumps : Array UInt256} {op : Operation}
+    {state stateZ : State} {cost : Nat}
+    {stack : Stack UInt256}
+    {gas target inOffset inSize outOffset outSize : UInt256}
+    (hop : op = Operation.DELEGATECALL ∨ op = Operation.STATICCALL)
+    (hpaid : memoryPaidByGas state)
+    (hpop : state.machineState.stack.pop6 =
+      some (stack, gas, target, inOffset, inSize, outOffset, outSize))
+    (hZ : Z validJumps op state = .ok (stateZ, cost)) :
+    (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+      maxReturnDataSizeByGas := by
+  have htarget := memoryPaidByGas_after_Z_target hpaid hZ
+  have hcost_lt :
+      Cₘ (.ofNat (memoryExpansionWords state op)) < UInt256.size := by
+    omega
+  have htarget_words :
+      memoryExpansionWords state op ≤ maxReturnDataWordsByGas :=
+    maxReturnDataWordsByGas_ge_of_Cₘ_lt
+      (memoryExpansionWords_lt_uint256_size state op) hcost_lt
+  have hidx := Stack.pop6_get!2345 hpop
+  have hinput :
+      MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat ≤
+        memoryExpansionWords state op := by
+    rcases hop with rfl | rfl
+    · simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2]
+        using MachineState.M_ge_active
+          (MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat)
+          outOffset.toNat outSize.toNat
+    · simpa [memoryExpansionWords, hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2]
+        using MachineState.M_ge_active
+          (MachineState.M state.machineState.activeWords.toNat inOffset.toNat inSize.toNat)
+          outOffset.toNat outSize.toNat
+  exact ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas_of_words
+    state.machineState.memory state.machineState.activeWords.toNat inOffset.toNat inSize.toNat
+    (Nat.le_trans hinput htarget_words)
 
 lemma MachineState.evmReturn_H_return_size_le_words_mul
     (machine : MachineState) (offset len : UInt256) :
@@ -214,19 +1851,29 @@ lemma MachineState.evmRevert_H_return_size_le_maxReturnDataSizeByGas_of_words
     (Nat.mul_le_mul_left 32 hwords)
 
 lemma MachineState.evmReturn_H_return_size_le_maxReturnDataSizeByGas
-    (machine : MachineState) (offset len : UInt256) :
+    (machine : MachineState) (offset len : UInt256)
+    (hwords :
+      MachineState.M machine.activeWords.toNat offset.toNat len.toNat ≤
+        maxReturnDataWordsByGas) :
     (machine.evmReturn offset len).H_return.size ≤ maxReturnDataSizeByGas := by
-  simp [MachineState.evmReturn,
-    ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas]
+  exact MachineState.evmReturn_H_return_size_le_maxReturnDataSizeByGas_of_words
+    machine offset len hwords
 
 lemma MachineState.evmRevert_H_return_size_le_maxReturnDataSizeByGas
-    (machine : MachineState) (offset len : UInt256) :
+    (machine : MachineState) (offset len : UInt256)
+    (hwords :
+      MachineState.M machine.activeWords.toNat offset.toNat len.toNat ≤
+        maxReturnDataWordsByGas) :
     (machine.evmRevert offset len).H_return.size ≤ maxReturnDataSizeByGas := by
-  simp [MachineState.evmRevert, MachineState.evmReturn,
-    ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas]
+  exact MachineState.evmRevert_H_return_size_le_maxReturnDataSizeByGas_of_words
+    machine offset len hwords
 
 lemma step_return_H_return_size_le_maxReturnDataSizeByGas {cost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
+    (hwords : ∀ {stack : Stack UInt256} {offset len : UInt256},
+      state.machineState.stack.pop2 = some (stack, offset, len) →
+        MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
+          maxReturnDataWordsByGas)
     (h : step cost (.RETURN, arg) state = .ok state') :
     state'.machineState.H_return.size ≤ maxReturnDataSizeByGas := by
   unfold step at h
@@ -244,10 +1891,14 @@ lemma step_return_H_return_size_le_maxReturnDataSizeByGas {cost : Nat}
         { state.machineState with
           execLength := state.machineState.execLength + 1,
           gasAvailable := state.machineState.gasAvailable.subNat cost }
-        offset len
+        offset len (hwords hpop)
 
 lemma step_revert_H_return_size_le_maxReturnDataSizeByGas {cost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
+    (hwords : ∀ {stack : Stack UInt256} {offset len : UInt256},
+      state.machineState.stack.pop2 = some (stack, offset, len) →
+        MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
+          maxReturnDataWordsByGas)
     (h : step cost (.REVERT, arg) state = .ok state') :
     state'.machineState.H_return.size ≤ maxReturnDataSizeByGas := by
   unfold step at h
@@ -265,41 +1916,56 @@ lemma step_revert_H_return_size_le_maxReturnDataSizeByGas {cost : Nat}
         { state.machineState with
           execLength := state.machineState.execLength + 1,
           gasAvailable := state.machineState.gasAvailable.subNat cost }
-        offset len
+        offset len (hwords hpop)
 
 lemma MachineState.evmReturn_H_return_size_lt_uint256
-    (machine : MachineState) (offset len : UInt256) :
+    (machine : MachineState) (offset len : UInt256)
+    (hwords :
+      MachineState.M machine.activeWords.toNat offset.toNat len.toNat ≤
+        maxReturnDataWordsByGas) :
     (machine.evmReturn offset len).H_return.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (MachineState.evmReturn_H_return_size_le_maxReturnDataSizeByGas machine offset len)
+    (MachineState.evmReturn_H_return_size_le_maxReturnDataSizeByGas machine offset len hwords)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma MachineState.evmRevert_H_return_size_lt_uint256
-    (machine : MachineState) (offset len : UInt256) :
+    (machine : MachineState) (offset len : UInt256)
+    (hwords :
+      MachineState.M machine.activeWords.toNat offset.toNat len.toNat ≤
+        maxReturnDataWordsByGas) :
     (machine.evmRevert offset len).H_return.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (MachineState.evmRevert_H_return_size_le_maxReturnDataSizeByGas machine offset len)
+    (MachineState.evmRevert_H_return_size_le_maxReturnDataSizeByGas machine offset len hwords)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma step_return_H_return_size_lt_uint256 {cost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hwords : ∀ {stack : Stack UInt256} {offset len : UInt256},
+      state.machineState.stack.pop2 = some (stack, offset, len) →
+        MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
+          maxReturnDataWordsByGas)
     (h : step cost (.RETURN, arg) state = .ok state') :
     state'.machineState.H_return.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_return_H_return_size_le_maxReturnDataSizeByGas h)
+    (step_return_H_return_size_le_maxReturnDataSizeByGas hwords h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma step_revert_H_return_size_lt_uint256 {cost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hwords : ∀ {stack : Stack UInt256} {offset len : UInt256},
+      state.machineState.stack.pop2 = some (stack, offset, len) →
+        MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
+          maxReturnDataWordsByGas)
     (h : step cost (.REVERT, arg) state = .ok state') :
     state'.machineState.H_return.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_revert_H_return_size_le_maxReturnDataSizeByGas h)
+    (step_revert_H_return_size_le_maxReturnDataSizeByGas hwords h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xstep_halt_output_size_le_maxReturnDataSizeByGas
     {validJumps : Array UInt256} {state state' : State}
     {cause : HaltCause} {out : ByteArray}
+    (hpaid : memoryPaidByGas state)
     (h : Xstep validJumps state = .ok (state', some (cause, out))) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Xstep at h
@@ -311,7 +1977,7 @@ lemma Xstep_halt_output_size_le_maxReturnDataSizeByGas
     · contradiction
     · rename_i stepped hstep
       generalize hinstr :
-        (decode state.executionEnv.code state.machineState.pc).getD (.STOP, none) = instr at hstep h
+        (decode state.executionEnv.code state.machineState.pc).getD (.STOP, none) = instr at hZ hstep h
       rcases instr with ⟨op, arg⟩
       cases op with
       | StopArith sop =>
@@ -334,25 +2000,223 @@ lemma Xstep_halt_output_size_le_maxReturnDataSizeByGas
           cases sop <;> simp at h
           · rcases h with ⟨_, _, hout⟩
             subst out
-            exact step_return_H_return_size_le_maxReturnDataSizeByGas hstep
+            refine step_return_H_return_size_le_maxReturnDataSizeByGas ?_ hstep
+            ·
+                intro stack offset len hpop
+                have hsame := Z_stack_active_eq (by simpa using hZ)
+                have hpop0 :
+                    state.machineState.stack.pop2 = some (stack, offset, len) := by
+                  simpa [hsame.1] using hpop
+                have hbound :=
+                  return_words_le_maxReturnDataWordsByGas_of_Z hpaid hpop0 (by simpa using hZ)
+                simpa [hsame.2.1] using hbound
           · rcases h with ⟨_, _, hout⟩
             subst out
-            exact step_revert_H_return_size_le_maxReturnDataSizeByGas hstep
+            refine step_revert_H_return_size_le_maxReturnDataSizeByGas ?_ hstep
+            ·
+                intro stack offset len hpop
+                have hsame := Z_stack_active_eq (by simpa using hZ)
+                have hpop0 :
+                    state.machineState.stack.pop2 = some (stack, offset, len) := by
+                  simpa [hsame.1] using hpop
+                have hbound :=
+                  revert_words_le_maxReturnDataWordsByGas_of_Z hpaid hpop0 (by simpa using hZ)
+                simpa [hsame.2.1] using hbound
           · rcases h with ⟨_, _, hout⟩
             subst out
             simp [maxReturnDataSizeByGas]
 
 lemma Xstep_halt_output_size_lt_uint256 {validJumps : Array UInt256} {state state' : State}
     {cause : HaltCause} {out : ByteArray}
+    (hpaid : memoryPaidByGas state)
     (h : Xstep validJumps state = .ok (state', some (cause, out))) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (Xstep_halt_output_size_le_maxReturnDataSizeByGas h)
+    (Xstep_halt_output_size_le_maxReturnDataSizeByGas hpaid h)
     maxReturnDataSizeByGas_lt_uint256
+
+lemma Xstep_memoryPaidByGas_of_none {validJumps : Array UInt256} {state state' : State}
+    (hpaid : memoryPaidByGas state)
+    (h : Xstep validJumps state = .ok (state', none)) :
+    memoryPaidByGas state' := by
+  unfold Xstep at h
+  cases hinstr : (decode state.executionEnv.code state.machineState.pc).getD (Operation.STOP, none) with
+  | mk w arg =>
+      simp [hinstr, bind, Except.bind] at h
+      cases hZ : Z validJumps w state <;> simp [hZ] at h
+      rename_i z
+      rcases z with ⟨stateZ, cost₂⟩
+      cases hstep :
+          step cost₂ (w, arg) { stateZ with executionEnv.depth := state.executionEnv.depth } <;>
+        simp [hstep] at h
+      rename_i stateStep
+      repeat (first | split at h | cases h)
+      all_goals
+        try (by_cases hwrev : w = Operation.REVERT <;> simp [hwrev] at h)
+        try cases h
+      have htarget :=
+        memoryPaidByGas_after_Z_target hpaid (by simpa using hZ)
+      have hsame := Z_stack_active_eq (by simpa using hZ)
+      have hactive :
+          stateStep.machineState.activeWords.toNat ≤ memoryExpansionWords state w := by
+        by_cases hcreate : w = Operation.CREATE
+        · subst w
+          have hstepActive :=
+            step_create_activeWords_le_memoryExpansionWords
+              (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+          simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+        · by_cases hcreate2 : w = Operation.CREATE2
+          · subst w
+            have hstepActive :=
+              step_create2_activeWords_le_memoryExpansionWords
+                (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+            simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+          · by_cases hcall : w = Operation.CALL
+            · subst w
+              have hstepActive :=
+                step_call_activeWords_le_memoryExpansionWords
+                  (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+              simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+            · by_cases hcallcode : w = Operation.CALLCODE
+              · subst w
+                have hstepActive :=
+                  step_callcode_activeWords_le_memoryExpansionWords
+                    (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+              · by_cases hdelegate : w = Operation.DELEGATECALL
+                · subst w
+                  have hstepActive :=
+                    step_delegatecall_activeWords_le_memoryExpansionWords
+                      (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                  simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                · by_cases hstatic : w = Operation.STATICCALL
+                  · subst w
+                    have hstepActive :=
+                      step_staticcall_activeWords_le_memoryExpansionWords
+                        (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                    simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                  · by_cases hreturn : w = Operation.RETURN
+                    · subst w
+                      have hstepActive :=
+                        step_return_activeWords_le_memoryExpansionWords
+                          (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                      simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                    · by_cases hrevert : w = Operation.REVERT
+                      · subst w
+                        have hstepActive :=
+                          step_revert_activeWords_le_memoryExpansionWords
+                            (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                        simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                      · by_cases hmload : w = Operation.MLOAD
+                        · subst w
+                          have hstepActive :=
+                            step_mload_activeWords_le_memoryExpansionWords
+                              (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                          simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                        · by_cases hmstore : w = Operation.MSTORE
+                          · subst w
+                            have hstepActive :=
+                              step_mstore_activeWords_le_memoryExpansionWords
+                                (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                            simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                          · by_cases hmstore8 : w = Operation.MSTORE8
+                            · subst w
+                              have hstepActive :=
+                                step_mstore8_activeWords_le_memoryExpansionWords
+                                  (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                              simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                            · by_cases hkeccak : w = Operation.KECCAK256
+                              · subst w
+                                have hstepActive :=
+                                  step_keccak_activeWords_le_memoryExpansionWords
+                                    (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                              · by_cases hcalldatacopy : w = Operation.CALLDATACOPY
+                                · subst w
+                                  have hstepActive :=
+                                    step_calldatacopy_activeWords_le_memoryExpansionWords
+                                      (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                  simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                · by_cases hcodecopy : w = Operation.CODECOPY
+                                  · subst w
+                                    have hstepActive :=
+                                      step_codecopy_activeWords_le_memoryExpansionWords
+                                        (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                    simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                  · by_cases hreturndatacopy : w = Operation.RETURNDATACOPY
+                                    · subst w
+                                      have hstepActive :=
+                                        step_returndatacopy_activeWords_le_memoryExpansionWords
+                                          (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                      simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                    · by_cases hextcodecopy : w = Operation.EXTCODECOPY
+                                      · subst w
+                                        have hstepActive :=
+                                          step_extcodecopy_activeWords_le_memoryExpansionWords
+                                            (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                        simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                      · by_cases hmcopy : w = Operation.MCOPY
+                                        · subst w
+                                          have hstepActive :=
+                                            step_mcopy_activeWords_le_memoryExpansionWords
+                                              (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                          simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                        · by_cases hlog0 : w = Operation.LOG0
+                                          · subst w
+                                            have hstepActive :=
+                                              step_log0_activeWords_le_memoryExpansionWords
+                                                (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                            simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                          · by_cases hlog1 : w = Operation.LOG1
+                                            · subst w
+                                              have hstepActive :=
+                                                step_log1_activeWords_le_memoryExpansionWords
+                                                  (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                              simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                            · by_cases hlog2 : w = Operation.LOG2
+                                              · subst w
+                                                have hstepActive :=
+                                                  step_log2_activeWords_le_memoryExpansionWords
+                                                    (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                                simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                              · by_cases hlog3 : w = Operation.LOG3
+                                                · subst w
+                                                  have hstepActive :=
+                                                    step_log3_activeWords_le_memoryExpansionWords
+                                                      (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                                  simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                                · by_cases hlog4 : w = Operation.LOG4
+                                                  · subst w
+                                                    have hstepActive :=
+                                                      step_log4_activeWords_le_memoryExpansionWords
+                                                        (state := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+                                                    simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+                                                  · have hstepActive :=
+                                                      step_activeWords_le_memoryExpansionWords (state := { stateZ with
+                                                        executionEnv.depth := state.executionEnv.depth }) hstep
+                                                    simpa [memoryExpansionWords, hsame.1, hsame.2.1] using hstepActive
+      have hwords_lt := memoryExpansionWords_lt_uint256_size state w
+      have hmono :
+          Cₘ stateStep.machineState.activeWords ≤
+            Cₘ (.ofNat (memoryExpansionWords state w)) := by
+        rw [← UInt256.ofNat_toNat stateStep.machineState.activeWords]
+        exact Cₘ_monotone_of_lt hactive hwords_lt
+      have hgas :=
+        step_gas_le (w := w) (arg := arg)
+          (s := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
+      unfold memoryPaidByGas
+      have hle :
+          Cₘ stateStep.machineState.activeWords +
+              stateStep.machineState.gasAvailable.toNat ≤
+            Cₘ (.ofNat (memoryExpansionWords state w)) +
+              stateZ.machineState.gasAvailable.toNat := by
+        exact Nat.add_le_add hmono hgas
+      exact Nat.lt_of_le_of_lt hle htarget
 
 lemma X_success_output_size_le_maxReturnDataSizeByGas
     {fuel : Nat} {validJumps : Array UInt256}
     {state state' : State} {out : ByteArray}
+    (hpaid : memoryPaidByGas state)
     (h : X fuel validJumps state = .ok (.success state' out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   induction fuel generalizing state with
@@ -368,25 +2232,35 @@ lemma X_success_output_size_le_maxReturnDataSizeByGas
           simp [hstep] at h
           cases ret with
           | none =>
-              exact ih h
+              let stateCont : State :=
+                { state₁ with executionEnv.depth := state.executionEnv.depth }
+              have hpaidCont : memoryPaidByGas stateCont := by
+                simpa [stateCont, memoryPaidByGas] using
+                  Xstep_memoryPaidByGas_of_none hpaid hstep
+              have hcont :
+                  X fuel validJumps stateCont = .ok (.success state' out) := by
+                simpa [stateCont] using h
+              exact ih hpaidCont hcont
           | some halted =>
               rcases halted with ⟨cause, haltOut⟩
               cases cause <;> simp at h
               rcases h with ⟨_, hout⟩
               subst out
-              exact Xstep_halt_output_size_le_maxReturnDataSizeByGas hstep
+              exact Xstep_halt_output_size_le_maxReturnDataSizeByGas hpaid hstep
 
 lemma X_success_output_size_lt_uint256 {fuel : Nat} {validJumps : Array UInt256}
     {state state' : State} {out : ByteArray}
+    (hpaid : memoryPaidByGas state)
     (h : X fuel validJumps state = .ok (.success state' out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (X_success_output_size_le_maxReturnDataSizeByGas h)
+    (X_success_output_size_le_maxReturnDataSizeByGas hpaid h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma X_revert_output_size_le_maxReturnDataSizeByGas
     {fuel : Nat} {validJumps : Array UInt256}
     {state : State} {g : UInt256} {out : ByteArray}
+    (hpaid : memoryPaidByGas state)
     (h : X fuel validJumps state = .ok (.revert g out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   induction fuel generalizing state with
@@ -402,20 +2276,29 @@ lemma X_revert_output_size_le_maxReturnDataSizeByGas
           simp [hstep] at h
           cases ret with
           | none =>
-              exact ih h
+              let stateCont : State :=
+                { state₁ with executionEnv.depth := state.executionEnv.depth }
+              have hpaidCont : memoryPaidByGas stateCont := by
+                simpa [stateCont, memoryPaidByGas] using
+                  Xstep_memoryPaidByGas_of_none hpaid hstep
+              have hcont :
+                  X fuel validJumps stateCont = .ok (.revert g out) := by
+                simpa [stateCont] using h
+              exact ih hpaidCont hcont
           | some halted =>
               rcases halted with ⟨cause, haltOut⟩
               cases cause <;> simp at h
               rcases h with ⟨_, hout⟩
               subst out
-              exact Xstep_halt_output_size_le_maxReturnDataSizeByGas hstep
+              exact Xstep_halt_output_size_le_maxReturnDataSizeByGas hpaid hstep
 
 lemma X_revert_output_size_lt_uint256 {fuel : Nat} {validJumps : Array UInt256}
     {state : State} {g : UInt256} {out : ByteArray}
+    (hpaid : memoryPaidByGas state)
     (h : X fuel validJumps state = .ok (.revert g out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (X_revert_output_size_le_maxReturnDataSizeByGas h)
+    (X_revert_output_size_le_maxReturnDataSizeByGas hpaid h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_success_output_size_le_maxReturnDataSizeByGas
@@ -437,7 +2320,18 @@ lemma Xi_success_output_size_le_maxReturnDataSizeByGas
   | ok xres =>
       cases xres with
       | success state' xiOut =>
-          have hout := X_success_output_size_le_maxReturnDataSizeByGas hx
+          have hpaid₀ :
+              memoryPaidByGas
+                { (default : State) with
+                  accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
+                  createdAccounts := createdAccounts, machineState.gasAvailable := .ofUInt256 g,
+                  blocks := blocks, genesisBlockHeader := genesisBlockHeader } := by
+            simp only [memoryPaidByGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
+            have h0 : (default : State).machineState.activeWords.toNat = 0 := by rfl
+            rw [h0]
+            simpa only [Nat.mul_zero, Nat.zero_mul, Nat.zero_add, Nat.add_zero, Nat.zero_div]
+              using g.val.isLt
+          have hout := X_success_output_size_le_maxReturnDataSizeByGas hpaid₀ hx
           simp [hx] at h
           rcases h with ⟨_, houtEq⟩
           subst out
@@ -477,7 +2371,18 @@ lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
       | success state' xiOut =>
           simp [hx] at h
       | revert gₓ xiOut =>
-          have hout := X_revert_output_size_le_maxReturnDataSizeByGas hx
+          have hpaid₀ :
+              memoryPaidByGas
+                { (default : State) with
+                  accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
+                  createdAccounts := createdAccounts, machineState.gasAvailable := .ofUInt256 g,
+                  blocks := blocks, genesisBlockHeader := genesisBlockHeader } := by
+            simp only [memoryPaidByGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
+            have h0 : (default : State).machineState.activeWords.toNat = 0 := by rfl
+            rw [h0]
+            simpa only [Nat.mul_zero, Nat.zero_mul, Nat.zero_add, Nat.add_zero, Nat.zero_div]
+              using g.val.isLt
+          have hout := X_revert_output_size_le_maxReturnDataSizeByGas hpaid₀ hx
           simp [hx] at h
           rcases h with ⟨_, houtEq⟩
           subst out
@@ -1758,6 +3663,9 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
+    (hin :
+      (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : call gasCost blobVersionedHashes gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
@@ -1786,117 +3694,196 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
               evmState.accountMap evmState.machineState evmState.substate))
           (.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission
-          (ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas _ _ _))
+          hin)
 
 set_option linter.unusedSimpArgs false in
 lemma call_returnData_size_lt_uint256 {gasCost : Nat} {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
+    (hin :
+      (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : call gasCost blobVersionedHashes gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (call_returnData_size_le_maxReturnDataSizeByGas h)
+    (call_returnData_size_le_maxReturnDataSizeByGas hin h)
     maxReturnDataSizeByGas_lt_uint256
 
 set_option linter.unusedSimpArgs false in
 lemma step_call_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target value inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop7 =
+        some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.CALL, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
   repeat (first | simp at h | split at h)
-  rename_i _ _ _ _ vCall hCall
+  rename_i liftPop popped hLift callResult vCall hCall
   rcases vCall with ⟨_, _⟩
-  have hout := call_returnData_size_le_maxReturnDataSizeByGas hCall
+  have hpop := option_liftM_eq_some hLift
+  have hin' :
+      (({ state with
+        machineState.execLength := state.machineState.execLength + 1 }).machineState.memory.readWithPadding
+          popped.2.2.2.2.1.toNat popped.2.2.2.2.2.1.toNat).size ≤
+        maxReturnDataSizeByGas := by
+    simpa using hin hpop
+  have hout := call_returnData_size_le_maxReturnDataSizeByGas hin' hCall
   rw [← h]
   simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_call_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target value inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop7 =
+        some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.CALL, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_call_returnData_size_le_maxReturnDataSizeByGas h)
+    (step_call_returnData_size_le_maxReturnDataSizeByGas hin h)
     maxReturnDataSizeByGas_lt_uint256
 
 set_option linter.unusedSimpArgs false in
 lemma step_callcode_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target value inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop7 =
+        some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
   repeat (first | simp at h | split at h)
-  rename_i _ _ _ _ vCall hCall
+  rename_i liftPop popped hLift callResult vCall hCall
   rcases vCall with ⟨_, _⟩
-  have hout := call_returnData_size_le_maxReturnDataSizeByGas hCall
+  have hpop := option_liftM_eq_some hLift
+  have hin' :
+      (({ state with
+        machineState.execLength := state.machineState.execLength + 1 }).machineState.memory.readWithPadding
+          popped.2.2.2.2.1.toNat popped.2.2.2.2.2.1.toNat).size ≤
+        maxReturnDataSizeByGas := by
+    simpa using hin hpop
+  have hout := call_returnData_size_le_maxReturnDataSizeByGas hin' hCall
   rw [← h]
   simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_callcode_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target value inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop7 =
+        some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_callcode_returnData_size_le_maxReturnDataSizeByGas h)
+    (step_callcode_returnData_size_le_maxReturnDataSizeByGas hin h)
     maxReturnDataSizeByGas_lt_uint256
 
 set_option linter.unusedSimpArgs false in
 lemma step_delegatecall_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop6 =
+        some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
   repeat (first | simp at h | split at h)
-  rename_i _ _ _ _ vCall hCall
+  rename_i liftPop popped hLift callResult vCall hCall
   rcases vCall with ⟨_, _⟩
-  have hout := call_returnData_size_le_maxReturnDataSizeByGas hCall
+  have hpop := option_liftM_eq_some hLift
+  have hin' :
+      (({ state with
+        machineState.execLength := state.machineState.execLength + 1 }).machineState.memory.readWithPadding
+          popped.2.2.2.1.toNat popped.2.2.2.2.1.toNat).size ≤
+        maxReturnDataSizeByGas := by
+    simpa using hin hpop
+  have hout := call_returnData_size_le_maxReturnDataSizeByGas hin' hCall
   rw [← h]
   simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_delegatecall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop6 =
+        some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_delegatecall_returnData_size_le_maxReturnDataSizeByGas h)
+    (step_delegatecall_returnData_size_le_maxReturnDataSizeByGas hin h)
     maxReturnDataSizeByGas_lt_uint256
 
 set_option linter.unusedSimpArgs false in
 lemma step_staticcall_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop6 =
+        some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
   repeat (first | simp at h | split at h)
-  rename_i _ _ _ _ vCall hCall
+  rename_i liftPop popped hLift callResult vCall hCall
   rcases vCall with ⟨_, _⟩
-  have hout := call_returnData_size_le_maxReturnDataSizeByGas hCall
+  have hpop := option_liftM_eq_some hLift
+  have hin' :
+      (({ state with
+        machineState.execLength := state.machineState.execLength + 1 }).machineState.memory.readWithPadding
+          popped.2.2.2.1.toNat popped.2.2.2.2.1.toNat).size ≤
+        maxReturnDataSizeByGas := by
+    simpa using hin hpop
+  have hout := call_returnData_size_le_maxReturnDataSizeByGas hin' hCall
   rw [← h]
   simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_staticcall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
+    (hin : ∀ {stack : Stack UInt256}
+      {gas target inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop6 =
+        some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_staticcall_returnData_size_le_maxReturnDataSizeByGas h)
+    (step_staticcall_returnData_size_le_maxReturnDataSizeByGas hin h)
     maxReturnDataSizeByGas_lt_uint256
 
 set_option linter.unusedSimpArgs false in
@@ -1958,18 +3945,30 @@ lemma step_recursive_returnData_size_le_maxReturnDataSizeByGas {gasCost : Nat}
     (hop : op ∈
       ([Operation.CALL, Operation.CALLCODE, Operation.DELEGATECALL, Operation.STATICCALL,
         Operation.CREATE, Operation.CREATE2] : List Operation))
+    (hin7 : ∀ {stack : Stack UInt256}
+      {gas target value inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop7 =
+        some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
+    (hin6 : ∀ {stack : Stack UInt256}
+      {gas target inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop6 =
+        some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (op, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   simp at hop
   rcases hop with hcall | hcallcode | hdelegatecall | hstaticcall | hcreate | hcreate2
   · subst op
-    exact step_call_returnData_size_le_maxReturnDataSizeByGas h
+    exact step_call_returnData_size_le_maxReturnDataSizeByGas hin7 h
   · subst op
-    exact step_callcode_returnData_size_le_maxReturnDataSizeByGas h
+    exact step_callcode_returnData_size_le_maxReturnDataSizeByGas hin7 h
   · subst op
-    exact step_delegatecall_returnData_size_le_maxReturnDataSizeByGas h
+    exact step_delegatecall_returnData_size_le_maxReturnDataSizeByGas hin6 h
   · subst op
-    exact step_staticcall_returnData_size_le_maxReturnDataSizeByGas h
+    exact step_staticcall_returnData_size_le_maxReturnDataSizeByGas hin6 h
   · subst op
     exact step_create_returnData_size_le_maxReturnDataSizeByGas h
   · subst op
@@ -1980,15 +3979,28 @@ lemma step_recursive_returnData_size_lt_uint256 {gasCost : Nat}
     (hop : op ∈
       ([Operation.CALL, Operation.CALLCODE, Operation.DELEGATECALL, Operation.STATICCALL,
         Operation.CREATE, Operation.CREATE2] : List Operation))
+    (hin7 : ∀ {stack : Stack UInt256}
+      {gas target value inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop7 =
+        some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
+    (hin6 : ∀ {stack : Stack UInt256}
+      {gas target inOffset inSize outOffset outSize : UInt256},
+      state.machineState.stack.pop6 =
+        some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+      (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+        maxReturnDataSizeByGas)
     (h : step gasCost (op, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (step_recursive_returnData_size_le_maxReturnDataSizeByGas hop h)
+    (step_recursive_returnData_size_le_maxReturnDataSizeByGas hop hin7 hin6 h)
     maxReturnDataSizeByGas_lt_uint256
 
 set_option linter.unusedSimpArgs false in
 lemma Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas {validJumps : Array UInt256}
     {state state' : State} {ret : Option (HaltCause × ByteArray)}
+    (hpaid : memoryPaidByGas state)
     (hop :
       ((decode state.executionEnv.code state.machineState.pc).getD
         (Operation.STOP, (none : Option (UInt256 × Nat)))).1 ∈
@@ -2003,19 +4015,155 @@ lemma Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas {validJumps : Ar
   rcases instr with ⟨op, arg⟩
   simp at hop
   rcases hop with hcall | hcallcode | hdelegatecall | hstaticcall | hcreate | hcreate2
-  all_goals
-    subst op
+  · subst op
     simp [bind, Except.bind, hdecode] at h
     split at h
     · contradiction
-    · rename_i cost hZ
+    · rename_i stateZ cost hZ
       split at h
       · contradiction
       · rename_i stepped hstep
+        let stepState : State := { stateZ with executionEnv.depth := state.executionEnv.depth }
+        have hsame := Z_stack_active_eq (by simpa using hZ)
+        have hin7 : ∀ {stack : Stack UInt256}
+            {gas target value inOffset inSize outOffset outSize : UInt256},
+            stepState.machineState.stack.pop7 =
+              some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+            (stepState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+              maxReturnDataSizeByGas := by
+          intro stack gas target value inOffset inSize outOffset outSize hpop
+          have hpop0 :
+              state.machineState.stack.pop7 =
+                some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) := by
+            simpa [stepState, hsame.1] using hpop
+          have hin0 :=
+            call_input_size_le_maxReturnDataSizeByGas_of_Z
+              (validJumps := validJumps) (op := Operation.CALL)
+              (Or.inl rfl) hpaid hpop0 (by simpa using hZ)
+          simpa [stepState, hsame.2.2] using hin0
         have hout :=
-          step_recursive_returnData_size_le_maxReturnDataSizeByGas
-            (by simp)
-            hstep
+          step_call_returnData_size_le_maxReturnDataSizeByGas
+            (state := stepState) hin7 (by simpa [stepState] using hstep)
+        injection h with hp
+        cases hp
+        simpa [stepState] using hout
+  · subst op
+    simp [bind, Except.bind, hdecode] at h
+    split at h
+    · contradiction
+    · rename_i stateZ cost hZ
+      split at h
+      · contradiction
+      · rename_i stepped hstep
+        let stepState : State := { stateZ with executionEnv.depth := state.executionEnv.depth }
+        have hsame := Z_stack_active_eq (by simpa using hZ)
+        have hin7 : ∀ {stack : Stack UInt256}
+            {gas target value inOffset inSize outOffset outSize : UInt256},
+            stepState.machineState.stack.pop7 =
+              some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
+            (stepState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+              maxReturnDataSizeByGas := by
+          intro stack gas target value inOffset inSize outOffset outSize hpop
+          have hpop0 :
+              state.machineState.stack.pop7 =
+                some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) := by
+            simpa [stepState, hsame.1] using hpop
+          have hin0 :=
+            call_input_size_le_maxReturnDataSizeByGas_of_Z
+              (validJumps := validJumps) (op := Operation.CALLCODE)
+              (Or.inr rfl) hpaid hpop0 (by simpa using hZ)
+          simpa [stepState, hsame.2.2] using hin0
+        have hout :=
+          step_callcode_returnData_size_le_maxReturnDataSizeByGas
+            (state := stepState) hin7 (by simpa [stepState] using hstep)
+        injection h with hp
+        cases hp
+        simpa [stepState] using hout
+  · subst op
+    simp [bind, Except.bind, hdecode] at h
+    split at h
+    · contradiction
+    · rename_i stateZ cost hZ
+      split at h
+      · contradiction
+      · rename_i stepped hstep
+        let stepState : State := { stateZ with executionEnv.depth := state.executionEnv.depth }
+        have hsame := Z_stack_active_eq (by simpa using hZ)
+        have hin6 : ∀ {stack : Stack UInt256}
+            {gas target inOffset inSize outOffset outSize : UInt256},
+            stepState.machineState.stack.pop6 =
+              some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+            (stepState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+              maxReturnDataSizeByGas := by
+          intro stack gas target inOffset inSize outOffset outSize hpop
+          have hpop0 :
+              state.machineState.stack.pop6 =
+                some (stack, gas, target, inOffset, inSize, outOffset, outSize) := by
+            simpa [stepState, hsame.1] using hpop
+          have hin0 :=
+            delegate_input_size_le_maxReturnDataSizeByGas_of_Z
+              (validJumps := validJumps) (op := Operation.DELEGATECALL)
+              (Or.inl rfl) hpaid hpop0 (by simpa using hZ)
+          simpa [stepState, hsame.2.2] using hin0
+        have hout :=
+          step_delegatecall_returnData_size_le_maxReturnDataSizeByGas
+            (state := stepState) hin6 (by simpa [stepState] using hstep)
+        injection h with hp
+        cases hp
+        simpa [stepState] using hout
+  · subst op
+    simp [bind, Except.bind, hdecode] at h
+    split at h
+    · contradiction
+    · rename_i stateZ cost hZ
+      split at h
+      · contradiction
+      · rename_i stepped hstep
+        let stepState : State := { stateZ with executionEnv.depth := state.executionEnv.depth }
+        have hsame := Z_stack_active_eq (by simpa using hZ)
+        have hin6 : ∀ {stack : Stack UInt256}
+            {gas target inOffset inSize outOffset outSize : UInt256},
+            stepState.machineState.stack.pop6 =
+              some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
+            (stepState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
+              maxReturnDataSizeByGas := by
+          intro stack gas target inOffset inSize outOffset outSize hpop
+          have hpop0 :
+              state.machineState.stack.pop6 =
+                some (stack, gas, target, inOffset, inSize, outOffset, outSize) := by
+            simpa [stepState, hsame.1] using hpop
+          have hin0 :=
+            delegate_input_size_le_maxReturnDataSizeByGas_of_Z
+              (validJumps := validJumps) (op := Operation.STATICCALL)
+              (Or.inr rfl) hpaid hpop0 (by simpa using hZ)
+          simpa [stepState, hsame.2.2] using hin0
+        have hout :=
+          step_staticcall_returnData_size_le_maxReturnDataSizeByGas
+            (state := stepState) hin6 (by simpa [stepState] using hstep)
+        injection h with hp
+        cases hp
+        simpa [stepState] using hout
+  · subst op
+    simp [bind, Except.bind, hdecode] at h
+    split at h
+    · contradiction
+    · rename_i stateZ cost hZ
+      split at h
+      · contradiction
+      · rename_i stepped hstep
+        have hout := step_create_returnData_size_le_maxReturnDataSizeByGas hstep
+        injection h with hp
+        cases hp
+        simpa using hout
+  · subst op
+    simp [bind, Except.bind, hdecode] at h
+    split at h
+    · contradiction
+    · rename_i stateZ cost hZ
+      split at h
+      · contradiction
+      · rename_i stepped hstep
+        have hout := step_create2_returnData_size_le_maxReturnDataSizeByGas hstep
         injection h with hp
         cases hp
         simpa using hout
@@ -2023,6 +4171,7 @@ lemma Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas {validJumps : Ar
 set_option linter.unusedSimpArgs false in
 lemma Xstep_recursive_returnData_size_lt_uint256 {validJumps : Array UInt256}
     {state state' : State} {ret : Option (HaltCause × ByteArray)}
+    (hpaid : memoryPaidByGas state)
     (hop :
       ((decode state.executionEnv.code state.machineState.pc).getD
         (Operation.STOP, (none : Option (UInt256 × Nat)))).1 ∈
@@ -2031,7 +4180,7 @@ lemma Xstep_recursive_returnData_size_lt_uint256 {validJumps : Array UInt256}
     (h : Xstep validJumps state = .ok (state', ret)) :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas hop h)
+    (Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas hpaid hop h)
     maxReturnDataSizeByGas_lt_uint256
 
 end EVM
