@@ -188,31 +188,31 @@ theorem accountStorageStateEq_final_of_empty_or_self {σ τ ρ : AccountMap}
     · simp [hempty]
     · simp [hempty, hστ]
 
-private theorem precompile_ECREC_accountMap_empty_or_self
+theorem precompile_ECREC_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_ECREC σ g A I).1 = ∅ ∨ (Ξ_ECREC σ g A I).1 = σ := by
   simp only [Ξ_ECREC]
   split <;> simp
 
-private theorem precompile_SHA256_accountMap_empty_or_self
+theorem precompile_SHA256_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_SHA256 σ g A I).1 = ∅ ∨ (Ξ_SHA256 σ g A I).1 = σ := by
   simp only [Ξ_SHA256]
   split <;> simp
 
-private theorem precompile_RIP160_accountMap_empty_or_self
+theorem precompile_RIP160_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_RIP160 σ g A I).1 = ∅ ∨ (Ξ_RIP160 σ g A I).1 = σ := by
   simp only [Ξ_RIP160]
   split <;> simp
 
-private theorem precompile_ID_accountMap_empty_or_self
+theorem precompile_ID_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_ID σ g A I).1 = ∅ ∨ (Ξ_ID σ g A I).1 = σ := by
   simp only [Ξ_ID]
   split <;> simp
 
-private theorem precompile_EXPMOD_accountMap_empty_or_self
+theorem precompile_EXPMOD_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_EXPMOD σ g A I).1 = ∅ ∨ (Ξ_EXPMOD σ g A I).1 = σ := by
   unfold Ξ_EXPMOD
@@ -240,7 +240,7 @@ private theorem precompile_EXPMOD_accountMap_empty_or_self
   simp only
   repeat' (first | split | simp)
 
-private theorem precompile_BN_ADD_accountMap_empty_or_self
+theorem precompile_BN_ADD_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_BN_ADD σ g A I).1 = ∅ ∨ (Ξ_BN_ADD σ g A I).1 = σ := by
   simp only [Ξ_BN_ADD]
@@ -250,7 +250,7 @@ private theorem precompile_BN_ADD_accountMap_empty_or_self
     · exact Or.inr rfl
     · exact Or.inl rfl
 
-private theorem precompile_BN_MUL_accountMap_empty_or_self
+theorem precompile_BN_MUL_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_BN_MUL σ g A I).1 = ∅ ∨ (Ξ_BN_MUL σ g A I).1 = σ := by
   simp only [Ξ_BN_MUL]
@@ -260,7 +260,7 @@ private theorem precompile_BN_MUL_accountMap_empty_or_self
     · exact Or.inr rfl
     · exact Or.inl rfl
 
-private theorem precompile_SNARKV_accountMap_empty_or_self
+theorem precompile_SNARKV_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_SNARKV σ g A I).1 = ∅ ∨ (Ξ_SNARKV σ g A I).1 = σ := by
   simp only [Ξ_SNARKV]
@@ -270,7 +270,7 @@ private theorem precompile_SNARKV_accountMap_empty_or_self
     · exact Or.inr rfl
     · exact Or.inl rfl
 
-private theorem precompile_BLAKE2_F_accountMap_empty_or_self
+theorem precompile_BLAKE2_F_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_BLAKE2_F σ g A I).1 = ∅ ∨ (Ξ_BLAKE2_F σ g A I).1 = σ := by
   simp only [Ξ_BLAKE2_F]
@@ -280,7 +280,7 @@ private theorem precompile_BLAKE2_F_accountMap_empty_or_self
     · exact Or.inr rfl
     · exact Or.inl rfl
 
-private theorem precompile_PointEval_accountMap_empty_or_self
+theorem precompile_PointEval_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_PointEval σ g A I).1 = ∅ ∨ (Ξ_PointEval σ g A I).1 = σ := by
   simp only [Ξ_PointEval]
@@ -290,7 +290,7 @@ private theorem precompile_PointEval_accountMap_empty_or_self
     · exact Or.inr rfl
     · exact Or.inl rfl
 
-private theorem precompiled_result_accountMap_empty_or_self
+theorem precompiled_result_accountMap_empty_or_self
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
       match pc with
@@ -335,7 +335,7 @@ private theorem precompiled_result_accountMap_empty_or_self
     | exact precompile_PointEval_accountMap_empty_or_self σ g A I
     | exact Or.inl rfl
 
-private theorem precompiled_Theta_accountMap_eq
+theorem precompiled_Theta_accountMap_eq
     (blobVersionedHashes : List ByteArray)
     (createdAccounts : Batteries.RBSet AccountAddress compare)
     (genesisBlockHeader : BlockHeader)
@@ -400,7 +400,7 @@ theorem accountStorageStateEq_of_precompiled_Theta
     (sendEth_accountStorageStateEq r s v true σ)
     (by simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
-private def thetaXiResult
+def thetaXiResult
     (createdAccounts : Batteries.RBSet AccountAddress compare) (A : Substate)
     (xi : Except EVM.ExecutionException
       (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
@@ -411,7 +411,7 @@ private def thetaXiResult
   | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
       (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
 
-private def thetaXiAccountMap
+def thetaXiAccountMap
     (σ : AccountMap) (createdAccounts : Batteries.RBSet AccountAddress compare)
     (A : Substate)
     (xi : Except EVM.ExecutionException
@@ -420,7 +420,7 @@ private def thetaXiAccountMap
   let result := thetaXiResult createdAccounts A xi
   if result.2.1 == (∅ : AccountMap) then σ else result.2.1
 
-private def lambdaXiAccountMap
+def lambdaXiAccountMap
     (σ : AccountMap) (a : AccountAddress)
     (xi : Except EVM.ExecutionException
       (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
@@ -487,7 +487,7 @@ theorem Z_static_stateStorageStateEq
   subst stateZ
   simp [stateStorageStateEq]
 
-private theorem Z_static_forbidden_mem_false
+theorem Z_static_forbidden_mem_false
     {validJumps : Array UInt256} {op : Operation} {state stateZ : State}
     {cost : Nat}
     (hperm : state.executionEnv.perm = false)
@@ -552,7 +552,7 @@ private theorem Z_static_forbidden_mem_false
   rw [if_pos (by simpa [state₁] using hstatic)] at hZ
   contradiction
 
-private lemma static_execUnOp_accountMap_eq
+lemma static_execUnOp_accountMap_eq
     {f : Primop.Unary} {state state' : State}
     (h : execUnOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -562,7 +562,7 @@ private lemma static_execUnOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_execBinOp_accountMap_eq
+lemma static_execBinOp_accountMap_eq
     {f : Primop.Binary} {state state' : State}
     (h : execBinOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -572,7 +572,7 @@ private lemma static_execBinOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_execTriOp_accountMap_eq
+lemma static_execTriOp_accountMap_eq
     {f : Primop.Ternary} {state state' : State}
     (h : execTriOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -582,7 +582,7 @@ private lemma static_execTriOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_machineStateOp_accountMap_eq
+lemma static_machineStateOp_accountMap_eq
     {f : MachineState → UInt256} {state state' : State}
     (h : machineStateOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -591,7 +591,7 @@ private lemma static_machineStateOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_executionEnvOp_accountMap_eq
+lemma static_executionEnvOp_accountMap_eq
     {f : ExecutionEnv → UInt256} {state state' : State}
     (h : executionEnvOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -600,7 +600,7 @@ private lemma static_executionEnvOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_unaryExecutionEnvOp_accountMap_eq
+lemma static_unaryExecutionEnvOp_accountMap_eq
     {f : ExecutionEnv → UInt256 → UInt256} {state state' : State}
     (h : unaryExecutionEnvOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -610,7 +610,7 @@ private lemma static_unaryExecutionEnvOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_unaryStateOp_sameState_accountMap_eq
+lemma static_unaryStateOp_sameState_accountMap_eq
     {f : State → UInt256 → UInt256} {state state' : State}
     (h : unaryStateOp (fun s v => (s, f s v)) state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -620,7 +620,7 @@ private lemma static_unaryStateOp_sameState_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_unaryStateOp_accountMap_eq
+lemma static_unaryStateOp_accountMap_eq
     {f : State → UInt256 → State × UInt256} {state state' : State}
     (hf : ∀ s v, (f s v).1.accountMap = s.accountMap)
     (h : unaryStateOp f state = .ok state') :
@@ -631,7 +631,7 @@ private lemma static_unaryStateOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hf]
 
-private lemma static_stateOp_accountMap_eq
+lemma static_stateOp_accountMap_eq
     {f : State → UInt256} {state state' : State}
     (h : stateOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -640,7 +640,7 @@ private lemma static_stateOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_binaryMachineStateOp_accountMap_eq
+lemma static_binaryMachineStateOp_accountMap_eq
     {f : MachineState → UInt256 → UInt256 → MachineState} {state state' : State}
     (h : binaryMachineStateOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -650,7 +650,7 @@ private lemma static_binaryMachineStateOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_binaryMachineStateOp'_accountMap_eq
+lemma static_binaryMachineStateOp'_accountMap_eq
     {f : MachineState → UInt256 → UInt256 → UInt256 × MachineState} {state state' : State}
     (h : binaryMachineStateOp' f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -660,7 +660,7 @@ private lemma static_binaryMachineStateOp'_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_ternaryMachineStateOp_accountMap_eq
+lemma static_ternaryMachineStateOp_accountMap_eq
     {f : MachineState → UInt256 → UInt256 → UInt256 → MachineState} {state state' : State}
     (h : ternaryMachineStateOp f state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -670,7 +670,7 @@ private lemma static_ternaryMachineStateOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
 
-private lemma static_ternaryCopyOp_accountMap_eq
+lemma static_ternaryCopyOp_accountMap_eq
     {f : State → UInt256 → UInt256 → UInt256 → State} {state state' : State}
     (hcopy : ∀ s a b c, (f s a b c).accountMap = s.accountMap)
     (h : ternaryCopyOp f state = .ok state') :
@@ -681,7 +681,7 @@ private lemma static_ternaryCopyOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hcopy]
 
-private lemma static_quaternaryCopyOp_accountMap_eq
+lemma static_quaternaryCopyOp_accountMap_eq
     {f : State → UInt256 → UInt256 → UInt256 → UInt256 → State} {state state' : State}
     (hcopy : ∀ s a b c d, (f s a b c d).accountMap = s.accountMap)
     (h : quaternaryCopyOp f state = .ok state') :
@@ -692,22 +692,22 @@ private lemma static_quaternaryCopyOp_accountMap_eq
   rw [← hstate]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, hcopy]
 
-private lemma static_calldatacopy_accountMap_eq
+lemma static_calldatacopy_accountMap_eq
     (state : State) (mstart datastart size : UInt256) :
     (calldatacopy state mstart datastart size).accountMap = state.accountMap := by
   simp [calldatacopy]
 
-private lemma static_codeCopy_accountMap_eq
+lemma static_codeCopy_accountMap_eq
     (state : State) (mstart cstart size : UInt256) :
     (codeCopy state mstart cstart size).accountMap = state.accountMap := by
   simp [codeCopy]
 
-private lemma static_extCodeCopy'_accountMap_eq
+lemma static_extCodeCopy'_accountMap_eq
     (state : State) (a mstart cstart size : UInt256) :
     (extCodeCopy' state a mstart cstart size).accountMap = state.accountMap := by
   simp [extCodeCopy', Ethereum.State.lookupAccount]
 
-private lemma static_dup_accountMap_eq
+lemma static_dup_accountMap_eq
     {n : Nat} {state state' : State}
     (h : dup n state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -720,7 +720,7 @@ private lemma static_dup_accountMap_eq
   · rw [if_neg hlen] at h
     contradiction
 
-private lemma static_swap_accountMap_eq
+lemma static_swap_accountMap_eq
     {n : Nat} {state state' : State}
     (h : swap n state = .ok state') :
     state'.accountMap = state.accountMap := by
@@ -733,17 +733,17 @@ private lemma static_swap_accountMap_eq
   · rw [if_neg hlen] at h
     contradiction
 
-private lemma static_logOp_accountMap_eq
+lemma static_logOp_accountMap_eq
     {μ₀ μ₁ : UInt256} {topics : Array UInt256} {state : State} :
     (logOp μ₀ μ₁ topics state).accountMap = state.accountMap := by
   simp [logOp]
 
-private lemma static_evmLogOp_accountMap_eq
+lemma static_evmLogOp_accountMap_eq
     {μ₀ μ₁ : UInt256} {topics : Array UInt256} {state : State} :
     (evmLogOp state μ₀ μ₁ topics).accountMap = state.accountMap := by
   simp [evmLogOp, static_logOp_accountMap_eq]
 
-private lemma static_depth_succ_measure {e : Fin 1025} {n : Nat}
+lemma static_depth_succ_measure {e : Fin 1025} {n : Nat}
     (hdepth : 1024 - e.val = n + 1) (hlt : e < 1024) :
     1024 - (e + 1).val = n := by
   have hltVal : e.val < 1024 := by simpa using hlt
@@ -753,7 +753,7 @@ private lemma static_depth_succ_measure {e : Fin 1025} {n : Nat}
     omega
   omega
 
-private lemma static_step_stoparith_accountMap_eq
+lemma static_step_stoparith_accountMap_eq
     {op : Operation.SAOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.StopArith op, arg) state = .ok state') :
@@ -796,7 +796,7 @@ private lemma static_step_stoparith_accountMap_eq
       simp [step] at h
       simpa using static_execBinOp_accountMap_eq h
 
-private lemma static_step_compbit_accountMap_eq
+lemma static_step_compbit_accountMap_eq
     {op : Operation.CBLOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.CompBit op, arg) state = .ok state') :
@@ -817,7 +817,7 @@ private lemma static_step_compbit_accountMap_eq
   · simpa using static_execBinOp_accountMap_eq h
   · simpa using static_execBinOp_accountMap_eq h
 
-private lemma static_step_keccak_accountMap_eq
+lemma static_step_keccak_accountMap_eq
     {op : Operation.KOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Keccak op, arg) state = .ok state') :
@@ -826,7 +826,7 @@ private lemma static_step_keccak_accountMap_eq
   simp [step] at h
   simpa using static_binaryMachineStateOp'_accountMap_eq h
 
-private lemma static_step_env_accountMap_eq
+lemma static_step_env_accountMap_eq
     {op : Operation.EOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Env op, arg) state = .ok state') :
@@ -871,7 +871,7 @@ private lemma static_step_env_accountMap_eq
       h
     simpa using hm
 
-private lemma static_step_push_accountMap_eq
+lemma static_step_push_accountMap_eq
     {op : Operation.POp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Push op, arg) state = .ok state') :
@@ -889,7 +889,7 @@ private lemma static_step_push_accountMap_eq
       injection h with hstate
       rw [← hstate]
 
-private lemma static_step_dup_accountMap_eq
+lemma static_step_dup_accountMap_eq
     {op : Operation.DOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Dup op, arg) state = .ok state') :
@@ -897,7 +897,7 @@ private lemma static_step_dup_accountMap_eq
   cases op <;> simp [step] at h <;>
     first | simpa using static_dup_accountMap_eq h
 
-private lemma static_step_exchange_accountMap_eq
+lemma static_step_exchange_accountMap_eq
     {op : Operation.ExOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Exchange op, arg) state = .ok state') :
@@ -905,7 +905,7 @@ private lemma static_step_exchange_accountMap_eq
   cases op <;> simp [step] at h <;>
     first | simpa using static_swap_accountMap_eq h
 
-private lemma static_step_block_accountMap_eq
+lemma static_step_block_accountMap_eq
     {op : Operation.BOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Block op, arg) state = .ok state') :
@@ -923,7 +923,7 @@ private lemma static_step_block_accountMap_eq
   · simpa using static_unaryExecutionEnvOp_accountMap_eq h
   · simpa using static_executionEnvOp_accountMap_eq h
 
-private lemma static_step_log_accountMap_eq
+lemma static_step_log_accountMap_eq
     {op : Operation.LOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
     (h : step gasCost (.Log op, arg) state = .ok state') :
@@ -937,7 +937,7 @@ private lemma static_step_log_accountMap_eq
     rw [← hstate]
     simp [logOp]
 
-private lemma static_step_stackmemflow_static_stateStorageStateEq_of_Z
+lemma static_step_stackmemflow_static_stateStorageStateEq_of_Z
     {validJumps : Array UInt256} {op : Operation.SMSFOp} {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state stateZ stepped : State}
     (hperm : state.executionEnv.perm = false)
@@ -995,7 +995,7 @@ private lemma static_step_stackmemflow_static_stateStorageStateEq_of_Z
   · have hm := static_ternaryMachineStateOp_accountMap_eq hstep
     exact stateStorageStateEq_of_accountMap_eq (by simpa [stepState] using hm)
 
-private lemma call_static_stateStorageStateEq_at_depth
+lemma call_static_stateStorageStateEq_at_depth
     {n gasCost : Nat}
     {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
@@ -1071,7 +1071,7 @@ private lemma call_static_stateStorageStateEq_at_depth
     rw [← hstate]
     simp [stateStorageStateEq]
 
-private lemma call_static_stateStorageStateEq_max_depth
+lemma call_static_stateStorageStateEq_max_depth
     {gasCost : Nat}
     {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
@@ -1091,7 +1091,7 @@ private lemma call_static_stateStorageStateEq_max_depth
     rw [← hstate]
     simp [stateStorageStateEq]
 
-private lemma step_system_call_static_stateStorageStateEq_of_Z_at_depth
+lemma step_system_call_static_stateStorageStateEq_of_Z_at_depth
     {n : Nat} {validJumps : Array UInt256} {op : Operation.SOp}
     {arg : Option (UInt256 × Nat)}
     {state stateZ stepped : State} {cost : Nat}
@@ -1204,7 +1204,7 @@ private lemma step_system_call_static_stateStorageStateEq_of_Z_at_depth
       rcases hcallkind with h | h | h | h <;> cases h
     exact False.elim hfalse
 
-private lemma step_system_call_static_stateStorageStateEq_of_Z_max_depth
+lemma step_system_call_static_stateStorageStateEq_of_Z_max_depth
     {validJumps : Array UInt256} {op : Operation.SOp} {arg : Option (UInt256 × Nat)}
     {state stateZ stepped : State} {cost : Nat}
     (hcallkind : op = .CALL ∨ op = .CALLCODE ∨ op = .DELEGATECALL ∨ op = .STATICCALL)
@@ -1292,7 +1292,7 @@ private lemma step_system_call_static_stateStorageStateEq_of_Z_max_depth
       rcases hcallkind with h | h | h | h <;> cases h
     exact False.elim hfalse
 
-private theorem step_system_static_stateStorageStateEq_of_Z_max_depth
+theorem step_system_static_stateStorageStateEq_of_Z_max_depth
     {validJumps : Array UInt256} {op : Operation.SOp} {arg : Option (UInt256 × Nat)}
     {state stateZ stepped : State} {cost : Nat} :
     state.executionEnv.perm = false →
@@ -1320,7 +1320,7 @@ private theorem step_system_static_stateStorageStateEq_of_Z_max_depth
   · simp [step] at hstep
   · exact False.elim (Z_static_forbidden_mem_false hperm (by simp) hZ)
 
-private theorem step_system_static_stateStorageStateEq_of_Z_succ_depth
+theorem step_system_static_stateStorageStateEq_of_Z_succ_depth
     {n : Nat} {validJumps : Array UInt256} {op : Operation.SOp}
     {arg : Option (UInt256 × Nat)}
     {state stateZ stepped : State} {cost : Nat} :
@@ -1362,7 +1362,7 @@ private theorem step_system_static_stateStorageStateEq_of_Z_succ_depth
   · simp [step] at hstep
   · exact False.elim (Z_static_forbidden_mem_false hperm (by simp) hZ)
 
-private theorem step_static_stateStorageStateEq_of_Z_max_depth
+theorem step_static_stateStorageStateEq_of_Z_max_depth
     {validJumps : Array UInt256} {op : Operation} {arg : Option (UInt256 × Nat)}
     {state stateZ stepped : State} {cost : Nat} :
     state.executionEnv.perm = false →
@@ -1395,7 +1395,7 @@ private theorem step_static_stateStorageStateEq_of_Z_max_depth
       (static_step_log_accountMap_eq hstep)
   · exact step_system_static_stateStorageStateEq_of_Z_max_depth hperm hdepth hZ hstep
 
-private theorem step_static_stateStorageStateEq_of_Z_succ_depth
+theorem step_static_stateStorageStateEq_of_Z_succ_depth
     {n : Nat} {validJumps : Array UInt256} {op : Operation}
     {arg : Option (UInt256 × Nat)}
     {state stateZ stepped : State} {cost : Nat} :
@@ -1439,7 +1439,7 @@ private theorem step_static_stateStorageStateEq_of_Z_succ_depth
   · exact step_system_static_stateStorageStateEq_of_Z_succ_depth
       hperm hdepth ihTheta hZ hstep
 
-private theorem Xstep_static_stateStorageStateEq_max_depth
+theorem Xstep_static_stateStorageStateEq_max_depth
     {validJumps : Array UInt256} {state state' : State}
     {ret : Option (HaltCause × ByteArray)} :
     state.executionEnv.perm = false →
@@ -1497,7 +1497,7 @@ private theorem Xstep_static_stateStorageStateEq_max_depth
             subst state'
             exact stateStorageStateEq_with_executionEnv hprefix state.executionEnv
 
-private theorem Xstep_static_stateStorageStateEq_succ_depth
+theorem Xstep_static_stateStorageStateEq_succ_depth
     {n : Nat} {validJumps : Array UInt256} {state state' : State}
     {ret : Option (HaltCause × ByteArray)} :
     state.executionEnv.perm = false →
@@ -1603,7 +1603,7 @@ theorem Xstep_static_preserves_perm
             subst state'
             simpa using hperm
 
-private theorem X_static_stateStorageStateEq_max_depth
+theorem X_static_stateStorageStateEq_max_depth
     {validJumps : Array UInt256} {state state' : State} {out : ByteArray}
     (fuel : Nat)
     (hperm : state.executionEnv.perm = false)
@@ -1649,7 +1649,7 @@ private theorem X_static_stateStorageStateEq_max_depth
                   subst state'
                   exact hnext
 
-private theorem X_static_stateStorageStateEq_succ_depth
+theorem X_static_stateStorageStateEq_succ_depth
     {n : Nat} {validJumps : Array UInt256} {state state' : State} {out : ByteArray}
     (fuel : Nat)
     (hperm : state.executionEnv.perm = false)
@@ -1704,7 +1704,7 @@ private theorem X_static_stateStorageStateEq_succ_depth
                   subst state'
                   exact hnext
 
-private theorem Xi_static_accountStorageStateEq_max_depth
+theorem Xi_static_accountStorageStateEq_max_depth
     {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
@@ -1752,7 +1752,7 @@ private theorem Xi_static_accountStorageStateEq_max_depth
           subst σ'
           simpa [stateStorageStateEq, freshEvmState] using hstate
 
-private theorem Xi_static_accountStorageStateEq_succ_depth
+theorem Xi_static_accountStorageStateEq_succ_depth
     {n : Nat}
     {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
@@ -1811,7 +1811,7 @@ private theorem Xi_static_accountStorageStateEq_succ_depth
           subst σ'
           simpa [stateStorageStateEq, freshEvmState] using hstate
 
-private theorem thetaXiAccountMap_static
+theorem thetaXiAccountMap_static
     {createdAccounts : Batteries.RBSet AccountAddress compare}
     {σ σPre : AccountMap} {A : Substate}
     {xi : Except EVM.ExecutionException
@@ -1835,7 +1835,7 @@ private theorem thetaXiAccountMap_static
           · simpa [thetaXiAccountMap, thetaXiResult, hempty] using
               accountStorageStateEq_trans hpre (hxi h)
 
-private theorem lambdaXiAccountMap_static
+theorem lambdaXiAccountMap_static
     {σ σPre : AccountMap} {a : AccountAddress}
     {xi : Except EVM.ExecutionException
       (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
@@ -1871,7 +1871,7 @@ private theorem lambdaXiAccountMap_static
               (accountStorageStateEq_insert_with_code σ' a out)
           · simp
 
-private theorem code_Theta_accountMap_eq
+theorem code_Theta_accountMap_eq
     (blobVersionedHashes : List ByteArray)
     (createdAccounts : Batteries.RBSet AccountAddress compare)
     (genesisBlockHeader : BlockHeader)
@@ -2030,7 +2030,7 @@ theorem Xi_static_accountStorageState_eq
   exact accountStorageState_eq_of_accountStorageStateEq
     (Xi_static_accountStorageStateEq hperm hXi)
 
-private lemma call_static_stateStorageStateEq
+lemma call_static_stateStorageStateEq
     {gasCost : Nat}
     {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
