@@ -14,11 +14,10 @@ def BLAKE2 (d : ByteArray) : Except String ByteArray := do
   if d[212]! ∉ [0, 1].map Nat.toUInt8 then throw "error"
   return BLAKE2Compress d
 
-/-
-@[extern "memset_zero"]
-opaque ByteArray.zeroes (n : USize) : ByteArray
--/
-def ByteArray.zeroes (n : Nat) : ByteArray := ByteArray.mk <| Array.replicate n (0 : UInt8)
+/- Replaced with transparent version in Wheels
+   Slight performance impact, but reduced trust surface -/
+-- @[extern "memset_zero"]
+-- opaque ByteArray.zeroes (n : USize) : ByteArray
 
 @[extern "keccak256"]
 opaque keccak256 (input : @& ByteArray) (len : USize) : ByteArray

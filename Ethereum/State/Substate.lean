@@ -62,7 +62,7 @@ def A0 : Substate := { (default : Substate) with accessedAccounts := π }
 
 -- See the Bloom filter function M
 def bloomFilter (a : Array ByteArray) : ByteArray  :=
-  let zeroes : ByteArray := ffi.ByteArray.zeroes 256
+  let zeroes : ByteArray := ByteArray.zeroes 256
   a.foldl set3Bits zeroes
  where
   setBit (bytes256 : ByteArray) (bitIndex : ℕ) : ByteArray :=
