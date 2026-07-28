@@ -48,7 +48,7 @@ Conform/
 ```
 
 Passing this suite is the baseline behavioral trust check for the executable EVM
-model. Proof-oriented changes are accepted under the constraint that these
+model. Any changes are accepted under the constraint that these
 conformance tests continue to pass.
 
 To execute conformance tests, make sure the `EthereumTests` directory is the appropriate git submodule and run:
