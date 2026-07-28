@@ -5,9 +5,11 @@ https://github.com/NethermindEth/EVMYulLean
 
 The upstream project is licensed under the Apache License, Version 2.0.
 
-This copy has been modified for research use. Notable changes include porting
-the project to a newer version of Lean, stripping the Yul portions, and adapting
-the remaining EVM model and project structure for the needs of this repository.
+This copy has been modified to ease proof development over the EVM model.
+Notable changes include porting the project to a newer version of Lean,
+removing the Yul model and generic EVM/Yul layer, adapting recursion and gas
+representation for proof development, and adding an EVM proof library. See
+nethermind-changes.md for a conceptual summary.
 
 This notice is for attribution and modification tracking only. It does not
 modify the Apache License, Version 2.0.

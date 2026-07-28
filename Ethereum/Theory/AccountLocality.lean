@@ -2,6 +2,18 @@ import Ethereum.Semantics
 import Ethereum.Wheels
 import Batteries.Data.RBMap.Lemmas
 
+/-!
+# Account locality
+
+This file develops relations that characterize the account-map changes allowed
+by EVM execution and propagates them through opcodes, calls, and contract
+creation.
+
+The intended locality property for effects after calls is work in progress,
+including its formal statement. The relations and theorems in this file should
+not yet be treated as a definitive formulation of that property.
+-/
+
 namespace Ethereum
 namespace EVM
 
