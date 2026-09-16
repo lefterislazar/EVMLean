@@ -19,13 +19,4 @@ def BLAKE2 (d : ByteArray) : Except String ByteArray := do
 -- @[extern "memset_zero"]
 -- opaque ByteArray.zeroes (n : USize) : ByteArray
 
-@[extern "keccak256"]
-opaque keccak256 (input : @& ByteArray) (len : USize) : ByteArray
-
-def KECCAK256 (d : ByteArray) : Except String ByteArray :=
-  pure <| keccak256 d d.size.toUSize
-
-def KEC (data : ByteArray) : ByteArray :=
-  ffi.KECCAK256 data |>.toOption.getD .empty
-
 end ffi

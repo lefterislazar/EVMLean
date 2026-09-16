@@ -1,5 +1,4 @@
 import Conform.TestRunner
-import Ethereum.FFI.ffi
 
 def TestsSubdir : System.FilePath := "BlockchainTests"
 def isTestFile (file : System.FilePath) : Bool := file.extension.option false (· == "json")
@@ -91,6 +90,7 @@ def nproc : IO Nat := do
   return out.stdout.trimAscii.toString.toNat? |>.getD 1
 
 def main (args : List String) : IO UInt32 := do
+
   let NumThreads : ℕ := args.head? <&> String.toNat! |>.getD (←nproc)
 
   let ExpectedToFail : Std.HashSet String := {

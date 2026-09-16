@@ -1,6 +1,6 @@
 import Ethereum.UInt256
 import Mathlib.Data.Finmap
-import Ethereum.FFI.ffi
+import Ethereum.SpongeHash.Keccak256
 
 -- (195)
 def BE : ℕ → ByteArray := List.toByteArray ∘ Ethereum.toBytesBigEndian
