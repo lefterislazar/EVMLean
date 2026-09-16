@@ -1,5 +1,6 @@
 *.olean
 .lake/
+/.venv/
 vc/.stack-work/*
 __pycache__/
 sha2/
@@ -7,4 +8,3 @@ blake2/
 keccak256/
 out_*
 Ethereum/EllipticCurvesPy/trieInput_*
-
