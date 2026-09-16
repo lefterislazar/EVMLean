@@ -15,4 +15,4 @@ jobs:
           submodules: recursive
       - uses: leanprover/lean-action@v1
         with:
-          test: false
+          test: true
