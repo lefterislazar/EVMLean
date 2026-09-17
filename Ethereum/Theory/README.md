@@ -24,8 +24,10 @@ component.
 
 - [`ReturnDataBound.lean`](ReturnDataBound.lean) derives bounds on return-data
   size from the available gas and propagates them through calls, contract
-  creation, and precompiled contracts. Bounds for FFI-backed precompiles use
-  explicit output-size assumptions declared in that file.
+  creation, and precompiled contracts. Transparent Lean wrappers reject
+  externally computed precompile results of an unexpected size, so these
+  proofs require no custom axioms about the output lengths of the external
+  implementations.
 
 - [`AccountLocality.lean`](AccountLocality.lean) develops relations describing
   which changes to an account are consistent with EVM execution and carries

@@ -61,9 +61,49 @@ lemmas for proofs.
 The original `ByteArray.zeroes` was an opaque Lean function implemented through
 the C FFI. It is now defined transparently in Lean using `Array.replicate`.
 
-This is be slower during execution, but it lets proofs inspect the definition
+This is slower during execution, but it lets proofs inspect the definition
 directly and removes one foreign primitive from the trusted surface. The change
 is contained primarily in `Ethereum/Wheels.lean` and `Ethereum/FFI/ffi.lean`.
+
+## Pure Lean Ethereum Keccak-256
+
+The Keccak-256 operation used throughout the EVM semantics was moved from an
+opaque C FFI declaration to the transparent implementation in
+`Ethereum/SpongeHash/Keccak256.lean`. It implements the 24 rounds of
+Keccak-f[1600] over a 25-lane `UInt64` state, the 1088-bit sponge rate,
+little-endian lane encoding, and Ethereum's legacy `0x01` padding suffix. Both
+single- and multi-block inputs are handled, including the final-rate-byte
+`0x81` padding case.
+
+The implementation exposes `Ethereum.Keccak256.round`,
+`Ethereum.Keccak256.permute`, and `Ethereum.Keccak256.hash`; `Ethereum.KEC` is
+the name used by the executable semantics and replaces the former `ffi.KEC`
+name. The state and rate-block dimensions are represented by fixed-size
+vectors, and `hash_size_eq_32` proves the output size. This reduces the trusted
+surface and makes concrete Keccak computations available to kernel reduction,
+at a significant executable-performance cost relative to the C implementation.
+It is not yet a mathematical proof that the implementation refines an
+independent Keccak specification. We trust that the implementation is valid
+by conformance to the EEST.
+
+The third-party C Keccak source remains in the build configuration for now,
+but no Keccak call reachable from the production EVM semantics uses it.
+
+## Checked External Precompile Outputs
+
+The other externally implemented cryptographic precompiles remain opaque. A
+transparent Lean boundary in `Ethereum/PrecompileOutput.lean` now accepts a
+successful external result only when it has the prescribed size. The checks
+cover SHA-256 and SNARKV outputs at 32 bytes, RIPEMD-160's EVM result at 32
+bytes, and BN addition, BN multiplication, BLAKE2 F, and point evaluation at 64
+bytes. An external implementation that returns a malformed length is treated
+as an error rather than allowing that value into the EVM semantics.
+
+These checks let `Ethereum/Theory/ReturnDataBound.lean` prove its precompile
+return-size bounds without custom axioms about the outputs of C or
+process-backed implementations. The checks constrain output shape only; the
+cryptographic correctness of those external implementations remains outside
+the Lean proof.
 
 ## Added `Xstep`
 

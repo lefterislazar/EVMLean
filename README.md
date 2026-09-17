@@ -36,6 +36,25 @@ The semantic function `step`:
 Ethereum/Semantics.lean
 ```
 
+## Cryptographic trust boundaries
+
+Ethereum's Keccak-256 is implemented as transparent Lean in
+[`Ethereum/SpongeHash/Keccak256.lean`](Ethereum/SpongeHash/Keccak256.lean).
+The implementation includes Keccak-f[1600], Ethereum's legacy `0x01` domain
+suffix, multi-block absorption, and a proof that every digest contains exactly
+32 bytes. It is exposed as `Ethereum.Keccak256.hash`, with `Ethereum.KEC` used
+by the executable EVM semantics. Keccak calls reachable from the semantics
+therefore do not cross an FFI boundary.
+
+Several cryptographic precompiles still use external implementations. Their
+Lean wrappers pass successful results through
+[`Ethereum.checkedPrecompileOutput`](Ethereum/PrecompileOutput.lean), which
+rejects outputs whose size does not match the result size prescribed for that
+precompile. This makes the return-data size proofs independent of assumptions
+about external output lengths. It does not prove that the external
+implementations compute the correct cryptographic values; conformance testing
+remains the behavioral check for those implementations.
+
 ## Conformance testing
 A git submodule with EVM conformance tests is in:
 ```

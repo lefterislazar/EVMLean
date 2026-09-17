@@ -155,4 +155,8 @@ theorem hash_size_eq_32 (input : ByteArray) : (hash input).size = 32 := by
 
 end Ethereum.Keccak256
 
+namespace Ethereum
+
 def KEC := Ethereum.Keccak256.hash
+
+end Ethereum
