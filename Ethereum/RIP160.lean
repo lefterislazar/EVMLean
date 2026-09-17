@@ -1,4 +1,5 @@
 import Ethereum.PerformIO
+import Ethereum.PrecompileOutput
 import Ethereum.Wheels
 import Conform.Wheels
 
@@ -11,4 +12,5 @@ def blobRIP160 (d : String) : String :=
   }
 
 def RIP160 (d : ByteArray) : Except String ByteArray :=
-  ByteArray.ofBlob <| blobRIP160 (toHex d)
+  Ethereum.checkedPrecompileOutput "RIP160" 32 <|
+    ByteArray.ofBlob <| blobRIP160 (toHex d)

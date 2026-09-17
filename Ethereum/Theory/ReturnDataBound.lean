@@ -899,16 +899,10 @@ lemma theta_toExecute_nonprecompile_output_size_lt_uint256
 /--
 Return-data bounds for precompiles.
 
-The `Θ` precompile branch is proved below by case-splitting over the concrete dispatcher.  The
-only remaining assumptions in this file are at true external boundaries:
-
-* `ffi.sha256` and `ffi.BLAKE2Compress` are Lean `opaque` externs implemented in `Ethereum/FFI`.
-* `blobRIP160`, `blobBN_ADD`, `blobBN_MUL`, `blobSNARKV`, and `blobPointEval` run Python
-  processes through `totallySafePerformIO`.
-
-All Lean-visible wrapper logic is proved locally.  In particular, `EXPMOD` is proved from its
-Lean implementation and the Python-backed wrappers are reduced through `ByteArray.ofBlob_ok_size`
-to assumptions about the external hex blob chunk count.
+The `Θ` precompile branch is proved below by case-splitting over the concrete dispatcher.
+External precompile implementations remain opaque, but their transparent Lean wrappers reject
+outputs of an unexpected size. Consequently, all return-size bounds are proved locally without
+assuming anything about those external implementations.
 -/
 lemma expModAux_lt {m : Nat} (hm : 0 < m) :
     ∀ n a c, expModAux m a c n < m := by
@@ -1181,69 +1175,30 @@ lemma precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
         omega
       · simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-private lemma List.mapM_loop_ok_length {α β : Type} (f : α → Except String β) :
-    ∀ (xs : List α) (acc ys : List β),
-      List.mapM.loop f xs acc = .ok ys → ys.length = acc.length + xs.length := by
-  intro xs
-  induction xs with
-  | nil =>
-      intro acc ys h
-      simp [List.mapM.loop] at h
-      cases h
-      simp
-  | cons x xs ih =>
-      intro acc ys h
-      simp [List.mapM.loop, bind, Except.bind] at h
-      cases hx : f x with
-      | error e => simp [hx] at h
-      | ok y =>
-          simp [hx] at h
-          have hlen := ih (y :: acc) ys h
-          simp at hlen ⊢
-          omega
-
-private lemma List.mapM_ok_length {α β : Type} (f : α → Except String β)
-    {xs : List α} {ys : List β} :
-    xs.mapM f = .ok ys → ys.length = xs.length := by
+lemma ffi_SHA256_ok_output_size {d s : ByteArray} :
+    ffi.SHA256 d = .ok s → s.size = 32 := by
   intro h
-  have hlen := List.mapM_loop_ok_length f xs [] ys h
-  simpa using hlen
-
-lemma ByteArray.ofBlob_ok_size {blob : Blob} {s : ByteArray}
-    (h : ByteArray.ofBlob blob = .ok s) :
-    s.size = (blob.toList.toChunks 2).length := by
-  unfold ByteArray.ofBlob at h
-  simp [bind, Except.bind, pure, Except.pure] at h
-  cases hmap : (blob.toList.toChunks 2).mapM ofHex? with
-  | error e => simp [hmap] at h
-  | ok chunks =>
-      simp [hmap] at h
-      cases h
-      have hlen := List.mapM_ok_length (f := ofHex?) hmap
-      simp [ByteArray.size]
-      exact hlen
-
-axiom ffi_sha256_output_size (d : ByteArray) (len : USize) :
-    (ffi.sha256 d len).size = 32
+  unfold ffi.SHA256 at h
+  exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
     (Ξ_SHA256 σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
-  unfold Ξ_SHA256 ffi.SHA256
-  simp [pure, Except.pure]
-  split
-  · simp [maxReturnDataSizeByGas, maxReturnDataWordsByGas]
-  · simp [ffi_sha256_output_size, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
-
-axiom blobRIP160_output_chunks (d : ByteArray) :
-    ((blobRIP160 (toHex d)).toList.toChunks 2).length = 20
+  by_cases hgas : g.toNat < 60 + 12 * ((I.calldata.size + 31) / 32)
+  · simp [Ξ_SHA256, hgas, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
+  · simp [Ξ_SHA256, hgas]
+    cases hres : ffi.SHA256 I.calldata with
+    | ok s =>
+        have hs := ffi_SHA256_ok_output_size hres
+        simp [hs, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
+    | error e =>
+        simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
 lemma RIP160_ok_output_size {d s : ByteArray} :
-    RIP160 d = .ok s → s.size = 20 := by
+    RIP160 d = .ok s → s.size = 32 := by
   intro h
   unfold RIP160 at h
-  rw [ByteArray.ofBlob_ok_size h]
-  exact blobRIP160_output_chunks d
+  exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -1285,19 +1240,11 @@ lemma precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
       precompile_EXPMOD_output_size_le_modulus_length
     exact Nat.le_trans hout (Nat.le_trans hmod (le_max_left _ _))
 
-axiom blobBN_ADD_output_chunks {x₀ y₀ x₁ y₁ : ByteArray}
-    (h : blobBN_ADD (toHex x₀) (toHex y₀) (toHex x₁) (toHex y₁) ≠ "error") :
-    ((blobBN_ADD (toHex x₀) (toHex y₀) (toHex x₁) (toHex y₁)).toList.toChunks 2).length = 64
-
 lemma BN_ADD_ok_output_size {x₀ y₀ x₁ y₁ s : ByteArray} :
     BN_ADD x₀ y₀ x₁ y₁ = .ok s → s.size = 64 := by
   intro h
   unfold BN_ADD at h
-  split at h
-  · simp at h
-  · rename_i hblob
-    rw [ByteArray.ofBlob_ok_size h]
-    exact blobBN_ADD_output_chunks hblob
+  exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -1313,19 +1260,11 @@ lemma precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-axiom blobBN_MUL_output_chunks {x₀ y₀ n : ByteArray}
-    (h : blobBN_MUL (toHex x₀) (toHex y₀) (toHex n) ≠ "error") :
-    ((blobBN_MUL (toHex x₀) (toHex y₀) (toHex n)).toList.toChunks 2).length = 64
-
 lemma BN_MUL_ok_output_size {x₀ y₀ n s : ByteArray} :
     BN_MUL x₀ y₀ n = .ok s → s.size = 64 := by
   intro h
   unfold BN_MUL at h
-  split at h
-  · simp at h
-  · rename_i hblob
-    rw [ByteArray.ofBlob_ok_size h]
-    exact blobBN_MUL_output_chunks hblob
+  exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -1341,19 +1280,11 @@ lemma precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-axiom blobSNARKV_output_chunks {d : ByteArray}
-    (h : blobSNARKV (toHex d) ≠ "error") :
-    ((blobSNARKV (toHex d)).toList.toChunks 2).length = 32
-
 lemma SNARKV_ok_output_size {d s : ByteArray} :
     SNARKV d = .ok s → s.size = 32 := by
   intro h
   unfold SNARKV at h
-  split at h
-  · simp at h
-  · rename_i hblob
-    rw [ByteArray.ofBlob_ok_size h]
-    exact blobSNARKV_output_chunks hblob
+  exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -1368,9 +1299,6 @@ lemma precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-axiom ffi_BLAKE2Compress_output_size (d : ByteArray) :
-    (ffi.BLAKE2Compress d).size = 64
-
 lemma ffi_BLAKE2_ok_output_size {d s : ByteArray} :
     ffi.BLAKE2 d = .ok s → s.size = 64 := by
   intro h
@@ -1380,8 +1308,7 @@ lemma ffi_BLAKE2_ok_output_size {d s : ByteArray} :
   · by_cases hflag : ¬d[212]! = 0 ∧ ¬d[212]! = 1
     · simp [hsize, hflag, pure, Except.pure, bind, Except.bind] at h
     · simp [hsize, hflag, pure, Except.pure, bind, Except.bind] at h
-      cases h
-      exact ffi_BLAKE2Compress_output_size d
+      exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -1396,19 +1323,11 @@ lemma precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-axiom blobPointEval_output_chunks {d : ByteArray}
-    (h : blobPointEval (toHex d) ≠ "error") :
-    ((blobPointEval (toHex d)).toList.toChunks 2).length = 64
-
 lemma PointEval_ok_output_size {d s : ByteArray} :
     PointEval d = .ok s → s.size = 64 := by
   intro h
   unfold PointEval at h
-  split at h
-  · simp at h
-  · rename_i hblob
-    rw [ByteArray.ofBlob_ok_size h]
-    exact blobPointEval_output_chunks hblob
+  exact checkedPrecompileOutput_ok_size h
 
 lemma precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :

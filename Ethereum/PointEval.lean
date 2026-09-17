@@ -1,5 +1,6 @@
 import Ethereum.Wheels
 import Ethereum.PerformIO
+import Ethereum.PrecompileOutput
 import Conform.Wheels
 
 def blobPointEval (data : String) : String :=
@@ -11,6 +12,6 @@ def blobPointEval (data : String) : String :=
   }
 
 def PointEval (data : ByteArray) : Except String ByteArray :=
-  match blobPointEval (toHex data) with
+  Ethereum.checkedPrecompileOutput "PointEval" 64 <| match blobPointEval (toHex data) with
     | "error" => .error "PointEval failed"
     | s => ByteArray.ofBlob s

@@ -1,5 +1,6 @@
 import Ethereum.Wheels
 import Ethereum.PerformIO
+import Ethereum.PrecompileOutput
 import Conform.Wheels
 
 def blobBN_MUL (x₀ y₀ n : String) : String :=
@@ -11,6 +12,7 @@ def blobBN_MUL (x₀ y₀ n : String) : String :=
   }
 
 def BN_MUL (x₀ y₀ n : ByteArray) : Except String ByteArray :=
-  match blobBN_MUL (toHex x₀) (toHex y₀) (toHex n) with
+  Ethereum.checkedPrecompileOutput "BN_MUL" 64 <| match
+      blobBN_MUL (toHex x₀) (toHex y₀) (toHex n) with
     | "error" => .error "BN_MUL failed"
     | s => ByteArray.ofBlob s
