@@ -76,7 +76,7 @@ def deserializeBlock
   let (hash, header, transactionTrieRoot, ts, withdrawalTrieRoot, ws) ←
     Option.toExceptWith (.BlockException .RLP_STRUCTURES_ENCODING) do
       let .inr [headerRLP, transactionsRLP, _, withdrawalsRLP] ← oneStepRLP rlp | none
-      let hash : UInt256 := .ofNat <| fromByteArrayBigEndian <| ffi.KEC headerRLP
+      let hash : UInt256 := .ofNat <| fromByteArrayBigEndian <| KEC headerRLP
       let header ← deserializeRLP headerRLP
       let (.inr transactions) ← oneStepRLP transactionsRLP | none
       let getTrieSnd (t : ByteArray) : Option ByteArray := do

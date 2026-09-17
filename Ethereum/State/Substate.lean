@@ -71,7 +71,7 @@ def bloomFilter (a : Array ByteArray) : ByteArray  :=
     let newByte := bytes256[byteIndex]! ||| mask
     bytes256.set! byteIndex newByte
   bitIndices (x : ByteArray) : List ℕ :=
-    let kec := ffi.KEC x
+    let kec := KEC x
     let lowOrder11Bits := λ b ↦ b &&& (1<<<11 - 1)
     [ kec.readWithPadding 0 2
     , kec.readWithPadding 2 2

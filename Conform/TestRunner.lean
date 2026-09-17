@@ -266,14 +266,14 @@ def validateTransaction
 
   let h_T := -- (318)
     match T with
-      | .legacy _ => ffi.KEC T_RLP
-      | _ => ffi.KEC <| ByteArray.mk #[T.type] ++ T_RLP
+      | .legacy _ => KEC T_RLP
+      | _ => KEC <| ByteArray.mk #[T.type] ++ T_RLP
 
   let (S_T : AccountAddress) ← -- (323)
     match ECDSARECOVER h_T (ByteArray.mk #[.ofNat v]) T.base.r T.base.s with
       | .ok s =>
         pure <| Fin.ofNat _ <| fromByteArrayBigEndian <|
-          (ffi.KEC s).extract 12 32 /- 160 bits = 20 bytes -/
+          (KEC s).extract 12 32 /- 160 bits = 20 bytes -/
       | .error s => throw <| .SenderRecoverError s
 
   -- "Also, with a slight abuse of notation ... "

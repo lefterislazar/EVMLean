@@ -900,7 +900,7 @@ def Lambda
   let n : UInt256 := (σ.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
   let lₐ := L_A s n ζ i
   let a : AccountAddress := -- (94) (95)
-    (ffi.KEC lₐ).extract 12 32 /- 160 bits = 20 bytes -/
+    (KEC lₐ).extract 12 32 /- 160 bits = 20 bytes -/
       |> fromByteArrayBigEndian |> Fin.ofNat _
 
   -- A* (97)
@@ -1014,7 +1014,7 @@ def Lambda
       · simp
     match ζ with
       | none   => RLP_safe <| .𝕃 [.𝔹 s (by simp [hs]), .𝔹 n' hn']
-      | some ζ => BE 255 ++ s ++ ζ ++ ffi.KEC i
+      | some ζ => BE 255 ++ s ++ ζ ++ KEC i
 
 /--
 Message cal

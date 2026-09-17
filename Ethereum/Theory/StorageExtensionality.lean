@@ -1083,7 +1083,7 @@ theorem stateExtensionalEq_extCodeHash {state₁ state₂ : State}
         simp [Ethereum.State.dead, h₁, h₂] at hσ hd₁' hd₂ ⊢
       unfold Account.codeHash PersistentAccountState.codeHash
       exact congrArg (fun code : ByteArray =>
-        UInt256.ofNat (fromByteArrayBigEndian (ffi.KEC code))) hσ.2.2.1
+        UInt256.ofNat (fromByteArrayBigEndian (KEC code))) hσ.2.2.1
 
 theorem stateExtensionalEq_blockHash {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (blockNumber : UInt256) :
@@ -7302,7 +7302,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
         let n₁ : UInt256 := (σ₁.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
         let lₐ := Lambda.L_A s n₁ ζ i
         let a : AccountAddress :=
-          (ffi.KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
+          (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
         let AStar := A.addAccessedAccount a
         let collision₁ : Bool :=
           (σ₁.findD a default).nonce ≠ ⟨0⟩ ||
@@ -7633,7 +7633,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
         let n₁ : UInt256 := (σ₁.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
         let lₐ := Lambda.L_A s n₁ ζ i
         let a : AccountAddress :=
-          (ffi.KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
+          (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
         let AStar := A.addAccessedAccount a
         let collision₁ : Bool :=
           (σ₁.findD a default).nonce ≠ ⟨0⟩ ||

@@ -18,9 +18,4 @@ def BLAKE2 (d : ByteArray) : Except String ByteArray := do
   Ethereum.checkedPrecompileOutput "BLAKE2" 64 <|
     .ok (BLAKE2Compress d)
 
-/- Replaced with transparent version in Wheels
-   Slight performance impact, but reduced trust surface -/
--- @[extern "memset_zero"]
--- opaque ByteArray.zeroes (n : USize) : ByteArray
-
 end ffi

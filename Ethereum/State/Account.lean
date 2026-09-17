@@ -46,7 +46,7 @@ structure Account extends PersistentAccountState where
 deriving BEq, Inhabited
 
 def PersistentAccountState.codeHash (self : PersistentAccountState) : UInt256 :=
-  .ofNat <| fromByteArrayBigEndian (ffi.KEC self.code)
+  .ofNat <| fromByteArrayBigEndian (KEC self.code)
 
 def Account.codeHash (self : Account) : UInt256 :=
   self.toPersistentAccountState.codeHash

@@ -155,9 +155,4 @@ theorem hash_size_eq_32 (input : ByteArray) : (hash input).size = 32 := by
 
 end Ethereum.Keccak256
 
-/-! Compatibility name used throughout the executable EVM semantics. -/
-namespace ffi
-
-def KEC (data : ByteArray) : ByteArray := Ethereum.Keccak256.hash data
-
-end ffi
+def KEC := Ethereum.Keccak256.hash

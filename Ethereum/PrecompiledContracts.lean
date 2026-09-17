@@ -47,7 +47,7 @@ def Ξ_ECREC
       else
         match ECDSARECOVER h ⟨#[.ofNat v' - 27]⟩ r s with
           | .ok s =>
-              ByteArray.zeroes 12 ++ (ffi.KEC s).extract 12 32
+              ByteArray.zeroes 12 ++ (KEC s).extract 12 32
           | .error e =>
             dbg_trace s!"Ξ_ECREC failed: {e}"
             .empty

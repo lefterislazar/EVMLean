@@ -1391,7 +1391,7 @@ theorem step_keccak : ∀ (s : State),
         if s.machineState.stack.length - 2 + 1 > 1024 then .error .StackOverflow
         else
         let bytes := s.machineState.memory.readWithPadding a.toNat b.toNat
-        let kec := ffi.KEC bytes
+        let kec := KEC bytes
         .ok ({s with
                   machineState.stack := UInt256.ofNat (fromByteArrayBigEndian kec) :: t,
                   machineState.gasAvailable := gasAvailable'.subNat hashCost

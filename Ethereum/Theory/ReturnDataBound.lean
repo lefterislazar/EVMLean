@@ -610,7 +610,7 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
       s o g p v i e ζ H w).2.2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
   let n : UInt256 := (σ.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
   let lₐ := Lambda.L_A s n ζ i
-  let a : AccountAddress := (ffi.KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
+  let a : AccountAddress := (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
   let AStar := A.addAccessedAccount a
   let existentAccount := σ.findD a default
   let collision : ByteArray × Batteries.RBSet AccountAddress compare :=
