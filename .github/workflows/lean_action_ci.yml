@@ -28,3 +28,6 @@ jobs:
       - uses: leanprover/lean-action@v1
         with:
           test: false
+
+      - name: Check Keccak-256 vectors
+        run: lake build Ethereum.SpongeHash.Keccak256Tests
