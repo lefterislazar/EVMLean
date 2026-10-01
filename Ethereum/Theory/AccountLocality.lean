@@ -81,15 +81,15 @@ theorem unchanged_insert_of_same_core
   | some acc =>
       by_cases hcmp : compare l k = .eq
       · have hfind : s.find? k = some acc := by
-          have hcongr := Batteries.RBMap.find?_congr s hcmp
+          have hcongr := Std.ExtTreeMap.find?_congr s hcmp
           rw [hacc] at hcongr
           exact hcongr.symm
         have hfields := hnew acc hfind
         exact unchanged.present acc new hacc
-          (Batteries.RBMap.find?_insert_of_eq s hcmp)
+          (Std.ExtTreeMap.find?_insert_of_eq s hcmp)
           hfields.1 hfields.2.1 hfields.2.2.1 hfields.2.2.2.1 hfields.2.2.2.2
       · apply unchanged.present acc acc hacc
-          (by simp [Batteries.RBMap.find?_insert_of_ne s hcmp]; exact hacc)
+          (by simp [Std.ExtTreeMap.find?_insert_of_ne s hcmp]; exact hacc)
         repeat rfl
 
 theorem unchanged_insert_of_different_core
@@ -102,7 +102,7 @@ theorem unchanged_insert_of_different_core
       exact unchanged.null hacc
   | some acc =>
         apply unchanged.present acc acc hacc
-        · rw [Batteries.RBMap.find?_insert_of_ne]
+        · rw [Std.ExtTreeMap.find?_insert_of_ne]
           · exact hacc
           · simp [compare, compareOfLessAndEq]
             repeat (split; simp; grind)
@@ -154,16 +154,16 @@ theorem unchanged_insert_insert_of_same_core
 
 def sendEth (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) : AccountMap :=
   if z then
-    let σ'₁ := match Batteries.RBMap.find? σ r with
+    let σ'₁ := match Std.ExtTreeMap.find? σ r with
       | none =>
         if (v != UInt256.ofNat 0) = true then
-          Batteries.RBMap.insert σ r
+          Std.ExtTreeMap.insert σ r
             (let __src := (default : Account);
             { nonce := __src.nonce, balance := v, storage := __src.storage, code := __src.code,
               tstorage := __src.tstorage })
         else σ
       | some acc =>
-        Batteries.RBMap.insert σ r
+        Std.ExtTreeMap.insert σ r
           { nonce := acc.nonce, balance := acc.balance + v, storage := acc.storage, code := acc.code,
             tstorage := acc.tstorage };
     match σ'₁.find? s with
@@ -431,7 +431,7 @@ private lemma sendEth_true_find?_some_find?_some_ne
   have hcmp : compare s r ≠ .eq := accountAddress_compare_ne_eq_of_ne (by
     intro hsr
     exact hne hsr.symm)
-  simp [sendEth, hr, Batteries.RBMap.find?_insert_of_ne, hcmp, hs]
+  simp [sendEth, hr, Std.ExtTreeMap.find?_insert_of_ne, hcmp, hs]
 
 private lemma depth_succ_measure {e : Fin 1025} {n : Nat}
     (hdepth : 1024 - e.val = n + 1) (hlt : e < 1024) :
@@ -2246,7 +2246,8 @@ private lemma account_changes_consistent_if_empty_or_sendEth_prelude
     account_changes_consistent acc σ (if τ == ∅ then σ else τ) := by
   rcases hτ with hτ | hτ
   · subst τ
-    simp [rbMap_empty_beq_empty, account_changes_consistent_rfl]
+    simpa [show ((∅ : AccountMap) == ∅) = true from rfl] using
+      (account_changes_consistent_rfl (σ := σ) acc)
   · subst τ
     by_cases hEmpty : (sendEth r s v true σ == (∅ : AccountMap)) = true
     · simp [hEmpty, account_changes_consistent_rfl]
@@ -2260,7 +2261,7 @@ private lemma account_changes_consistent_nonempty_or_sendEth_prelude
     account_changes_consistent acc σ τ := by
   rcases hτ with hτ | hτ
   · subst τ
-    exact False.elim (hnot_empty rbMap_empty_beq_empty)
+    exact False.elim (hnot_empty (show ((∅ : AccountMap) == ∅) = true from rfl))
   · subst τ
     exact account_changes_consistent_sendEth_prelude acc r s v true σ
 
@@ -2645,19 +2646,21 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                   · exact account_changes_consistent_rfl acc
                   · simp [ha] at hdead hfinal
                     rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Batteries.RBMap.find? σ acc with
+                    cases hfind : Std.ExtTreeMap.find? σ acc with
                     | none =>
                         simp [hfind] at hdead
                     | some ac =>
                         simp [hfind] at hdead hfinal
+                        have hstorage_ne_default : ac.storage ≠ (default : Storage) :=
+                          hdead hfinal.1.2 hfinal.1.1
                         have hstorage_bne : (ac.storage != ∅) = true := by
-                          have hs := hdead hfinal.1.2 hfinal.1.1
-                          simp [bne, hs]
+                          simpa [bne, show (default : Storage) = ∅ from rfl] using
+                            hstorage_ne_default
                         let σStarCollision : AccountMap :=
-                          match Batteries.RBMap.find? σ s with
+                          match Std.ExtTreeMap.find? σ s with
                           | none => σ
                           | some senderAcc =>
-                            (Batteries.RBMap.insert σ s
+                            (Std.ExtTreeMap.insert σ s
                                   { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
                                     storage := senderAcc.storage, code := senderAcc.code,
                                     tstorage := senderAcc.tstorage }).insert
@@ -2682,8 +2685,8 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                             (out := returnedData)
                             (by
                               dsimp [σStarCollision]
-                              simpa [Batteries.RBMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
-                                hstorage_bne] using hXi))
+                              simpa [Std.ExtTreeMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                                hstorage_bne, hstorage_ne_default] using hXi))
   | succ n' ih =>
       constructor
       · intro hTheta acc hacc_ne_r
@@ -2816,19 +2819,21 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                   · exact account_changes_consistent_rfl acc
                   · simp [ha] at hdead hfinal
                     rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Batteries.RBMap.find? σ acc with
+                    cases hfind : Std.ExtTreeMap.find? σ acc with
                     | none =>
                         simp [hfind] at hdead
                     | some ac =>
                         simp [hfind] at hdead hfinal
+                        have hstorage_ne_default : ac.storage ≠ (default : Storage) :=
+                          hdead hfinal.1.2 hfinal.1.1
                         have hstorage_bne : (ac.storage != ∅) = true := by
-                          have hs := hdead hfinal.1.2 hfinal.1.1
-                          simp [bne, hs]
+                          simpa [bne, show (default : Storage) = ∅ from rfl] using
+                            hstorage_ne_default
                         let σStarCollision : AccountMap :=
-                          match Batteries.RBMap.find? σ s with
+                          match Std.ExtTreeMap.find? σ s with
                           | none => σ
                           | some senderAcc =>
-                            (Batteries.RBMap.insert σ s
+                            (Std.ExtTreeMap.insert σ s
                                   { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
                                     storage := senderAcc.storage, code := senderAcc.code,
                                     tstorage := senderAcc.tstorage }).insert
@@ -2853,8 +2858,8 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                             (out := returnedData)
                             (by
                               dsimp [σStarCollision]
-                              simpa [Batteries.RBMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
-                                hstorage_bne] using hXi))
+                              simpa [Std.ExtTreeMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                                hstorage_bne, hstorage_ne_default] using hXi))
 
 theorem account_changes_consistent_of_Theta :
     ∀ σ' g' A' z o' e,

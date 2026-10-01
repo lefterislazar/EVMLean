@@ -1,4 +1,3 @@
-import Lean.Data.RBMap
 import Lean.Data.Json
 
 -- import Ethereum.Maps

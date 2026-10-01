@@ -29,8 +29,15 @@ instance : FromJson ℕ := fromBlobString Nat.fromBlob?
 
 instance : FromJson AccountAddress := fromBlobString AccountAddress.fromBlob?
 
+private def getObjValsExt?
+    (json : Json) (α β : Type) [Ord α]
+    [Std.TransCmp (compare : α → α → Ordering)] [FromJson α] [FromJson β] :
+    Except String (Std.ExtTreeMap α β compare) := do
+  let vals ← json.getObjVals? α β
+  pure <| vals.toList.foldl (fun acc (key, value) => acc.insert key value) ∅
+
 instance : FromJson Storage where
-  fromJson? json := json.getObjVals? UInt256 UInt256
+  fromJson? json := getObjValsExt? json UInt256 UInt256
 
 instance : FromJson ByteArray := fromBlobString (ByteArray.ofBlob)
 
@@ -44,10 +51,10 @@ instance : FromJson (PersistentAccountState) where
     }
 
 instance : FromJson Pre where
-  fromJson? json := json.getObjVals? AccountAddress (PersistentAccountState)
+  fromJson? json := getObjValsExt? json AccountAddress PersistentAccountState
 
 instance : FromJson Post where
-  fromJson? json := json.getObjVals? AccountAddress PostEntry
+  fromJson? json := getObjValsExt? json AccountAddress PostEntry
 
 instance : FromJson BlockHeader where
   fromJson? json := do

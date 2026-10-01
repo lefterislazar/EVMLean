@@ -34,7 +34,7 @@ def PersistentAccountMap.toAccountMap (self : PersistentAccountMap) : AccountMap
         nonce    := acc.nonce
         balance  := acc.balance
         code     := acc.code
-        storage  := acc.storage.toEthereumStorage
+        storage  := acc.storage
       }
     s.insert addr account
 
@@ -47,7 +47,7 @@ def PersistentAccountMap.toEVMState (self : PersistentAccountMap) : State :=
         nonce    := acc.nonce
         balance  := acc.balance
         code     := acc.code
-        storage  := acc.storage.toEthereumStorage
+        storage  := acc.storage
       }
     s.setAccount addr account
 
@@ -575,9 +575,7 @@ def preImpliesPost (entry : TestEntry)
     let lastAccountMap :=
       resultState.executionEnv.blocks.findRev? (·.hash == entry.lastblockhash)
       |>.option resultState.accountMap ProcessedBlock.σ
-    let result : PersistentAccountMap :=
-      lastAccountMap.foldl
-        (λ r addr ⟨⟨nonce, balance, storage, code⟩, _, _⟩ ↦ r.insert addr ⟨nonce, balance, storage, code⟩) default
+    let result : PersistentAccountMap := lastAccountMap.toPersistentAccountMap
     let persistentAccountMap := resultState.accountMap.toPersistentAccountMap
     match entry.postState with
       | .Map post =>

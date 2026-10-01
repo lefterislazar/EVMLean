@@ -2403,7 +2403,7 @@ theorem step_extcodehash : ∀ (s : State),
             Ethereum.Substate.addAccessedAccount, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero']
           by_cases hdead :
               Option.option true Account.emptyAccount
-                (Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 a)) = true
+                (Std.ExtTreeMap.find? s.accountMap (AccountAddress.ofUInt256 a)) = true
           · simp [hdead, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero']
           · simp [hdead, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero']
 
@@ -2845,7 +2845,7 @@ theorem step_tstore : ∀ (s : State),
             simp [Id.run, binaryStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
             cases hacc :
-                Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
             | none =>
               simp [Ethereum.State.tstore, Ethereum.State.lookupAccount,
                 Ethereum.State.updateAccount, Account.updateTransientStorage,
@@ -3900,7 +3900,7 @@ theorem step_sstore : ∀ (s : State),
               simp [Id.run, binaryStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
               unfold Ethereum.State.incrPC
               cases hacc :
-                  Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                  Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
               | none =>
                 simp [Ethereum.State.sstore, Ethereum.State.lookupAccount,
                   Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey,
@@ -3918,13 +3918,13 @@ theorem step_sstore : ∀ (s : State),
                     Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero',
                     hacc, hperm, Option.option]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   simp [Csstore, hstack, hgas0]
                   rfl
 
@@ -4734,7 +4734,7 @@ theorem step_create : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hrefund :
                       createState.machineState.gasAvailable.toNat + g'.toNat <
@@ -4766,7 +4766,7 @@ theorem step_create : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       ¬ 18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hDepth :
                       value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
@@ -4775,7 +4775,7 @@ theorem step_create : ∀ (s : State),
                     have hDepth_expanded :
                         value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152 := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
@@ -4823,14 +4823,14 @@ theorem step_create : ∀ (s : State),
                     have hDepth_expanded :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
                     have hDepth_expanded_nat :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           (↑s.executionEnv.depth : Nat) < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       intro h
@@ -5050,7 +5050,7 @@ theorem step_create2 : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hrefund :
                       createState.machineState.gasAvailable.toNat + g'.toNat <
@@ -5082,7 +5082,7 @@ theorem step_create2 : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       ¬ 18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hDepth :
                       value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
@@ -5091,7 +5091,7 @@ theorem step_create2 : ∀ (s : State),
                     have hDepth_expanded :
                         value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152 := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
@@ -5139,14 +5139,14 @@ theorem step_create2 : ∀ (s : State),
                     have hDepth_expanded :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
                     have hDepth_expanded_nat :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           (↑s.executionEnv.depth : Nat) < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       intro h
@@ -5316,14 +5316,14 @@ theorem step_selfdestruct : ∀ (s : State),
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :
-                    Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                    Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
                   simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r, hgas0,
                     chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
-                      Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
+                      Std.ExtTreeMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
                   | none =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>
@@ -5340,14 +5340,14 @@ theorem step_selfdestruct : ∀ (s : State),
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :
-                    Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                    Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
                   simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r, hgas0,
                     chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
-                      Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
+                      Std.ExtTreeMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
                   | none =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>

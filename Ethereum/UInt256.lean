@@ -24,6 +24,44 @@ structure UInt256 where
   val : Fin UInt256.size
   deriving BEq, Ord
 
+instance : Std.TransCmp (compare : UInt256 → UInt256 → Ordering) where
+  eq_swap := by
+    intro a b
+    cases a
+    cases b
+    simpa [compare, Ethereum.instOrdUInt256.ord] using
+      (Std.OrientedCmp.eq_swap
+        (cmp := (compare : Fin UInt256.size → Fin UInt256.size → Ordering)))
+  isLE_trans := by
+    intro a b c hab hbc
+    cases a with
+    | mk av =>
+    cases b with
+    | mk bv =>
+    cases c with
+    | mk cv =>
+    have hab' : (compare av bv).isLE = true := by
+      simpa [compare, Ethereum.instOrdUInt256.ord] using hab
+    have hbc' : (compare bv cv).isLE = true := by
+      simpa [compare, Ethereum.instOrdUInt256.ord] using hbc
+    have hac' : (compare av cv).isLE = true :=
+      Std.TransCmp.isLE_trans
+        (cmp := (compare : Fin UInt256.size → Fin UInt256.size → Ordering)) hab' hbc'
+    simpa [compare, Ethereum.instOrdUInt256.ord] using hac'
+
+instance : Std.LawfulEqCmp (compare : UInt256 → UInt256 → Ordering) where
+  eq_of_compare := by
+    intro a b h
+    cases a with
+    | mk av =>
+    cases b with
+    | mk bv =>
+    have heq : av = bv :=
+      Std.LawfulEqCmp.eq_of_compare
+        (cmp := (compare : Fin UInt256.size → Fin UInt256.size → Ordering))
+        (by simpa [compare, Ethereum.instOrdUInt256.ord] using h)
+    simp [heq]
+
 instance : ToString UInt256 where
   toString a := toString a.val
 

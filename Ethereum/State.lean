@@ -1,4 +1,3 @@
-import Batteries.Data.RBMap
 import Mathlib.Data.Finset.Basic
 
 import Ethereum.MachineState

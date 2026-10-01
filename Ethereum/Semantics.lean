@@ -1080,7 +1080,7 @@ def Θ (σ  : AccountMap)
     }
 
   -- Equation (131)
-  -- Note that the `c` used here is the actual code, not the address. TODO - Handle precompiled contracts.
+  -- Note that the `c` used here is the actual code, not the address.
   let (σ'', g', A'', out) :=
     match c with
       | ToExecute.Precompiled p =>
@@ -1239,10 +1239,10 @@ def Υ
     if beneficiaryFee != UInt256.ofNat 0 then
       σStar.increaseBalance H.beneficiary beneficiaryFee
     else σStar
-  let σ' := A.selfDestructSet.1.foldl Batteries.RBMap.erase σStar' -- (87)
+  let σ' := A.selfDestructSet.1.foldl Std.ExtTreeMap.erase σStar' -- (87)
   let deadAccounts := A.touchedAccounts.filter (State.dead σStar' ·)
-  let σ' := deadAccounts.foldl Batteries.RBMap.erase σ' -- (88)
-  let σ' := σ'.map λ (addr, acc) ↦ (addr, { acc with tstorage := .empty})
+  let σ' := deadAccounts.foldl Std.ExtTreeMap.erase σ' -- (88)
+  let σ' := σ'.map λ _ acc ↦ { acc with tstorage := .empty }
   .ok (σ', A, z, T.base.gasLimit - gStar)
 end EVM
 

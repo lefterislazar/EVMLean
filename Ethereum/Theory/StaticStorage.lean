@@ -1,7 +1,5 @@
 import Ethereum.Theory.AccountLocality
-import Ethereum.Theory.StorageExtensionality
-
-import Batteries.Data.RBMap.Lemmas
+import Ethereum.Semantics
 
 namespace Ethereum
 namespace EVM
@@ -90,22 +88,22 @@ theorem accountStorageStateEq_insert_preserve
   intro query
   by_cases hcmp : compare query addr = .eq
   · have hfind : (σ.insert addr acc).find? query = some acc := by
-      exact Batteries.RBMap.find?_insert_of_eq σ hcmp
+      exact Std.ExtTreeMap.find?_insert_of_eq σ hcmp
     have hcmp' : compare addr query = .eq := by
       have hswap :=
         (Std.OrientedCmp.eq_swap (cmp := compare) (a := query) (b := addr))
       rw [hcmp] at hswap
       simpa using hswap.symm
     have hquery : σ.find? addr = σ.find? query := by
-      exact Batteries.RBMap.find?_congr σ hcmp'
+      exact Std.ExtTreeMap.find?_congr σ hcmp'
     have hstorage' : acc.storage = (σ.findD query default).storage := by
-      simpa [Batteries.RBMap.findD, hquery] using hstorage
+      simpa [Std.ExtTreeMap.findD, hquery] using hstorage
     have htstorage' : acc.tstorage = (σ.findD query default).tstorage := by
-      simpa [Batteries.RBMap.findD, hquery] using htstorage
-    simp [Batteries.RBMap.findD, hfind, hstorage', htstorage']
+      simpa [Std.ExtTreeMap.findD, hquery] using htstorage
+    simp [Std.ExtTreeMap.findD, hfind, hstorage', htstorage']
   · have hfind : (σ.insert addr acc).find? query = σ.find? query := by
-      exact Batteries.RBMap.find?_insert_of_ne σ hcmp
-    simp [Batteries.RBMap.findD, hfind]
+      exact Std.ExtTreeMap.find?_insert_of_ne σ hcmp
+    simp [Std.ExtTreeMap.findD, hfind]
 
 theorem accountStorageStateEq_debit_if_present
     (σ : AccountMap) (addr : AccountAddress) (value : UInt256) :
@@ -119,8 +117,8 @@ theorem accountStorageStateEq_debit_if_present
   | some acc =>
       simp
       exact accountStorageStateEq_insert_preserve σ addr { acc with balance := acc.balance - value }
-        (by simp [Batteries.RBMap.findD, hfind])
-        (by simp [Batteries.RBMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.findD, hfind])
 
 theorem accountCodeStateEq_insert_preserve
     (σ : AccountMap) (addr : AccountAddress) (acc : Account)
@@ -129,20 +127,20 @@ theorem accountCodeStateEq_insert_preserve
   intro query
   by_cases hcmp : compare query addr = .eq
   · have hfind : (σ.insert addr acc).find? query = some acc := by
-      exact Batteries.RBMap.find?_insert_of_eq σ hcmp
+      exact Std.ExtTreeMap.find?_insert_of_eq σ hcmp
     have hcmp' : compare addr query = .eq := by
       have hswap :=
         (Std.OrientedCmp.eq_swap (cmp := compare) (a := query) (b := addr))
       rw [hcmp] at hswap
       simpa using hswap.symm
     have hquery : σ.find? addr = σ.find? query := by
-      exact Batteries.RBMap.find?_congr σ hcmp'
+      exact Std.ExtTreeMap.find?_congr σ hcmp'
     have hcode' : acc.code = (σ.findD query default).code := by
-      simpa [Batteries.RBMap.findD, hquery] using hcode
-    simp [Batteries.RBMap.findD, hfind, hcode']
+      simpa [Std.ExtTreeMap.findD, hquery] using hcode
+    simp [Std.ExtTreeMap.findD, hfind, hcode']
   · have hfind : (σ.insert addr acc).find? query = σ.find? query := by
-      exact Batteries.RBMap.find?_insert_of_ne σ hcmp
-    simp [Batteries.RBMap.findD, hfind]
+      exact Std.ExtTreeMap.find?_insert_of_ne σ hcmp
+    simp [Std.ExtTreeMap.findD, hfind]
 
 theorem accountCodeStateEq_debit_if_present
     (σ : AccountMap) (addr : AccountAddress) (value : UInt256) :
@@ -156,7 +154,7 @@ theorem accountCodeStateEq_debit_if_present
   | some acc =>
       simp
       exact accountCodeStateEq_insert_preserve σ addr { acc with balance := acc.balance - value }
-        (by simp [Batteries.RBMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.findD, hfind])
 
 theorem sendEth_accountStorageStateEq
     (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) :
@@ -184,14 +182,14 @@ theorem sendEth_accountStorageStateEq
           by_cases hv : (v != UInt256.ofNat 0) = true
           · simp [hv]
             apply accountStorageStateEq_insert_preserve
-            · simp [Batteries.RBMap.findD, hr]
-            · simp [Batteries.RBMap.findD, hr]
+            · simp [Std.ExtTreeMap.findD, hr]
+            · simp [Std.ExtTreeMap.findD, hr]
           · simp [hv]
       | some acc =>
           simp
           apply accountStorageStateEq_insert_preserve
-          · simp [Batteries.RBMap.findD, hr]
-          · simp [Batteries.RBMap.findD, hr]
+          · simp [Std.ExtTreeMap.findD, hr]
+          · simp [Std.ExtTreeMap.findD, hr]
     simpa [σ₁] using accountStorageStateEq_trans hσ₁
       (accountStorageStateEq_debit_if_present σ₁ s v)
   · simp [hz]
@@ -222,12 +220,12 @@ theorem sendEth_accountCodeStateEq
           by_cases hv : (v != UInt256.ofNat 0) = true
           · simp [hv]
             apply accountCodeStateEq_insert_preserve
-            simp [Batteries.RBMap.findD, hr]
+            simp [Std.ExtTreeMap.findD, hr]
           · simp [hv]
       | some acc =>
           simp
           apply accountCodeStateEq_insert_preserve
-          simp [Batteries.RBMap.findD, hr]
+          simp [Std.ExtTreeMap.findD, hr]
     simpa [σ₁] using accountCodeStateEq_trans hσ₁
       (accountCodeStateEq_debit_if_present σ₁ s v)
   · simp [hz]
@@ -243,7 +241,7 @@ theorem accountStorageStateEq_final_of_empty_or_self {σ τ ρ : AccountMap}
     (hστ : accountStorageStateEq σ τ) (hρ : ρ = ∅ ∨ ρ = τ) :
     accountStorageStateEq σ (if ρ == ∅ then σ else ρ) := by
   rcases hρ with rfl | rfl
-  · simp [rbMap_empty_beq_empty]
+  · simp
   · by_cases hempty : (ρ == ∅) = true
     · simp [hempty]
     · simp [hempty, hστ]
@@ -252,7 +250,7 @@ theorem accountCodeStateEq_final_of_empty_or_self {σ τ ρ : AccountMap}
     (hστ : accountCodeStateEq σ τ) (hρ : ρ = ∅ ∨ ρ = τ) :
     accountCodeStateEq σ (if ρ == ∅ then σ else ρ) := by
   rcases hρ with rfl | rfl
-  · simp [rbMap_empty_beq_empty]
+  · simp
   · by_cases hempty : (ρ == ∅) = true
     · simp [hempty]
     · simp [hempty, hστ]
@@ -581,6 +579,76 @@ theorem stateStaticStateEq_of_accountMap_eq {state state' : State}
     (h : state'.accountMap = state.accountMap) :
     stateStaticStateEq state state' := by
   simp [stateStaticStateEq, h]
+
+theorem Z_ok_eq_charged_cost {validJumps : Array UInt256} {instr : Operation}
+    {state stateZ : State} {cost : ℕ}
+    (hZ : Z validJumps instr state = .ok (stateZ, cost)) :
+    let charged : State :=
+      { state with machineState.gasAvailable :=
+          state.machineState.gasAvailable.subNat (memoryExpansionCost state instr) }
+    stateZ = charged ∧ cost = C' charged instr := by
+  intro charged
+  unfold Z at hZ
+  by_cases hδ : δ instr = none
+  · rw [if_pos hδ] at hZ
+    contradiction
+  rw [if_neg hδ] at hZ
+  by_cases hstack : state.machineState.stack.length < (δ instr).getD 0
+  · rw [if_pos hstack] at hZ
+    contradiction
+  rw [if_neg hstack] at hZ
+  by_cases hcost₁ : state.machineState.gasAvailable.toNat < memoryExpansionCost state instr
+  · rw [if_pos hcost₁] at hZ
+    contradiction
+  rw [if_neg hcost₁] at hZ
+  by_cases hcost₂ : charged.machineState.gasAvailable.toNat < C' charged instr
+  · rw [if_pos (by simpa [charged] using hcost₂)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hcost₂)] at hZ
+  by_cases hjump :
+      instr = Operation.JUMP ∧ Z.notIn charged.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [charged] using hjump)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hjump)] at hZ
+  by_cases hjumpi :
+      instr = Operation.JUMPI ∧ charged.machineState.stack[1]? ≠ some ⟨0⟩ ∧
+        Z.notIn charged.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [charged] using hjumpi)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hjumpi)] at hZ
+  by_cases hreturndata :
+      instr = Operation.RETURNDATACOPY ∧
+        (charged.machineState.stack.getD 1 ⟨0⟩).toNat +
+          (charged.machineState.stack.getD 2 ⟨0⟩).toNat >
+            charged.machineState.returnData.size
+  · rw [if_pos (by simpa [charged] using hreturndata)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hreturndata)] at hZ
+  by_cases hstackover :
+      charged.machineState.stack.length - (δ instr).getD 0 + (α instr).getD 0 > 1024
+  · rw [if_pos (by simpa [charged] using hstackover)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hstackover)] at hZ
+  by_cases hstatic :
+      (¬ charged.executionEnv.perm) ∧
+        (instr ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2,
+          .LOG3, .LOG4, .TSTORE] ∨
+          (instr = .CALL ∧ charged.machineState.stack[2]? ≠ some ⟨0⟩))
+  · rw [if_pos (by simpa [charged] using hstatic)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hstatic)] at hZ
+  by_cases hsstore :
+      (instr = .SSTORE) ∧ charged.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend
+  · rw [if_pos (by simpa [charged] using hsstore)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hsstore)] at hZ
+  by_cases hcreate :
+      instr.isCreate ∧ charged.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
+  · rw [if_pos (by simpa [charged] using hcreate)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hcreate)] at hZ
+  simp at hZ
+  exact ⟨hZ.1.symm, hZ.2.symm⟩
 
 theorem Z_static_stateStaticStateEq
     {validJumps : Array UInt256} {op : Operation} {state stateZ : State}
