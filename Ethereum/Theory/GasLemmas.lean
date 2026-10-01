@@ -1304,10 +1304,10 @@ lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
     simp
 
 set_option maxHeartbeats 800000 in
-theorem Theta_gas_le {blobVersionedHashes blocks σ σ₀ A s o r c
-    g p v v' d e H w} :
-    (Θ (blobVersionedHashes := blobVersionedHashes) (blocks := blocks) σ σ₀ A s o r c
-      g p v v' d e H w).2.1.toNat ≤ g.toNat := by
+theorem Theta_gas_le {σ σ₀ A s o r c g p v v' d e H
+    blobVersionedHashes blocks w} :
+    (Θ σ σ₀ A s o r c
+      g p v v' d e H blobVersionedHashes blocks w).2.1.toNat ≤ g.toNat := by
   cases c with
   | Code code =>
       unfold Θ

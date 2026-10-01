@@ -419,7 +419,6 @@ lemma X_revert_output_size_lt_uint256 {fuel : Nat} {validJumps : Array UInt256}
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_success_output_size_le_maxReturnDataSizeByGas
-
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
@@ -444,7 +443,6 @@ lemma Xi_success_output_size_le_maxReturnDataSizeByGas
           simp [hx] at h
 
 lemma Xi_success_output_size_lt_uint256
-
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
@@ -455,7 +453,6 @@ lemma Xi_success_output_size_lt_uint256
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
-
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
     (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
@@ -478,7 +475,6 @@ lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
           exact hout
 
 lemma Xi_revert_output_size_lt_uint256
-
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
     (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
@@ -630,11 +626,12 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
         σ σStar σ₀ g A AStar exEnv))
 
 lemma lambda_projection_output_size_lt_uint256
-    (blobVersionedHashes : List ByteArray)
- (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
     (g p v : UInt256) (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray)
-    (H : BlockHeader) (w : Bool) :
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
     (Lambda σ σ₀ A
       s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
@@ -643,12 +640,12 @@ lemma lambda_projection_output_size_lt_uint256
     maxReturnDataSizeByGas_lt_uint256
 
 lemma lambda_output_size_eq_zero_of_success
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
     (h : Lambda σ σ₀ A
@@ -665,12 +662,12 @@ lemma lambda_output_size_eq_zero_of_success
     rfl
 
 lemma lambda_output_size_le_zero_of_success
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
     (h : Lambda σ σ₀ A
@@ -679,11 +676,12 @@ lemma lambda_output_size_le_zero_of_success
   exact Nat.le_of_eq (lambda_output_size_eq_zero_of_success h)
 
 lemma lambda_projection_output_size_eq_zero_of_success
-    (blobVersionedHashes : List ByteArray)
- (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
     (g p v : UInt256) (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hz :
       (Lambda σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.1 = true) :
@@ -709,12 +707,12 @@ lemma lambda_projection_output_size_eq_zero_of_success
       rw [← hz])
 
 lemma lambda_output_size_le_maxReturnDataSizeByGas
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Lambda σ σ₀ A
@@ -733,12 +731,12 @@ lemma lambda_output_size_le_maxReturnDataSizeByGas
     σ σ₀ A s o g p v i e ζ H blobVersionedHashes blocks w
 
 lemma lambda_output_size_lt_uint256
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Lambda σ σ₀ A
@@ -783,11 +781,12 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
       (Xi_tuple_match_output_size_le_maxReturnDataSizeByGas σ₁ σ₀ g A I))
 
 lemma theta_code_projection_output_size_lt_uint256
-    (blobVersionedHashes : List ByteArray)
- (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (code d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool) :
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
     (Θ σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
@@ -797,12 +796,12 @@ lemma theta_code_projection_output_size_lt_uint256
     maxReturnDataSizeByGas_lt_uint256
 
 lemma theta_code_output_size_le_maxReturnDataSizeByGas
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {code d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w =
@@ -819,12 +818,12 @@ lemma theta_code_output_size_le_maxReturnDataSizeByGas
     code d g p v v' e H blobVersionedHashes blocks w
 
 lemma theta_code_output_size_lt_uint256
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {code d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w =
@@ -835,12 +834,12 @@ lemma theta_code_output_size_lt_uint256
     maxReturnDataSizeByGas_lt_uint256
 
 lemma theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (hnot : r ∉ π)
     (h : Θ σ σ₀ A s o r
@@ -858,12 +857,12 @@ lemma theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas
       exact theta_code_output_size_le_maxReturnDataSizeByGas h
 
 lemma theta_toExecute_nonprecompile_output_size_lt_uint256
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (hnot : r ∉ π)
     (h : Θ σ σ₀ A s o r
@@ -1363,12 +1362,12 @@ private lemma theta_precompiled_output_eq
   rfl
 
 lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
     Θ σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
@@ -1394,12 +1393,12 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
   simpa [I] using hdispatch
 
 lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {blocks : ProcessedBlocks}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
     Θ σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
@@ -1412,12 +1411,12 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas
     (max_le le_rfl hd)
 
 lemma theta_precompiled_output_size_lt_uint256
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
     Θ σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
@@ -1430,12 +1429,12 @@ lemma theta_precompiled_output_size_lt_uint256
     (max_lt maxReturnDataSizeByGas_lt_uint256 hd)
 
 lemma theta_output_size_le_maxReturnDataSizeByGas_or_calldata
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {c : ToExecute} {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w =
@@ -1450,12 +1449,12 @@ lemma theta_output_size_le_maxReturnDataSizeByGas_or_calldata
       exact theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata (blocks := blocks) h
 
 lemma theta_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {blocks : ProcessedBlocks}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {c : ToExecute} {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w =
@@ -1469,12 +1468,12 @@ lemma theta_output_size_le_maxReturnDataSizeByGas
       exact theta_precompiled_output_size_le_maxReturnDataSizeByGas h hd
 
 lemma theta_output_size_lt_uint256
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {c : ToExecute} {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w =
@@ -1486,12 +1485,12 @@ lemma theta_output_size_lt_uint256
     (max_lt maxReturnDataSizeByGas_lt_uint256 hd)
 
 lemma theta_toExecute_output_size_le_maxReturnDataSizeByGas
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
@@ -1501,12 +1500,12 @@ lemma theta_toExecute_output_size_le_maxReturnDataSizeByGas
   exact theta_output_size_le_maxReturnDataSizeByGas h hd
 
 lemma theta_toExecute_output_size_lt_uint256
-    {blocks : ProcessedBlocks}
-    {blobVersionedHashes : List ByteArray}
-
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (h : Θ σ σ₀ A s o r
         (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
@@ -1572,11 +1571,12 @@ lemma theta_projection_output_size_lt_uint256
     rfl hd
 
 lemma theta_toExecute_projection_output_size_le_maxReturnDataSizeByGas
-    (blobVersionedHashes : List ByteArray)
- (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hd : d.size ≤ maxReturnDataSizeByGas) :
     (Θ σ σ₀ A s o r
         (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
