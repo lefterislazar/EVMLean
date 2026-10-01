@@ -34,7 +34,6 @@ structure State where
   machineState        : MachineState
   blocks              : ProcessedBlocks
   genesisBlockHeader  : BlockHeader
-  createdAccounts     : Batteries.RBSet AccountAddress compare
 deriving Inhabited
 
 inductive ExecutionResult (S : Type) where

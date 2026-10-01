@@ -45,6 +45,7 @@ The `Substate` `A`. Section 6.1.
 - `accessedAccounts`   `Aₐ`
 - `accessedStorageKey` `Aₖ`
 - `logSeries`          `Aₗ`
+- `createdAccounts`    addresses created during this transaction
 -/
 structure Substate where
   selfDestructSet     : Batteries.RBSet AccountAddress compare
@@ -53,10 +54,12 @@ structure Substate where
   accessedAccounts    : Batteries.RBSet AccountAddress compare
   accessedStorageKeys : Batteries.RBSet (AccountAddress × UInt256) Substate.storageKeysCmp
   logSeries           : LogSeries
+  createdAccounts     : Batteries.RBSet AccountAddress compare
   deriving BEq, Inhabited, Repr
 
 /--
-  (63) `A0 ≡ (∅, (), ∅, 0, π, ∅)`
+  (63) `A0 ≡ (∅, (), ∅, 0, π, ∅)` for the original substate fields.
+  `createdAccounts` starts empty.
 -/
 def A0 : Substate := { (default : Substate) with accessedAccounts := π }
 

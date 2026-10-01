@@ -3956,17 +3956,17 @@ theorem step_call : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
                 Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
+                  (genesisBlockHeader := s.genesisBlockHeader)
                   (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -3985,7 +3985,6 @@ theorem step_call : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4106,17 +4105,17 @@ theorem step_call' : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
                 Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
+                  (genesisBlockHeader := s.genesisBlockHeader)
                   (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4135,7 +4134,6 @@ theorem step_call' : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4168,17 +4166,17 @@ theorem step_callcode : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
                 Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
+                  (genesisBlockHeader := s.genesisBlockHeader)
                   (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4197,7 +4195,6 @@ theorem step_callcode : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4312,17 +4309,17 @@ theorem step_delegatecall : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
                 Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
+                  (genesisBlockHeader := s.genesisBlockHeader)
                   (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value') (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4341,7 +4338,6 @@ theorem step_delegatecall : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4452,17 +4448,17 @@ theorem step_staticcall : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
                 Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
+                  (genesisBlockHeader := s.genesisBlockHeader)
                   (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := false)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4481,7 +4477,6 @@ theorem step_staticcall : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4596,14 +4591,14 @@ theorem step_create : ∀ (s : State),
             (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
           else
             if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
-              let (a, cA, σ', g', A', z, o) :=
-                Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
+              let (a, σ', g', A', z, o) :=
+                Lambda createState.executionEnv.blobVersionedHashes
                   createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
                   createState.executionEnv.header createState.executionEnv.perm
-              (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+              (a, {createState with accountMap := σ', substate := A'}, g', z, o)
             else
               (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
         let (a, state', g', z, o) := createResult
@@ -4731,14 +4726,14 @@ theorem step_create : ∀ (s : State),
                   else
                     if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
-                      let (a, cA, σ', g', A', z, o) :=
-                        Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
+                      let (a, σ', g', A', z, o) :=
+                        Lambda createState.executionEnv.blobVersionedHashes
                           createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
                           createState.executionEnv.header createState.executionEnv.perm
-                      (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+                      (a, {createState with accountMap := σ', substate := A'}, g', z, o)
                     else
                       (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
                 let g' := createResult.2.2.1
@@ -4911,14 +4906,14 @@ theorem step_create2 : ∀ (s : State),
             (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
           else
             if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
-              let (a, cA, σ', g', A', z, o) :=
-                Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
+              let (a, σ', g', A', z, o) :=
+                Lambda createState.executionEnv.blobVersionedHashes
                   createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
                   createState.executionEnv.header createState.executionEnv.perm
-              (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+              (a, {createState with accountMap := σ', substate := A'}, g', z, o)
             else
               (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
         let (a, state', g', z, o) := createResult
@@ -5049,14 +5044,14 @@ theorem step_create2 : ∀ (s : State),
                   else
                     if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
-                      let (a, cA, σ', g', A', z, o) :=
-                        Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
+                      let (a, σ', g', A', z, o) :=
+                        Lambda createState.executionEnv.blobVersionedHashes
                           createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
                           createState.executionEnv.header createState.executionEnv.perm
-                      (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+                      (a, {createState with accountMap := σ', substate := A'}, g', z, o)
                     else
                       (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
                 let g' := createResult.2.2.1
@@ -5214,7 +5209,7 @@ theorem step_selfdestruct : ∀ (s : State),
         let Iₐ := sdState.executionEnv.codeOwner
         let r := AccountAddress.ofUInt256 target
         let substate :=
-          if sdState.createdAccounts.contains Iₐ then
+          if sdState.substate.createdAccounts.contains Iₐ then
             {sdState.substate with
               selfDestructSet := sdState.substate.selfDestructSet.insert Iₐ
               accessedAccounts := sdState.substate.accessedAccounts.insert r}
@@ -5222,7 +5217,7 @@ theorem step_selfdestruct : ∀ (s : State),
             {sdState.substate with
               accessedAccounts := sdState.substate.accessedAccounts.insert r}
         let accountMap :=
-          if sdState.createdAccounts.contains Iₐ then
+          if sdState.substate.createdAccounts.contains Iₐ then
             match sdState.accountMap.find? Iₐ with
             | none => sdState.accountMap
             | some selfAcc =>
@@ -5325,8 +5320,8 @@ theorem step_selfdestruct : ∀ (s : State),
               simp [Id.run, Stack.pop, Ethereum.State.replaceStackAndIncrPC,
                 Ethereum.State.incrPC, Ethereum.State.lookupAccount,
                 gasCost, sdState, Iₐ, r]
-              cases hcreated : s.createdAccounts.contains s.executionEnv.codeOwner
-              · have hcreated_mem : ¬ s.executionEnv.codeOwner ∈ s.createdAccounts := by
+              cases hcreated : s.substate.createdAccounts.contains s.executionEnv.codeOwner
+              · have hcreated_mem : ¬ s.executionEnv.codeOwner ∈ s.substate.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :
@@ -5350,7 +5345,7 @@ theorem step_selfdestruct : ∀ (s : State),
                         chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
                     · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r, hgas0,
                         chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
-              · have hcreated_mem : s.executionEnv.codeOwner ∈ s.createdAccounts := by
+              · have hcreated_mem : s.executionEnv.codeOwner ∈ s.substate.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :

@@ -5,7 +5,7 @@ require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git"@"v4.29.0"
 
 package «evmlean» {
-  moreLeanArgs := #["-DautoImplicit=false"]
+  moreLeanArgs := #["-DautoImplicit=false", "-s", "65536"]
   moreServerOptions := #[⟨`autoImplicit, false⟩]
 }
 

@@ -968,7 +968,7 @@ def stateExtensionalEq (state₁ state₂ : State) : Prop :=
   state₁.machineState = state₂.machineState ∧
   state₁.blocks = state₂.blocks ∧
   state₁.genesisBlockHeader = state₂.genesisBlockHeader ∧
-  state₁.createdAccounts = state₂.createdAccounts
+  state₁.substate.createdAccounts = state₂.substate.createdAccounts
 
 theorem stateExtensionalEq_refl (state : State) :
     stateExtensionalEq state state := by
@@ -983,7 +983,7 @@ theorem stateExtensionalEq_addAccessedAccount {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, Ethereum.State.addAccessedAccount, hσ, hσ₀, hgas,
-    hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated]
+    hreceipts, hsub, henv, hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_addAccessedStorageKey {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (sk : AccountAddress × UInt256) :
@@ -993,7 +993,7 @@ theorem stateExtensionalEq_addAccessedStorageKey {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, Ethereum.State.addAccessedStorageKey, hσ, hσ₀, hgas,
-    hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated]
+    hreceipts, hsub, henv, hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_balance {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (k : UInt256) :
@@ -1101,7 +1101,7 @@ theorem stateExtensionalEq_calldatacopy {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [calldatacopy, stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub,
-    henv, hmachine, hblocks, hheader, hcreated]
+    henv, hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_codeCopy {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (mstart cstart size : UInt256) :
@@ -1111,7 +1111,7 @@ theorem stateExtensionalEq_codeCopy {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [codeCopy, stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv,
-    hmachine, hblocks, hheader, hcreated]
+    hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_extCodeCopy' {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂)
@@ -1120,9 +1120,9 @@ theorem stateExtensionalEq_extCodeCopy' {state₁ state₂ : State}
       (extCodeCopy' state₁ acc mstart cstart size)
       (extCodeCopy' state₂ acc mstart cstart size) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1134,7 +1134,6 @@ theorem stateExtensionalEq_extCodeCopy' {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let addr := AccountAddress.ofUInt256 acc
   have hcode :
       (σ₁.find? addr).option ByteArray.empty (fun account => account.code) =
@@ -1152,9 +1151,9 @@ theorem stateExtensionalEq_sload {state₁ state₂ : State}
     let r₂ := Ethereum.State.sload state₂ slot
     stateExtensionalEq r₁.1 r₂.1 ∧ r₁.2 = r₂.2 := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1166,7 +1165,6 @@ theorem stateExtensionalEq_sload {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [Ethereum.State.sload, Ethereum.State.lookupAccount]
   constructor
   · simp [stateExtensionalEq, Ethereum.State.addAccessedStorageKey, hσ]
@@ -1182,9 +1180,9 @@ theorem stateExtensionalEq_tload {state₁ state₂ : State}
     let r₂ := Ethereum.State.tload state₂ slot
     stateExtensionalEq r₁.1 r₂.1 ∧ r₁.2 = r₂.2 := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1196,7 +1194,6 @@ theorem stateExtensionalEq_tload {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [Ethereum.State.tload, Ethereum.State.lookupAccount]
   constructor
   · exact ⟨hσ, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
@@ -1216,7 +1213,7 @@ theorem stateExtensionalEq_setAccount {state₁ state₂ : State}
     hheader, hcreated⟩
   simp [stateExtensionalEq, Ethereum.State.setAccount,
     accountMapExtensionalEq_insert_same hσ hacc, hσ₀, hgas, hreceipts, hsub,
-    henv, hmachine, hblocks, hheader, hcreated]
+    henv, hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_updateAccount {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) {addr : AccountAddress}
@@ -1235,7 +1232,7 @@ theorem stateExtensionalEq_with_refundBalance {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine,
-    hblocks, hheader, hcreated]
+    hblocks, hheader]
 
 theorem stateExtensionalEq_tstore_insert {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (slot value : UInt256)
@@ -1244,9 +1241,9 @@ theorem stateExtensionalEq_tstore_insert {state₁ state₂ : State}
       (Ethereum.State.tstore state₁ slot value)
       (Ethereum.State.tstore state₂ slot value) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1258,7 +1255,6 @@ theorem stateExtensionalEq_tstore_insert {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [Ethereum.State.tstore, Ethereum.State.lookupAccount]
   have hσmap : accountMapExtensionalEq σ₁ σ₂ := hσ
   specialize hσ env₁.codeOwner
@@ -1288,9 +1284,9 @@ theorem stateExtensionalEq_tstore {state₁ state₂ : State}
       (Ethereum.State.tstore state₁ slot value)
       (Ethereum.State.tstore state₂ slot value) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1302,7 +1298,6 @@ theorem stateExtensionalEq_tstore {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [Ethereum.State.tstore, Ethereum.State.lookupAccount]
   have hσmap : accountMapExtensionalEq σ₁ σ₂ := hσ
   specialize hσ env₁.codeOwner
@@ -1330,9 +1325,9 @@ theorem stateExtensionalEq_sstore {state₁ state₂ : State}
       (Ethereum.State.sstore state₁ slot value)
       (Ethereum.State.sstore state₂ slot value) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1344,17 +1339,14 @@ theorem stateExtensionalEq_sstore {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   have hσmap : accountMapExtensionalEq σ₁ σ₂ := hσ
   have hstate : stateExtensionalEq
       ({ accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
          transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-         machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-         createdAccounts := created₁ } : State)
+         machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, } : State)
       ({ accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
          transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-         machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-         createdAccounts := created₁ } : State) := by
+         machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, } : State) := by
     exact ⟨hσmap, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hv : (σ₁.find! env₁.codeOwner).storage.findD slot ⟨0⟩ =
       (σ₂.find! env₁.codeOwner).storage.findD slot ⟨0⟩ :=
@@ -1381,13 +1373,11 @@ theorem stateExtensionalEq_sstore {state₁ state₂ : State}
           let base₁ : State :=
             ({ accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
                transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-               machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-               createdAccounts := created₁ } : State)
+               machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, } : State)
           let base₂ : State :=
             ({ accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
                transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-               machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-               createdAccounts := created₁ } : State)
+               machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, } : State)
           have hbase : stateExtensionalEq
               (Ethereum.State.setAccount base₁ env₁.codeOwner (acc₁.updateStorage slot value)
                 |>.addAccessedStorageKey (env₁.codeOwner, slot))
@@ -1403,9 +1393,9 @@ theorem stateExtensionalEq_Csstore {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     Csstore state₁ = Csstore state₂ := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1417,7 +1407,6 @@ theorem stateExtensionalEq_Csstore {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   have hv := accountMapExtensionalEq_find!_storage_findD hσ env₁.codeOwner
     (machine₁.stack[0]?.getD default) ⟨0⟩
   simp [Csstore]
@@ -1427,9 +1416,9 @@ theorem stateExtensionalEq_Cselfdestruct {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     Cselfdestruct state₁ = Cselfdestruct state₂ := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1441,7 +1430,6 @@ theorem stateExtensionalEq_Cselfdestruct {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [Cselfdestruct, accountMapExtensionalEq_dead hσ]
   specialize hσ env₁.codeOwner
   cases h₁ : σ₁.find? env₁.codeOwner <;>
@@ -1455,9 +1443,9 @@ theorem stateExtensionalEq_C' {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (instr : Operation) :
     C' state₁ instr = C' state₂ instr := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1469,7 +1457,6 @@ theorem stateExtensionalEq_C' {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases instr with
   | StopArith op =>
       cases op <;> simp [C']
@@ -1487,13 +1474,11 @@ theorem stateExtensionalEq_C' {state₁ state₂ : State}
         (state₁ :=
           { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
             transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-            createdAccounts := created₁ })
+            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, })
         (state₂ :=
           { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
             transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-            createdAccounts := created₁ })
+            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, })
         ⟨hσ, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   | Push op =>
       cases op <;> simp [C']
@@ -1509,22 +1494,20 @@ theorem stateExtensionalEq_C' {state₁ state₂ : State}
         (state₁ :=
           { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
             transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-            createdAccounts := created₁ })
+            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, })
         (state₂ :=
           { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
             transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-            createdAccounts := created₁ })
+            machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, })
         ⟨hσ, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem stateExtensionalEq_memoryExpansionCost {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (instr : Operation) :
     memoryExpansionCost state₁ instr = memoryExpansionCost state₂ instr := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨_hσ, _hσ₀, _hgas, _hreceipts, _hsub, _henv, hmachine,
     _hblocks, _hheader, _hcreated⟩
@@ -1544,7 +1527,7 @@ theorem stateExtensionalEq_subtract_memoryExpansionCost {state₁ state₂ : Sta
     ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
     instr
   simp [stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine,
-    hblocks, hheader, hcreated, hmem]
+    hblocks, hheader, hmem]
 
 theorem stateExtensionalEq_Z_charged_cost {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (instr : Operation) :
@@ -1567,7 +1550,7 @@ theorem stateExtensionalEq_with_machineState {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, _hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv, hblocks,
-    hheader, hcreated]
+    hheader]
 
 theorem stateExtensionalEq_step_charged {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (gasCost : Nat) :
@@ -1587,7 +1570,7 @@ theorem stateExtensionalEq_step_charged {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine,
-    hblocks, hheader, hcreated]
+    hblocks, hheader]
 
 theorem stateExtensionalEq_setReturnData {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (r : ByteArray) :
@@ -1597,7 +1580,7 @@ theorem stateExtensionalEq_setReturnData {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, MachineState.setReturnData, hσ, hσ₀, hgas, hreceipts,
-    hsub, henv, hmachine, hblocks, hheader, hcreated]
+    hsub, henv, hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_with_executionEnv {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) {env : ExecutionEnv} :
@@ -1607,7 +1590,7 @@ theorem stateExtensionalEq_with_executionEnv {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, _henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, hmachine, hblocks,
-    hheader, hcreated]
+    hheader]
 
 theorem stateExtensionalEq_with_executionEnv_depth {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) {depth : Fin 1025} :
@@ -1617,7 +1600,7 @@ theorem stateExtensionalEq_with_executionEnv_depth {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine,
-    hblocks, hheader, hcreated]
+    hblocks, hheader]
 
 theorem stateExtensionalEq_incrPC {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (pcΔ : Nat := 1) :
@@ -1627,7 +1610,7 @@ theorem stateExtensionalEq_incrPC {state₁ state₂ : State}
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
   simp [stateExtensionalEq, Ethereum.State.incrPC, hσ, hσ₀, hgas, hreceipts,
-    hsub, henv, hmachine, hblocks, hheader, hcreated]
+    hsub, henv, hmachine, hblocks, hheader]
 
 theorem stateExtensionalEq_replaceStackAndIncrPC {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (stack : Stack UInt256) (pcΔ : Nat := 1) :
@@ -1638,7 +1621,7 @@ theorem stateExtensionalEq_replaceStackAndIncrPC {state₁ state₂ : State}
     hheader, hcreated⟩
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
     stateExtensionalEq, hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
-    hheader, hcreated]
+    hheader]
 
 def exceptStateExtensionalEq
     (r₁ r₂ : Except EVM.ExecutionException State) : Prop :=
@@ -1689,12 +1672,12 @@ def exceptExecutionResultStateExtensionalEq
 
 def executionResultXiExtensionalEq
     (r₁ r₂ :
-      ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)) :
+      ExecutionResult (AccountMap × UInt256 × Substate)) :
     Prop :=
   match r₁, r₂ with
-  | .success (created₁, σ₁, gas₁, substate₁) out₁,
-    .success (created₂, σ₂, gas₂, substate₂) out₂ =>
-      created₁ = created₂ ∧ accountMapExtensionalEq σ₁ σ₂ ∧ gas₁ = gas₂ ∧
+  | .success (σ₁, gas₁, substate₁) out₁,
+    .success (σ₂, gas₂, substate₂) out₂ =>
+      accountMapExtensionalEq σ₁ σ₂ ∧ gas₁ = gas₂ ∧
         substate₁ = substate₂ ∧ out₁ = out₂
   | .revert gas₁ out₁, .revert gas₂ out₂ =>
       gas₁ = gas₂ ∧ out₁ = out₂
@@ -1703,7 +1686,7 @@ def executionResultXiExtensionalEq
 def exceptExecutionResultXiExtensionalEq
     (r₁ r₂ :
       Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
+        (ExecutionResult (AccountMap × UInt256 × Substate))) :
     Prop :=
   match r₁, r₂ with
   | .ok result₁, .ok result₂ => executionResultXiExtensionalEq result₁ result₂
@@ -1806,9 +1789,9 @@ theorem Z_extensional {state₁ state₂ : State} {validJumps : Array UInt256} {
     (h : stateExtensionalEq state₁ state₂) :
     exceptStateCostExtensionalEq (Z validJumps instr state₁) (Z validJumps instr state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1820,17 +1803,14 @@ theorem Z_extensional {state₁ state₂ : State} {validJumps : Array UInt256} {
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let s₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let s₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   have hs : stateExtensionalEq s₁ s₂ := by
     simp [s₁, s₂, stateExtensionalEq, hσ]
   have hmem := stateExtensionalEq_memoryExpansionCost hs instr
@@ -1957,9 +1937,9 @@ theorem Xstep_extensional_of_step {state₁ state₂ : State} {validJumps : Arra
             (step cost instr {stateZ₂ with executionEnv.depth := state₂.executionEnv.depth})) :
     exceptStateRetExtensionalEq (Xstep validJumps state₁) (Xstep validJumps state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -1971,17 +1951,14 @@ theorem Xstep_extensional_of_step {state₁ state₂ : State} {validJumps : Arra
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let s₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let s₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   have hs : stateExtensionalEq s₁ s₂ := by
     simp [s₁, s₂, stateExtensionalEq, hσ]
   set instr : Operation × Option (UInt256 × Nat) :=
@@ -2144,7 +2121,6 @@ theorem X_extensional_of_Xstep {state₁ state₂ : State} {validJumps : Array U
                         hnext_ret.1]
 
 theorem Xi_extensional_of_Xstep
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader}
     {blocks : ProcessedBlocks}
     {σ₁ σ₂ σ₀ : AccountMap}
@@ -2156,15 +2132,14 @@ theorem Xi_extensional_of_Xstep
       stateExtensionalEq state₁ state₂ →
         exceptStateRetExtensionalEq (Xstep (D_J I.code 0) state₁) (Xstep (D_J I.code 0) state₂)) :
     exceptExecutionResultXiExtensionalEq
-      (Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I)
-      (Ξ createdAccounts genesisBlockHeader blocks σ₂ σ₀ g A I) := by
+      (Ξ genesisBlockHeader blocks σ₁ σ₀ g A I)
+      (Ξ genesisBlockHeader blocks σ₂ σ₀ g A I) := by
   let fresh₁ : State :=
     { (default : State) with
       accountMap := σ₁
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
       blocks := blocks
       genesisBlockHeader := genesisBlockHeader }
@@ -2174,7 +2149,6 @@ theorem Xi_extensional_of_Xstep
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
       blocks := blocks
       genesisBlockHeader := genesisBlockHeader }
@@ -2235,7 +2209,7 @@ theorem Xi_extensional_of_Xstep
                   rw [hsucc.2]
                   simp [bind, Except.bind, exceptExecutionResultXiExtensionalEq,
                     executionResultXiExtensionalEq]
-                  exact ⟨hcreated, hmap,
+                  exact ⟨hmap,
                     congrArg (fun machine : MachineState => machine.gasAvailable.toUInt256) hmachine,
                     hsub⟩
 
@@ -2324,7 +2298,6 @@ theorem X_extensional_of_Xstep_at_depth {state₁ state₂ : State} {validJumps 
                         hnext_ret.1]
 
 theorem Xi_extensional_of_Xstep_at_depth
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader}
     {blocks : ProcessedBlocks}
     {σ₁ σ₂ σ₀ : AccountMap}
@@ -2338,15 +2311,14 @@ theorem Xi_extensional_of_Xstep_at_depth
       1024 - state₁.executionEnv.depth.val = n + 1 →
         exceptStateRetExtensionalEq (Xstep (D_J I.code 0) state₁) (Xstep (D_J I.code 0) state₂)) :
     exceptExecutionResultXiExtensionalEq
-      (Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I)
-      (Ξ createdAccounts genesisBlockHeader blocks σ₂ σ₀ g A I) := by
+      (Ξ genesisBlockHeader blocks σ₁ σ₀ g A I)
+      (Ξ genesisBlockHeader blocks σ₂ σ₀ g A I) := by
   let fresh₁ : State :=
     { (default : State) with
       accountMap := σ₁
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
       blocks := blocks
       genesisBlockHeader := genesisBlockHeader }
@@ -2356,7 +2328,6 @@ theorem Xi_extensional_of_Xstep_at_depth
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
       blocks := blocks
       genesisBlockHeader := genesisBlockHeader }
@@ -2419,7 +2390,7 @@ theorem Xi_extensional_of_Xstep_at_depth
                   rw [hsucc.2]
                   simp [bind, Except.bind, exceptExecutionResultXiExtensionalEq,
                     executionResultXiExtensionalEq]
-                  exact ⟨hcreated, hmap,
+                  exact ⟨hmap,
                     congrArg (fun machine : MachineState => machine.gasAvailable.toUInt256) hmachine,
                     hsub⟩
 
@@ -2465,9 +2436,9 @@ theorem execUnOp_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (f : Primop.Unary) :
     exceptStateExtensionalEq (execUnOp f state₁) (execUnOp f state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2479,7 +2450,6 @@ theorem execUnOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [execUnOp, hpop, exceptStateExtensionalEq]
@@ -2493,9 +2463,9 @@ theorem execBinOp_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (f : Primop.Binary) :
     exceptStateExtensionalEq (execBinOp f state₁) (execBinOp f state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2507,7 +2477,6 @@ theorem execBinOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop2 with
   | none =>
       simp [execBinOp, hpop, exceptStateExtensionalEq]
@@ -2521,9 +2490,9 @@ theorem execTriOp_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (f : Primop.Ternary) :
     exceptStateExtensionalEq (execTriOp f state₁) (execTriOp f state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2535,7 +2504,6 @@ theorem execTriOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop3 with
   | none =>
       simp [execTriOp, hpop, exceptStateExtensionalEq]
@@ -2549,9 +2517,9 @@ theorem executionEnvOp_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (op : ExecutionEnv → UInt256) :
     exceptStateExtensionalEq (executionEnvOp op state₁) (executionEnvOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2563,7 +2531,6 @@ theorem executionEnvOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [executionEnvOp, exceptStateExtensionalEq]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
     stateExtensionalEq, hσ]
@@ -2634,9 +2601,9 @@ theorem machineStateOp_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (op : MachineState → UInt256) :
     exceptStateExtensionalEq (machineStateOp op state₁) (machineStateOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2648,7 +2615,6 @@ theorem machineStateOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [machineStateOp, exceptStateExtensionalEq]
   simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
     stateExtensionalEq, hσ]
@@ -2659,9 +2625,9 @@ theorem unaryExecutionEnvOp_extensional {state₁ state₂ : State}
     exceptStateExtensionalEq
       (unaryExecutionEnvOp op state₁) (unaryExecutionEnvOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2673,7 +2639,6 @@ theorem unaryExecutionEnvOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [unaryExecutionEnvOp, hpop, exceptStateExtensionalEq]
@@ -2688,9 +2653,9 @@ theorem stateOp_extensional {state₁ state₂ : State}
     (hop : op state₁ = op state₂) :
     exceptStateExtensionalEq (stateOp op state₁) (stateOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2702,7 +2667,6 @@ theorem stateOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [stateOp, exceptStateExtensionalEq] at hop ⊢
   simp [hop, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
     stateExtensionalEq, hσ]
@@ -2716,9 +2680,9 @@ theorem unaryStateOp_extensional {state₁ state₂ : State}
       stateExtensionalEq r₁.1 r₂.1 ∧ r₁.2 = r₂.2) :
     exceptStateExtensionalEq (unaryStateOp op state₁) (unaryStateOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2730,7 +2694,6 @@ theorem unaryStateOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [unaryStateOp, hpop, exceptStateExtensionalEq]
@@ -2742,8 +2705,7 @@ theorem unaryStateOp_extensional {state₁ state₂ : State}
       let state₂' : State :=
         { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := gas₁,
           transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-          machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-          createdAccounts := created₁ }
+          machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
       exact stateExtensionalEq_replaceStackAndIncrPC hopμ.1
         (stack.push (op state₂' μ₀).2)
 
@@ -2754,9 +2716,9 @@ theorem binaryStateOp_extensional {state₁ state₂ : State}
       stateExtensionalEq (op state₁ value₁ value₂) (op state₂ value₁ value₂)) :
     exceptStateExtensionalEq (binaryStateOp op state₁) (binaryStateOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2768,7 +2730,6 @@ theorem binaryStateOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop2 with
   | none =>
       simp [binaryStateOp, hpop, exceptStateExtensionalEq]
@@ -2784,9 +2745,9 @@ theorem binaryMachineStateOp_extensional {state₁ state₂ : State}
     exceptStateExtensionalEq
       (binaryMachineStateOp op state₁) (binaryMachineStateOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2798,7 +2759,6 @@ theorem binaryMachineStateOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop2 with
   | none =>
       simp [binaryMachineStateOp, hpop, exceptStateExtensionalEq]
@@ -2814,9 +2774,9 @@ theorem binaryMachineStateOp'_extensional {state₁ state₂ : State}
     exceptStateExtensionalEq
       (binaryMachineStateOp' op state₁) (binaryMachineStateOp' op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2828,7 +2788,6 @@ theorem binaryMachineStateOp'_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop2 with
   | none =>
       simp [binaryMachineStateOp', hpop, exceptStateExtensionalEq]
@@ -2864,9 +2823,9 @@ theorem ternaryMachineStateOp_extensional {state₁ state₂ : State}
     exceptStateExtensionalEq
       (ternaryMachineStateOp op state₁) (ternaryMachineStateOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2878,7 +2837,6 @@ theorem ternaryMachineStateOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop3 with
   | none =>
       simp [ternaryMachineStateOp, hpop, exceptStateExtensionalEq]
@@ -2896,9 +2854,9 @@ theorem ternaryCopyOp_extensional {state₁ state₂ : State}
         (op state₂ value₁ value₂ value₃)) :
     exceptStateExtensionalEq (ternaryCopyOp op state₁) (ternaryCopyOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2910,7 +2868,6 @@ theorem ternaryCopyOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop3 with
   | none =>
       simp [ternaryCopyOp, hpop, exceptStateExtensionalEq]
@@ -2929,9 +2886,9 @@ theorem quaternaryCopyOp_extensional {state₁ state₂ : State}
     exceptStateExtensionalEq
       (quaternaryCopyOp op state₁) (quaternaryCopyOp op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2943,7 +2900,6 @@ theorem quaternaryCopyOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop4 with
   | none =>
       simp [quaternaryCopyOp, hpop, exceptStateExtensionalEq]
@@ -2957,9 +2913,9 @@ theorem evmLogOp_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (μ₀ μ₁ : UInt256) (t : Array UInt256) :
     stateExtensionalEq (evmLogOp state₁ μ₀ μ₁ t) (evmLogOp state₂ μ₀ μ₁ t) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2971,16 +2927,15 @@ theorem evmLogOp_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   simp [evmLogOp, logOp, stateExtensionalEq, hσ]
 
 theorem log0Op_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     exceptStateExtensionalEq (log0Op state₁) (log0Op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -2992,7 +2947,6 @@ theorem log0Op_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop2 with
   | none =>
       simp [log0Op, hpop, exceptStateExtensionalEq]
@@ -3007,9 +2961,9 @@ theorem log1Op_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     exceptStateExtensionalEq (log1Op state₁) (log1Op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3021,7 +2975,6 @@ theorem log1Op_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop3 with
   | none =>
       simp [log1Op, hpop, exceptStateExtensionalEq]
@@ -3036,9 +2989,9 @@ theorem log2Op_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     exceptStateExtensionalEq (log2Op state₁) (log2Op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3050,7 +3003,6 @@ theorem log2Op_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop4 with
   | none =>
       simp [log2Op, hpop, exceptStateExtensionalEq]
@@ -3066,9 +3018,9 @@ theorem log3Op_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     exceptStateExtensionalEq (log3Op state₁) (log3Op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3080,7 +3032,6 @@ theorem log3Op_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop5 with
   | none =>
       simp [log3Op, hpop, exceptStateExtensionalEq]
@@ -3096,9 +3047,9 @@ theorem log4Op_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) :
     exceptStateExtensionalEq (log4Op state₁) (log4Op state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3110,7 +3061,6 @@ theorem log4Op_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop6 with
   | none =>
       simp [log4Op, hpop, exceptStateExtensionalEq]
@@ -3126,9 +3076,9 @@ theorem dup_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (n : ℕ) :
     exceptStateExtensionalEq (dup n state₁) (dup n state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3140,7 +3090,6 @@ theorem dup_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   by_cases hlen : n ≤ machine₁.stack.length
   · simp [dup, hlen, exceptStateExtensionalEq]
     exact stateExtensionalEq_replaceStackAndIncrPC
@@ -3151,9 +3100,9 @@ theorem swap_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (n : ℕ) :
     exceptStateExtensionalEq (swap n state₁) (swap n state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3165,7 +3114,6 @@ theorem swap_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   by_cases hlen : n + 1 ≤ machine₁.stack.length
   · simp [swap, hlen, exceptStateExtensionalEq]
     exact stateExtensionalEq_replaceStackAndIncrPC
@@ -3188,9 +3136,9 @@ theorem mload_step_extensional {state₁ state₂ : State}
             .ok <| evmState'.replaceStackAndIncrPC (s.push v)
         | _ => .error .StackUnderflow) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3202,7 +3150,6 @@ theorem mload_step_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [exceptStateExtensionalEq]
@@ -3228,9 +3175,9 @@ theorem returndatacopy_step_extensional {state₁ state₂ : State}
             .ok <| evmState'.replaceStackAndIncrPC stack'
         | _ => .error .StackUnderflow) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3242,7 +3189,6 @@ theorem returndatacopy_step_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop3 with
   | none =>
       simp [exceptStateExtensionalEq]
@@ -3359,9 +3305,9 @@ theorem pop_step_extensional {state₁ state₂ : State}
         | some ⟨s, _⟩ => .ok <| state₂.replaceStackAndIncrPC s
         | _ => .error .StackUnderflow) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3373,7 +3319,6 @@ theorem pop_step_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [exceptStateExtensionalEq]
@@ -3397,9 +3342,9 @@ theorem jump_step_extensional {state₁ state₂ : State}
             .ok <| {state₂ with machineState.pc := newPc, machineState.stack := stack}
         | _ => .error .StackUnderflow) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3411,7 +3356,6 @@ theorem jump_step_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [exceptStateExtensionalEq]
@@ -3433,9 +3377,9 @@ theorem jumpi_step_extensional {state₁ state₂ : State}
             .ok <| {state₂ with machineState.pc := newPc, machineState.stack := stack}
         | _ => .error .StackUnderflow) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks,
     hheader, hcreated⟩
@@ -3447,7 +3391,6 @@ theorem jumpi_step_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop2 with
   | none =>
       simp [exceptStateExtensionalEq]
@@ -3487,9 +3430,8 @@ theorem step_stackmemflow_extensional {state₁ state₂ : State}
   · simp [exceptStateExtensionalEq]
     rcases h with ⟨hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine, hblocks, hheader,
       hcreated⟩
-    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-      stateExtensionalEq, hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine, hblocks,
-      hheader, hcreated]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, stateExtensionalEq,
+      hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine, hblocks, hheader]
   · exact machineStateOp_extensional hc MachineState.msize
   · exact machineStateOp_extensional hc MachineState.gas
   · simp [exceptStateExtensionalEq]
@@ -3522,9 +3464,8 @@ theorem step_push_extensional {state₁ state₂ : State}
   · simp [exceptStateExtensionalEq]
     rcases h with ⟨hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine, hblocks, hheader,
       hcreated⟩
-    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-      stateExtensionalEq, hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine, hblocks,
-      hheader, hcreated]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC, stateExtensionalEq,
+      hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine, hblocks, hheader]
   all_goals
     cases arg with
     | none =>
@@ -3536,7 +3477,7 @@ theorem step_push_extensional {state₁ state₂ : State}
           hheader, hcreated⟩
         simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
           stateExtensionalEq, hσ, hσ0, hgas, hreceipts, hsub, henv, hmachine,
-          hblocks, hheader, hcreated]
+          hblocks, hheader]
 
 theorem step_dup_extensional {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (gasCost : Nat)
@@ -3869,9 +3810,9 @@ theorem step_selfdestruct_extensional {state₁ state₂ : State}
       (step gasCost (.SELFDESTRUCT, arg) state₁)
       (step gasCost (.SELFDESTRUCT, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ gas₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ gas₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, hgas, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -3882,13 +3823,12 @@ theorem step_selfdestruct_extensional {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop with
   | none =>
       simp [step, hpop, exceptStateExtensionalEq]
   | some popped =>
       rcases popped with ⟨stack, μ₁⟩
-      by_cases hcreatedOwner : created₁.contains env₁.codeOwner
+      by_cases hcreatedOwner : sub₁.createdAccounts.contains env₁.codeOwner
       · simp [step, hpop, hcreatedOwner, Ethereum.State.lookupAccount]
         simpa [exceptStateExtensionalEq, stateExtensionalEq,
           Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] using
@@ -3913,23 +3853,21 @@ theorem call_extensional_of_Theta {state₁ state₂ : State}
     (blobVersionedHashes : List ByteArray)
     (gas source recipient t value value' inOffset inSize outOffset outSize : UInt256)
     (permission : Bool)
-    (hTheta : ∀ {createdAccounts : Batteries.RBSet AccountAddress compare}
+    (hTheta : ∀
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o r : AccountAddress} {c : ToExecute}
         {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025}
         {H : BlockHeader} {w : Bool}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+          (σ₁', g₁', A₁', z₁, o₁') →
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptUIntStateExtensionalEq
@@ -3938,9 +3876,9 @@ theorem call_extensional_of_Theta {state₁ state₂ : State}
       (call gasCost blobVersionedHashes gas source recipient t value value'
         inOffset inSize outOffset outSize permission state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -3951,17 +3889,14 @@ theorem call_extensional_of_Theta {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let targetAddr : AccountAddress := AccountAddress.ofUInt256 t
   let recipientAddr : AccountAddress := AccountAddress.ofUInt256 recipient
   let sourceAddr : AccountAddress := AccountAddress.ofUInt256 source
@@ -3988,45 +3923,44 @@ theorem call_extensional_of_Theta {state₁ state₂ : State}
       value ≤ (σ₁.find? env₁.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ env₁.depth < 1024
   · simp [hexec]
     cases hΘ₁ :
-        Θ blobVersionedHashes created₁ header₁ blocks₁ σ₁ σ₀₁ Astar
+        Θ blobVersionedHashes header₁ blocks₁ σ₁ σ₀₁ Astar
           sourceAddr env₁.sender recipientAddr (toExecute σ₁ targetAddr)
           (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₁ machine₁ sub₁))
           (UInt256.ofNat env₁.gasPrice) value value'
           (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
           env₁.header permission with
-    | mk createdΘ₁ rest₁ =>
-      rcases rest₁ with ⟨σΘ₁, gΘ₁, AΘ₁, zΘ₁, outΘ₁⟩
+    | mk σΘ₁ rest₁ =>
+      rcases rest₁ with ⟨gΘ₁, AΘ₁, zΘ₁, outΘ₁⟩
       cases hΘ₂ :
-          Θ blobVersionedHashes created₁ header₁ blocks₁ σ₂ σ₀₁ Astar
+          Θ blobVersionedHashes header₁ blocks₁ σ₂ σ₀₁ Astar
             sourceAddr env₁.sender recipientAddr (toExecute σ₂ targetAddr)
             (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₂ machine₁ sub₁))
             (UInt256.ofNat env₁.gasPrice) value value'
             (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
             env₁.header permission with
-      | mk createdΘ₂ rest₂ =>
-        rcases rest₂ with ⟨σΘ₂, gΘ₂, AΘ₂, zΘ₂, outΘ₂⟩
+      | mk σΘ₂ rest₂ =>
+        rcases rest₂ with ⟨gΘ₂, AΘ₂, zΘ₂, outΘ₂⟩
         have hΘ₂' :
-            Θ blobVersionedHashes created₁ header₁ blocks₁ σ₂ σ₀₁ Astar
+            Θ blobVersionedHashes header₁ blocks₁ σ₂ σ₀₁ Astar
               sourceAddr env₁.sender recipientAddr (toExecute σ₁ targetAddr)
               (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₁ machine₁ sub₁))
               (UInt256.ofNat env₁.gasPrice) value value'
               (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
               env₁.header permission =
-            (createdΘ₂, σΘ₂, gΘ₂, AΘ₂, zΘ₂, outΘ₂) := by
+            (σΘ₂, gΘ₂, AΘ₂, zΘ₂, outΘ₂) := by
           simpa [htoExec, hcallgas] using hΘ₂
         have hproj := hTheta hσ hΘ₁ hΘ₂'
-        rcases hproj with ⟨hcreatedΘ, hgΘ, hAΘ, hzΘ, houtΘ, hσΘ⟩
+        rcases hproj with ⟨hgΘ, hAΘ, hzΘ, houtΘ, hσΘ⟩
         have hΘ₁norm :
-            Θ blobVersionedHashes created₁ header₁ blocks₁ σ₁ σ₀₁
+            Θ blobVersionedHashes header₁ blocks₁ σ₁ σ₀₁
               Astar sourceAddr env₁.sender recipientAddr
               (toExecute σ₂ targetAddr)
               (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₂ machine₁ sub₁))
               (UInt256.ofNat env₁.gasPrice) value value'
               (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
               env₁.header permission =
-            (createdΘ₁, σΘ₁, gΘ₁, AΘ₁, zΘ₁, outΘ₁) := by
+            (σΘ₁, gΘ₁, AΘ₁, zΘ₁, outΘ₁) := by
           simpa [htoExec, hcallgas] using hΘ₁
-        subst createdΘ₂
         subst gΘ₂
         subst AΘ₂
         subst zΘ₂
@@ -4043,24 +3977,22 @@ theorem call_extensional_of_Theta_at_depth {state₁ state₂ : State}
     (blobVersionedHashes : List ByteArray)
     (gas source recipient t value value' inOffset inSize outOffset outSize : UInt256)
     (permission : Bool)
-    (hTheta : ∀ {createdAccounts : Batteries.RBSet AccountAddress compare}
+    (hTheta : ∀
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o r : AccountAddress} {c : ToExecute}
         {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025}
         {H : BlockHeader} {w : Bool}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+          (σ₁', g₁', A₁', z₁, o₁') →
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptUIntStateExtensionalEq
@@ -4069,9 +4001,9 @@ theorem call_extensional_of_Theta_at_depth {state₁ state₂ : State}
       (call gasCost blobVersionedHashes gas source recipient t value value'
         inOffset inSize outOffset outSize permission state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4082,17 +4014,14 @@ theorem call_extensional_of_Theta_at_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let targetAddr : AccountAddress := AccountAddress.ofUInt256 t
   let recipientAddr : AccountAddress := AccountAddress.ofUInt256 recipient
   let sourceAddr : AccountAddress := AccountAddress.ofUInt256 source
@@ -4119,49 +4048,48 @@ theorem call_extensional_of_Theta_at_depth {state₁ state₂ : State}
       value ≤ (σ₁.find? env₁.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ env₁.depth < 1024
   · simp [hexec]
     cases hΘ₁ :
-        Θ blobVersionedHashes created₁ header₁ blocks₁ σ₁ σ₀₁ Astar
+        Θ blobVersionedHashes header₁ blocks₁ σ₁ σ₀₁ Astar
           sourceAddr env₁.sender recipientAddr (toExecute σ₁ targetAddr)
           (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₁ machine₁ sub₁))
           (UInt256.ofNat env₁.gasPrice) value value'
           (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
           env₁.header permission with
-    | mk createdΘ₁ rest₁ =>
-      rcases rest₁ with ⟨σΘ₁, gΘ₁, AΘ₁, zΘ₁, outΘ₁⟩
+    | mk σΘ₁ rest₁ =>
+      rcases rest₁ with ⟨gΘ₁, AΘ₁, zΘ₁, outΘ₁⟩
       cases hΘ₂ :
-          Θ blobVersionedHashes created₁ header₁ blocks₁ σ₂ σ₀₁ Astar
+          Θ blobVersionedHashes header₁ blocks₁ σ₂ σ₀₁ Astar
             sourceAddr env₁.sender recipientAddr (toExecute σ₂ targetAddr)
             (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₂ machine₁ sub₁))
             (UInt256.ofNat env₁.gasPrice) value value'
             (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
             env₁.header permission with
-      | mk createdΘ₂ rest₂ =>
-        rcases rest₂ with ⟨σΘ₂, gΘ₂, AΘ₂, zΘ₂, outΘ₂⟩
+      | mk σΘ₂ rest₂ =>
+        rcases rest₂ with ⟨gΘ₂, AΘ₂, zΘ₂, outΘ₂⟩
         have hΘ₂' :
-            Θ blobVersionedHashes created₁ header₁ blocks₁ σ₂ σ₀₁ Astar
+            Θ blobVersionedHashes header₁ blocks₁ σ₂ σ₀₁ Astar
               sourceAddr env₁.sender recipientAddr (toExecute σ₁ targetAddr)
               (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₁ machine₁ sub₁))
               (UInt256.ofNat env₁.gasPrice) value value'
               (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
               env₁.header permission =
-            (createdΘ₂, σΘ₂, gΘ₂, AΘ₂, zΘ₂, outΘ₂) := by
+            (σΘ₂, gΘ₂, AΘ₂, zΘ₂, outΘ₂) := by
           simpa [htoExec, hcallgas] using hΘ₂
         have hdepth' : 1024 - env₁.depth.val = n + 1 := by
           simpa using hdepth
         have hrecDepth : 1024 - (env₁.depth + 1).val = n := by
           omega
         have hproj := hTheta hσ hrecDepth hΘ₁ hΘ₂'
-        rcases hproj with ⟨hcreatedΘ, hgΘ, hAΘ, hzΘ, houtΘ, hσΘ⟩
+        rcases hproj with ⟨hgΘ, hAΘ, hzΘ, houtΘ, hσΘ⟩
         have hΘ₁norm :
-            Θ blobVersionedHashes created₁ header₁ blocks₁ σ₁ σ₀₁
+            Θ blobVersionedHashes header₁ blocks₁ σ₁ σ₀₁
               Astar sourceAddr env₁.sender recipientAddr
               (toExecute σ₂ targetAddr)
               (UInt256.ofNat (Ccallgas targetAddr recipientAddr value gas σ₂ machine₁ sub₁))
               (UInt256.ofNat env₁.gasPrice) value value'
               (machine₁.memory.readWithPadding inOffset.toNat inSize.toNat) (env₁.depth + 1)
               env₁.header permission =
-            (createdΘ₁, σΘ₁, gΘ₁, AΘ₁, zΘ₁, outΘ₁) := by
+            (σΘ₁, gΘ₁, AΘ₁, zΘ₁, outΘ₁) := by
           simpa [htoExec, hcallgas] using hΘ₁
-        subst createdΘ₂
         subst gΘ₂
         subst AΘ₂
         subst zΘ₂
@@ -4184,9 +4112,9 @@ theorem call_extensional_max_depth {state₁ state₂ : State}
       (call gasCost blobVersionedHashes gas source recipient t value value'
         inOffset inSize outOffset outSize permission state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4197,17 +4125,14 @@ theorem call_extensional_max_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
-      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁,
-      createdAccounts := created₁ }
+      machineState := machine₁, blocks := blocks₁, genesisBlockHeader := header₁, }
   let targetAddr : AccountAddress := AccountAddress.ofUInt256 t
   let recipientAddr : AccountAddress := AccountAddress.ofUInt256 recipient
   let Astar : Substate := (base₁.addAccessedAccount targetAddr).substate
@@ -4241,32 +4166,29 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (gasCost : Nat)
     (arg : Option (UInt256 × Nat))
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptStateExtensionalEq
       (step gasCost (.CREATE, arg) state₁)
       (step gasCost (.CREATE, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4277,7 +4199,6 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let charged₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4285,7 +4206,7 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let charged₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4293,7 +4214,7 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hcharged : stateExtensionalEq charged₁ charged₂ := by
     simp [charged₁, charged₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop3 with
@@ -4349,30 +4270,29 @@ theorem step_CREATE_extensional_of_Lambda {state₁ state₂ : State}
             simpa [← hbalance] using hcond₁
           simp [hcond₁, hcond₂]
           cases hΛ₁ :
-              Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₁ σ₀₁ sub₁
+              Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₁ σ₀₁ sub₁
                 env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                 μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                 none env₁.header env₁.perm with
           | mk a₁ rest₁ =>
-            rcases rest₁ with ⟨createdΛ₁, σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
+            rcases rest₁ with ⟨σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
             cases hΛ₂ :
-                Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                   env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                   μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₂.2.1⟩
                   none env₁.header env₁.perm with
             | mk a₂ rest₂ =>
-              rcases rest₂ with ⟨createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
+              rcases rest₂ with ⟨σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
               have hΛ₂' :
-                  Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                  Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                     env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                     μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                     none env₁.header env₁.perm =
-                  (a₂, createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
+                  (a₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
                 -- The two depth proofs are proof-irrelevant.
                 simpa using hΛ₂
               have hproj := hLambda hσStar hΛ₁ hΛ₂'
-              rcases hproj with ⟨hcreatedΛ, haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
-              subst createdΛ₂
+              rcases hproj with ⟨haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
               subst a₂
               subst gΛ₂
               subst AΛ₂
@@ -4407,9 +4327,9 @@ theorem step_CREATE_extensional_max_depth {state₁ state₂ : State}
       (step gasCost (.CREATE, arg) state₁)
       (step gasCost (.CREATE, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4420,7 +4340,6 @@ theorem step_CREATE_extensional_max_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop3 with
   | none =>
       simp [step, hpop, exceptStateExtensionalEq]
@@ -4485,33 +4404,30 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
     {n : Nat} (hdepth : 1024 - state₁.executionEnv.depth.val = n + 1)
     (arg : Option (UInt256 × Nat))
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptStateExtensionalEq
       (step gasCost (.CREATE, arg) state₁)
       (step gasCost (.CREATE, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4522,7 +4438,6 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let charged₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4530,7 +4445,7 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let charged₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4538,7 +4453,7 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hcharged : stateExtensionalEq charged₁ charged₂ := by
     simp [charged₁, charged₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop3 with
@@ -4594,25 +4509,25 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
             simpa [← hbalance] using hcond₁
           simp [hcond₁, hcond₂]
           cases hΛ₁ :
-              Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₁ σ₀₁ sub₁
+              Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₁ σ₀₁ sub₁
                 env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                 μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                 none env₁.header env₁.perm with
           | mk a₁ rest₁ =>
-            rcases rest₁ with ⟨createdΛ₁, σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
+            rcases rest₁ with ⟨σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
             cases hΛ₂ :
-                Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                   env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                   μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₂.2.1⟩
                   none env₁.header env₁.perm with
             | mk a₂ rest₂ =>
-              rcases rest₂ with ⟨createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
+              rcases rest₂ with ⟨σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
               have hΛ₂' :
-                  Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                  Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                     env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                     μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                     none env₁.header env₁.perm =
-                  (a₂, createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
+                  (a₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
                 -- The two depth proofs are proof-irrelevant.
                 simpa using hΛ₂
               have hdepth' : 1024 - env₁.depth.val = n + 1 := by
@@ -4621,8 +4536,7 @@ theorem step_CREATE_extensional_of_Lambda_at_depth {state₁ state₂ : State}
                 change 1024 - (env₁.depth.val + 1) = n
                 omega
               have hproj := hLambda hσStar hrecDepth hΛ₁ hΛ₂'
-              rcases hproj with ⟨hcreatedΛ, haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
-              subst createdΛ₂
+              rcases hproj with ⟨haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
               subst a₂
               subst gΛ₂
               subst AΛ₂
@@ -4653,32 +4567,29 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (gasCost : Nat)
     (arg : Option (UInt256 × Nat))
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptStateExtensionalEq
       (step gasCost (.CREATE2, arg) state₁)
       (step gasCost (.CREATE2, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4689,7 +4600,6 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let charged₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4697,7 +4607,7 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let charged₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4705,7 +4615,7 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hcharged : stateExtensionalEq charged₁ charged₂ := by
     simp [charged₁, charged₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop4 with
@@ -4761,30 +4671,29 @@ theorem step_CREATE2_extensional_of_Lambda {state₁ state₂ : State}
             simpa [← hbalance] using hcond₁
           simp [hcond₁, hcond₂]
           cases hΛ₁ :
-              Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₁ σ₀₁ sub₁
+              Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₁ σ₀₁ sub₁
                 env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                 μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                 (some (Ethereum.UInt256.toByteArray μ₃)) env₁.header env₁.perm with
           | mk a₁ rest₁ =>
-            rcases rest₁ with ⟨createdΛ₁, σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
+            rcases rest₁ with ⟨σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
             cases hΛ₂ :
-                Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                   env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                   μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₂.2.1⟩
                   (some (Ethereum.UInt256.toByteArray μ₃)) env₁.header env₁.perm with
             | mk a₂ rest₂ =>
-              rcases rest₂ with ⟨createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
+              rcases rest₂ with ⟨σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
               have hΛ₂' :
-                  Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                  Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                     env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                     μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                     (some (Ethereum.UInt256.toByteArray μ₃)) env₁.header env₁.perm =
-                  (a₂, createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
+                  (a₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
                 -- The two depth proofs are proof-irrelevant.
                 simpa using hΛ₂
               have hproj := hLambda hσStar hΛ₁ hΛ₂'
-              rcases hproj with ⟨hcreatedΛ, haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
-              subst createdΛ₂
+              rcases hproj with ⟨haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
               subst a₂
               subst gΛ₂
               subst AΛ₂
@@ -4819,9 +4728,9 @@ theorem step_CREATE2_extensional_max_depth {state₁ state₂ : State}
       (step gasCost (.CREATE2, arg) state₁)
       (step gasCost (.CREATE2, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4832,7 +4741,6 @@ theorem step_CREATE2_extensional_max_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   cases hpop : machine₁.stack.pop4 with
   | none =>
       simp [step, hpop, exceptStateExtensionalEq]
@@ -4897,33 +4805,30 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
     {n : Nat} (hdepth : 1024 - state₁.executionEnv.depth.val = n + 1)
     (arg : Option (UInt256 × Nat))
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptStateExtensionalEq
       (step gasCost (.CREATE2, arg) state₁)
       (step gasCost (.CREATE2, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -4934,7 +4839,6 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let charged₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4942,7 +4846,7 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let charged₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
@@ -4950,7 +4854,7 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
         { machine₁ with
           execLength := machine₁.execLength + 1,
           gasAvailable := machine₁.gasAvailable.subNat gasCost },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hcharged : stateExtensionalEq charged₁ charged₂ := by
     simp [charged₁, charged₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop4 with
@@ -5006,25 +4910,25 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
             simpa [← hbalance] using hcond₁
           simp [hcond₁, hcond₂]
           cases hΛ₁ :
-              Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₁ σ₀₁ sub₁
+              Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₁ σ₀₁ sub₁
                 env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                 μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                 (some (Ethereum.UInt256.toByteArray μ₃)) env₁.header env₁.perm with
           | mk a₁ rest₁ =>
-            rcases rest₁ with ⟨createdΛ₁, σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
+            rcases rest₁ with ⟨σΛ₁, gΛ₁, AΛ₁, zΛ₁, outΛ₁⟩
             cases hΛ₂ :
-                Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                   env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                   μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₂.2.1⟩
                   (some (Ethereum.UInt256.toByteArray μ₃)) env₁.header env₁.perm with
             | mk a₂ rest₂ =>
-              rcases rest₂ with ⟨createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
+              rcases rest₂ with ⟨σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂⟩
               have hΛ₂' :
-                  Lambda env₁.blobVersionedHashes created₁ header₁ blocks₁ σStar₂ σ₀₁ sub₁
+                  Lambda env₁.blobVersionedHashes header₁ blocks₁ σStar₂ σ₀₁ sub₁
                     env₁.codeOwner env₁.sender gasForCreate (UInt256.ofNat env₁.gasPrice)
                     μ₀ initcode ⟨env₁.depth.val + 1, Nat.succ_lt_succ hcond₁.2.1⟩
                     (some (Ethereum.UInt256.toByteArray μ₃)) env₁.header env₁.perm =
-                  (a₂, createdΛ₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
+                  (a₂, σΛ₂, gΛ₂, AΛ₂, zΛ₂, outΛ₂) := by
                 -- The two depth proofs are proof-irrelevant.
                 simpa using hΛ₂
               have hdepth' : 1024 - env₁.depth.val = n + 1 := by
@@ -5033,8 +4937,7 @@ theorem step_CREATE2_extensional_of_Lambda_at_depth {state₁ state₂ : State}
                 change 1024 - (env₁.depth.val + 1) = n
                 omega
               have hproj := hLambda hσStar hrecDepth hΛ₁ hΛ₂'
-              rcases hproj with ⟨hcreatedΛ, haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
-              subst createdΛ₂
+              rcases hproj with ⟨haΛ, hgΛ, hAΛ, hzΛ, houtΛ, hσΛ⟩
               subst a₂
               subst gΛ₂
               subst AΛ₂
@@ -5078,9 +4981,9 @@ theorem step_CALL_extensional_of_call {state₁ state₂ : State}
       (step gasCost (.CALL, arg) state₁)
       (step gasCost (.CALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5091,17 +4994,16 @@ theorem step_CALL_extensional_of_call {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop7 with
@@ -5134,9 +5036,9 @@ theorem step_CALLCODE_extensional_of_call {state₁ state₂ : State}
       (step gasCost (.CALLCODE, arg) state₁)
       (step gasCost (.CALLCODE, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5147,17 +5049,16 @@ theorem step_CALLCODE_extensional_of_call {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop7 with
@@ -5190,9 +5091,9 @@ theorem step_DELEGATECALL_extensional_of_call {state₁ state₂ : State}
       (step gasCost (.DELEGATECALL, arg) state₁)
       (step gasCost (.DELEGATECALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5203,17 +5104,16 @@ theorem step_DELEGATECALL_extensional_of_call {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop6 with
@@ -5246,9 +5146,9 @@ theorem step_STATICCALL_extensional_of_call {state₁ state₂ : State}
       (step gasCost (.STATICCALL, arg) state₁)
       (step gasCost (.STATICCALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5259,17 +5159,16 @@ theorem step_STATICCALL_extensional_of_call {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   cases hpop : machine₁.stack.pop6 with
@@ -5304,9 +5203,9 @@ theorem step_CALL_extensional_of_call_at_depth {state₁ state₂ : State}
       (step gasCost (.CALL, arg) state₁)
       (step gasCost (.CALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5317,17 +5216,16 @@ theorem step_CALL_extensional_of_call_at_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : 1024 - base₁.executionEnv.depth.val = n + 1 := by
@@ -5364,9 +5262,9 @@ theorem step_CALLCODE_extensional_of_call_at_depth {state₁ state₂ : State}
       (step gasCost (.CALLCODE, arg) state₁)
       (step gasCost (.CALLCODE, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5377,17 +5275,16 @@ theorem step_CALLCODE_extensional_of_call_at_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : 1024 - base₁.executionEnv.depth.val = n + 1 := by
@@ -5424,9 +5321,9 @@ theorem step_DELEGATECALL_extensional_of_call_at_depth {state₁ state₂ : Stat
       (step gasCost (.DELEGATECALL, arg) state₁)
       (step gasCost (.DELEGATECALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5437,17 +5334,16 @@ theorem step_DELEGATECALL_extensional_of_call_at_depth {state₁ state₂ : Stat
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : 1024 - base₁.executionEnv.depth.val = n + 1 := by
@@ -5484,9 +5380,9 @@ theorem step_STATICCALL_extensional_of_call_at_depth {state₁ state₂ : State}
       (step gasCost (.STATICCALL, arg) state₁)
       (step gasCost (.STATICCALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5497,17 +5393,16 @@ theorem step_STATICCALL_extensional_of_call_at_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : 1024 - base₁.executionEnv.depth.val = n + 1 := by
@@ -5544,9 +5439,9 @@ theorem step_CALL_extensional_of_call_max_depth {state₁ state₂ : State}
       (step gasCost (.CALL, arg) state₁)
       (step gasCost (.CALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5557,17 +5452,16 @@ theorem step_CALL_extensional_of_call_max_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : base₁.executionEnv.depth = 1024 := by
@@ -5604,9 +5498,9 @@ theorem step_CALLCODE_extensional_of_call_max_depth {state₁ state₂ : State}
       (step gasCost (.CALLCODE, arg) state₁)
       (step gasCost (.CALLCODE, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5617,17 +5511,16 @@ theorem step_CALLCODE_extensional_of_call_max_depth {state₁ state₂ : State}
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : base₁.executionEnv.depth = 1024 := by
@@ -5664,9 +5557,9 @@ theorem step_DELEGATECALL_extensional_of_call_max_depth {state₁ state₂ : Sta
       (step gasCost (.DELEGATECALL, arg) state₁)
       (step gasCost (.DELEGATECALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5677,17 +5570,16 @@ theorem step_DELEGATECALL_extensional_of_call_max_depth {state₁ state₂ : Sta
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : base₁.executionEnv.depth = 1024 := by
@@ -5724,9 +5616,9 @@ theorem step_STATICCALL_extensional_of_call_max_depth {state₁ state₂ : State
       (step gasCost (.STATICCALL, arg) state₁)
       (step gasCost (.STATICCALL, arg) state₂) := by
   cases state₁ with
-  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ created₁ =>
+  | mk σ₁ σ₀₁ total₁ receipts₁ sub₁ env₁ machine₁ blocks₁ header₁ =>
   cases state₂ with
-  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ created₂ =>
+  | mk σ₂ σ₀₂ total₂ receipts₂ sub₂ env₂ machine₂ blocks₂ header₂ =>
   simp [stateExtensionalEq] at h
   rcases h with ⟨hσ, hσ₀, htotal, hreceipts, hsub, henv, hmachine, hblocks, hheader, hcreated⟩
   subst σ₀₂
@@ -5737,17 +5629,16 @@ theorem step_STATICCALL_extensional_of_call_max_depth {state₁ state₂ : State
   subst machine₂
   subst blocks₂
   subst header₂
-  subst created₂
   let base₁ : State :=
     { accountMap := σ₁, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   let base₂ : State :=
     { accountMap := σ₂, σ₀ := σ₀₁, totalGasUsedInBlock := total₁,
       transactionReceipts := receipts₁, substate := sub₁, executionEnv := env₁,
       machineState := { machine₁ with execLength := machine₁.execLength + 1 },
-      blocks := blocks₁, genesisBlockHeader := header₁, createdAccounts := created₁ }
+      blocks := blocks₁, genesisBlockHeader := header₁, }
   have hb : stateExtensionalEq base₁ base₂ := by
     simp [base₁, base₂, stateExtensionalEq, hσ]
   have hbdepth : base₁.executionEnv.depth = 1024 := by
@@ -5769,43 +5660,37 @@ theorem step_extensional_of_Theta_Lambda {state₁ state₂ : State}
     (h : stateExtensionalEq state₁ state₂) (gasCost : Nat)
     (op : Operation) (arg : Option (UInt256 × Nat))
     (hTheta : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o r : AccountAddress} {c : ToExecute}
         {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025}
         {H : BlockHeader} {w : Bool}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+          (σ₁', g₁', A₁', z₁, o₁') →
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂')
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptStateExtensionalEq
@@ -5849,45 +5734,39 @@ theorem step_extensional_of_Theta_Lambda_at_depth {state₁ state₂ : State}
     {n : Nat} (hdepth : 1024 - state₁.executionEnv.depth.val = n + 1)
     (op : Operation) (arg : Option (UInt256 × Nat))
     (hTheta : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o r : AccountAddress} {c : ToExecute}
         {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025}
         {H : BlockHeader} {w : Bool}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+          (σ₁', g₁', A₁', z₁, o₁') →
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂')
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
         {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptStateExtensionalEq
@@ -6054,7 +5933,6 @@ theorem X_extensional_max_depth {state₁ state₂ : State} {validJumps : Array 
                         hnext_ret.1]
 
 theorem Xi_extensional_max_depth
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader}
     {blocks : ProcessedBlocks}
     {σ₁ σ₂ σ₀ : AccountMap}
@@ -6064,15 +5942,14 @@ theorem Xi_extensional_max_depth
     (hσ : accountMapExtensionalEq σ₁ σ₂)
     (hdepth : I.depth = 1024) :
     exceptExecutionResultXiExtensionalEq
-      (Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I)
-      (Ξ createdAccounts genesisBlockHeader blocks σ₂ σ₀ g A I) := by
+      (Ξ genesisBlockHeader blocks σ₁ σ₀ g A I)
+      (Ξ genesisBlockHeader blocks σ₂ σ₀ g A I) := by
   let fresh₁ : State :=
     { (default : State) with
       accountMap := σ₁
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
       blocks := blocks
       genesisBlockHeader := genesisBlockHeader }
@@ -6082,7 +5959,6 @@ theorem Xi_extensional_max_depth
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
       blocks := blocks
       genesisBlockHeader := genesisBlockHeader }
@@ -6145,12 +6021,11 @@ theorem Xi_extensional_max_depth
                   rw [hsucc.2]
                   simp [bind, Except.bind, exceptExecutionResultXiExtensionalEq,
                     executionResultXiExtensionalEq]
-                  exact ⟨hcreated, hmap,
+                  exact ⟨hmap,
                     congrArg (fun machine : MachineState => machine.gasAvailable.toUInt256) hmachine,
                     hsub⟩
 
 theorem Xi_extensional_of_Theta_Lambda
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader}
     {blocks : ProcessedBlocks}
     {σ₁ σ₂ σ₀ : AccountMap}
@@ -6159,48 +6034,42 @@ theorem Xi_extensional_of_Theta_Lambda
     {I : ExecutionEnv}
     (hσ : accountMapExtensionalEq σ₁ σ₂)
     (hTheta : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
-        {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
+            {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o r : AccountAddress} {c : ToExecute}
         {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025}
         {H : BlockHeader} {w : Bool}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+          (σ₁', g₁', A₁', z₁, o₁') →
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂')
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
-        {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
+            {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptExecutionResultXiExtensionalEq
-      (Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I)
-      (Ξ createdAccounts genesisBlockHeader blocks σ₂ σ₀ g A I) := by
+      (Ξ genesisBlockHeader blocks σ₁ σ₀ g A I)
+      (Ξ genesisBlockHeader blocks σ₂ σ₀ g A I) := by
   apply Xi_extensional_of_Xstep hσ
   intro state₁ state₂ hstate
   apply Xstep_extensional_of_step hstate
@@ -6212,7 +6081,6 @@ theorem Xi_extensional_of_Theta_Lambda
     (stateExtensionalEq_with_executionEnv_depth hZ) cost op arg hTheta hLambda
 
 theorem Xi_extensional_of_Theta_Lambda_at_depth
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader}
     {blocks : ProcessedBlocks}
     {σ₁ σ₂ σ₀ : AccountMap}
@@ -6222,50 +6090,44 @@ theorem Xi_extensional_of_Theta_Lambda_at_depth
     (hσ : accountMapExtensionalEq σ₁ σ₂)
     {n : Nat} (hdepth : 1024 - I.depth.val = n + 1)
     (hTheta : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
-        {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
+            {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o r : AccountAddress} {c : ToExecute}
         {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025}
         {H : BlockHeader} {w : Bool}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+          (σ₁', g₁', A₁', z₁, o₁') →
+        Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
             g p v v' d e H w =
-          (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂')
     (hLambda : ∀ {blobVersionedHashes : List ByteArray}
-        {createdAccounts : Batteries.RBSet AccountAddress compare}
-        {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
+            {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
         {σ₁ σ₂ σ₀ : AccountMap} {A : Substate}
         {s o : AccountAddress} {g p v : UInt256} {i : ByteArray}
         {e : Fin 1025} {ζ : Option ByteArray} {H : BlockHeader} {w : Bool}
         {a₁ a₂ : AccountAddress}
-        {createdAccounts₁' createdAccounts₂' : Batteries.RBSet AccountAddress compare}
         {σ₁' σ₂' : AccountMap} {g₁' g₂' : UInt256}
         {A₁' A₂' : Substate} {z₁ z₂ : Bool} {o₁' o₂' : ByteArray},
         accountMapExtensionalEq σ₁ σ₂ →
         1024 - e.val = n →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₁ σ₀ A s o g p v i e ζ H w =
-          (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-        Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks
+          (a₁, σ₁', g₁', A₁', z₁, o₁') →
+        Lambda blobVersionedHashes genesisBlockHeader blocks
           σ₂ σ₀ A s o g p v i e ζ H w =
-          (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+          (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') :
     exceptExecutionResultXiExtensionalEq
-      (Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I)
-      (Ξ createdAccounts genesisBlockHeader blocks σ₂ σ₀ g A I) := by
+      (Ξ genesisBlockHeader blocks σ₁ σ₀ g A I)
+      (Ξ genesisBlockHeader blocks σ₂ σ₀ g A I) := by
   apply Xi_extensional_of_Xstep_at_depth hσ hdepth
   intro state₁ state₂ hstate hstateDepth
   apply Xstep_extensional_of_step_at_depth hstate hstateDepth
@@ -6283,7 +6145,17 @@ theorem accountMapExtensionalEq_empty :
 
 private def thetaResultExtensionalEq
     (result₁ result₂ :
-      Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × Bool × ByteArray) :
+      AccountMap × UInt256 × Substate × Bool × ByteArray) :
+    Prop :=
+  result₁.2.1 = result₂.2.1 ∧
+  result₁.2.2.1 = result₂.2.2.1 ∧
+  result₁.2.2.2.1 = result₂.2.2.2.1 ∧
+  result₁.2.2.2.2 = result₂.2.2.2.2 ∧
+  accountMapExtensionalEq result₁.1 result₂.1
+
+private def lambdaResultExtensionalEq
+    (result₁ result₂ :
+      AccountAddress × AccountMap × UInt256 × Substate × Bool × ByteArray) :
     Prop :=
   result₁.1 = result₂.1 ∧
   result₁.2.2.1 = result₂.2.2.1 ∧
@@ -6292,45 +6164,31 @@ private def thetaResultExtensionalEq
   result₁.2.2.2.2.2 = result₂.2.2.2.2.2 ∧
   accountMapExtensionalEq result₁.2.1 result₂.2.1
 
-private def lambdaResultExtensionalEq
-    (result₁ result₂ :
-      AccountAddress × Batteries.RBSet AccountAddress compare × AccountMap ×
-        UInt256 × Substate × Bool × ByteArray) :
-    Prop :=
-  result₁.2.1 = result₂.2.1 ∧
-  result₁.1 = result₂.1 ∧
-  result₁.2.2.2.1 = result₂.2.2.2.1 ∧
-  result₁.2.2.2.2.1 = result₂.2.2.2.2.1 ∧
-  result₁.2.2.2.2.2.1 = result₂.2.2.2.2.2.1 ∧
-  result₁.2.2.2.2.2.2 = result₂.2.2.2.2.2.2 ∧
-  accountMapExtensionalEq result₁.2.2.1 result₂.2.2.1
+private def thetaXiResult
+    (A : Substate)
+    (xi : Except EVM.ExecutionException
+      (ExecutionResult (AccountMap × UInt256 × Substate))) :
+    AccountMap × UInt256 × Substate × ByteArray :=
+  match xi with
+  | .error _ => (∅, ⟨0⟩, A, .empty)
+  | .ok (.revert g' o) => (∅, g', A, o)
+  | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
+      (σStarStar, gStarStar, AStarStar, returnedData)
 
 theorem xiThetaMatch_extensional
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {xi₁ xi₂ : Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
+        (ExecutionResult (AccountMap × UInt256 × Substate))}
     {A : Substate}
     (hXi : exceptExecutionResultXiExtensionalEq xi₁ xi₂) :
-    let result₁ : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-      match xi₁ with
-      | .error _ => (createdAccounts, ∅, ⟨0⟩, A, .empty)
-      | .ok (.revert g' o) => (createdAccounts, ∅, g', A, o)
-      | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-          (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
-    let result₂ : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-      match xi₂ with
-      | .error _ => (createdAccounts, ∅, ⟨0⟩, A, .empty)
-      | .ok (.revert g' o) => (createdAccounts, ∅, g', A, o)
-      | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-          (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
-    result₁.1 = result₂.1 ∧ accountMapExtensionalEq result₁.2.1 result₂.2.1 ∧
-      result₁.2.2.1 = result₂.2.2.1 ∧ result₁.2.2.2.1 = result₂.2.2.2.1 ∧
-      result₁.2.2.2.2 = result₂.2.2.2.2 := by
-  dsimp
+    accountMapExtensionalEq (thetaXiResult A xi₁).1 (thetaXiResult A xi₂).1 ∧
+      (thetaXiResult A xi₁).2.1 = (thetaXiResult A xi₂).2.1 ∧
+      (thetaXiResult A xi₁).2.2.1 = (thetaXiResult A xi₂).2.2.1 ∧
+      (thetaXiResult A xi₁).2.2.2 = (thetaXiResult A xi₂).2.2.2 := by
+  unfold thetaXiResult
   cases xi₁ with
   | error e₁ =>
       cases xi₂ with
-      | error e₂ => exact ⟨rfl, accountMapExtensionalEq_empty, rfl, rfl, rfl⟩
+      | error e₂ => exact ⟨accountMapExtensionalEq_empty, rfl, rfl, rfl⟩
       | ok r₂ => simp [exceptExecutionResultXiExtensionalEq] at hXi
   | ok r₁ =>
       cases xi₂ with
@@ -6341,7 +6199,7 @@ theorem xiThetaMatch_extensional
               cases r₂ with
               | revert g₂ o₂ =>
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-                  exact ⟨rfl, accountMapExtensionalEq_empty, hXi.1, rfl, hXi.2⟩
+                  exact ⟨accountMapExtensionalEq_empty, hXi.1, rfl, hXi.2⟩
               | success x₂ out₂ =>
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
           | success x₁ out₁ =>
@@ -6349,18 +6207,18 @@ theorem xiThetaMatch_extensional
               | revert g₂ o₂ =>
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
               | success x₂ out₂ =>
-                  rcases x₁ with ⟨created₁, σ₁, g₁, A₁⟩
-                  rcases x₂ with ⟨created₂, σ₂, g₂, A₂⟩
+                  rcases x₁ with ⟨σ₁, g₁, A₁⟩
+                  rcases x₂ with ⟨σ₂, g₂, A₂⟩
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi ⊢
-                  exact ⟨hXi.1, hXi.2.1, hXi.2.2.1, hXi.2.2.2.1, hXi.2.2.2.2⟩
+                  exact ⟨hXi.1, hXi.2.1, hXi.2.2.1, hXi.2.2.2⟩
 
 theorem thetaFinalize_extensional {σ₁ σ₂ τ₁ τ₂ : AccountMap}
-    {A A₁ A₂ : Substate} {created₁ created₂ : Batteries.RBSet AccountAddress compare}
+    {A A₁ A₂ : Substate}
     {g₁ g₂ : UInt256} {out₁ out₂ : ByteArray}
     (hσ : accountMapExtensionalEq σ₁ σ₂)
-    (hcreated : created₁ = created₂) (hτ : accountMapExtensionalEq τ₁ τ₂)
+    (hτ : accountMapExtensionalEq τ₁ τ₂)
     (hg : g₁ = g₂) (hA : A₁ = A₂) (hout : out₁ = out₂) :
-    created₁ = created₂ ∧ g₁ = g₂ ∧
+    g₁ = g₂ ∧
       (if τ₁ == (∅ : AccountMap) then A else A₁) =
         (if τ₂ == (∅ : AccountMap) then A else A₂) ∧
       (if τ₁ == (∅ : AccountMap) then false else true) =
@@ -6372,121 +6230,43 @@ theorem thetaFinalize_extensional {σ₁ σ₂ τ₁ τ₂ : AccountMap}
   have hempty := accountMapExtensionalEq_beq_empty hτ
   cases h₁ : (τ₁ == (∅ : AccountMap)) <;> cases h₂ : (τ₂ == (∅ : AccountMap)) <;>
     simp [h₁, h₂] at hempty ⊢
-  · exact ⟨hcreated, hg, hA, hout, hτ⟩
-  · exact ⟨hcreated, hg, hout, hσ⟩
-
-theorem thetaCodeResult_extensional_of_Xi {σ₁ σ₂ : AccountMap}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {xi₁ xi₂ : Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
-    {A : Substate}
-    (hσ : accountMapExtensionalEq σ₁ σ₂)
-    (hXi : exceptExecutionResultXiExtensionalEq xi₁ xi₂) :
-    thetaResultExtensionalEq
-      (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-        match xi₁ with
-        | .error _ => (createdAccounts, ∅, ⟨0⟩, A, .empty)
-        | .ok (.revert g' o) => (createdAccounts, ∅, g', A, o)
-        | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-            (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
-       (result.1,
-        if result.2.1 == (∅ : AccountMap) then σ₁ else result.2.1,
-        result.2.2.1,
-        if result.2.1 == (∅ : AccountMap) then A else result.2.2.2.1,
-        if result.2.1 == (∅ : AccountMap) then false else true,
-        result.2.2.2.2))
-      (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-        match xi₂ with
-        | .error _ => (createdAccounts, ∅, ⟨0⟩, A, .empty)
-        | .ok (.revert g' o) => (createdAccounts, ∅, g', A, o)
-        | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-            (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
-       (result.1,
-        if result.2.1 == (∅ : AccountMap) then σ₂ else result.2.1,
-        result.2.2.1,
-        if result.2.1 == (∅ : AccountMap) then A else result.2.2.2.1,
-        if result.2.1 == (∅ : AccountMap) then false else true,
-        result.2.2.2.2)) := by
-  have hmatch := xiThetaMatch_extensional (createdAccounts := createdAccounts)
-    (xi₁ := xi₁) (xi₂ := xi₂) (A := A) hXi
-  dsimp at hmatch ⊢
-  exact thetaFinalize_extensional hσ hmatch.1 hmatch.2.1 hmatch.2.2.1
-    hmatch.2.2.2.1 hmatch.2.2.2.2
-
-private def thetaXiResult
-    (createdAccounts : Batteries.RBSet AccountAddress compare) (A : Substate)
-    (xi : Except EVM.ExecutionException
-      (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
-    Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-  match xi with
-  | .error _ => (createdAccounts, ∅, ⟨0⟩, A, .empty)
-  | .ok (.revert g' o) => (createdAccounts, ∅, g', A, o)
-  | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-      (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
+  · exact ⟨hg, hA, hout, hτ⟩
+  · exact ⟨hg, hout, hσ⟩
 
 theorem thetaCodeResult_extensional_of_Xi_expanded {σ₁ σ₂ : AccountMap}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {xi₁ xi₂ : Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
+        (ExecutionResult (AccountMap × UInt256 × Substate))}
     {A : Substate}
     (hσ : accountMapExtensionalEq σ₁ σ₂)
     (hXi : exceptExecutionResultXiExtensionalEq xi₁ xi₂) :
     thetaResultExtensionalEq
-      ((thetaXiResult createdAccounts A xi₁).1,
-       if (thetaXiResult createdAccounts A xi₁).2.1 == (∅ : AccountMap) then σ₁ else
-         (thetaXiResult createdAccounts A xi₁).2.1,
-       (thetaXiResult createdAccounts A xi₁).2.2.1,
-       if (thetaXiResult createdAccounts A xi₁).2.1 == (∅ : AccountMap) then A else
-         (thetaXiResult createdAccounts A xi₁).2.2.2.1,
-       if (thetaXiResult createdAccounts A xi₁).2.1 == (∅ : AccountMap) then false else true,
-       (thetaXiResult createdAccounts A xi₁).2.2.2.2)
-      ((thetaXiResult createdAccounts A xi₂).1,
-       if (thetaXiResult createdAccounts A xi₂).2.1 == (∅ : AccountMap) then σ₂ else
-         (thetaXiResult createdAccounts A xi₂).2.1,
-       (thetaXiResult createdAccounts A xi₂).2.2.1,
-       if (thetaXiResult createdAccounts A xi₂).2.1 == (∅ : AccountMap) then A else
-         (thetaXiResult createdAccounts A xi₂).2.2.2.1,
-       if (thetaXiResult createdAccounts A xi₂).2.1 == (∅ : AccountMap) then false else true,
-       (thetaXiResult createdAccounts A xi₂).2.2.2.2) := by
-  cases xi₁ with
-  | error e₁ =>
-      cases xi₂ with
-      | error e₂ =>
-          simp [thetaXiResult, thetaResultExtensionalEq]
-          simpa using hσ
-      | ok r₂ =>
-          simp [exceptExecutionResultXiExtensionalEq] at hXi
-  | ok r₁ =>
-      cases xi₂ with
-      | error e₂ =>
-          simp [exceptExecutionResultXiExtensionalEq] at hXi
-      | ok r₂ =>
-          cases r₁ with
-          | revert g₁ o₁ =>
-              cases r₂ with
-              | revert g₂ o₂ =>
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-                  simp [thetaXiResult, thetaResultExtensionalEq]
-                  exact ⟨hXi.1, hXi.2, by simpa using hσ⟩
-              | success x₂ out₂ =>
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-          | success x₁ out₁ =>
-              cases r₂ with
-              | revert g₂ o₂ =>
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-              | success x₂ out₂ =>
-                  rcases x₁ with ⟨created₁, τ₁, g₁, A₁⟩
-                  rcases x₂ with ⟨created₂, τ₂, g₂, A₂⟩
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-                  simpa [thetaXiResult, thetaResultExtensionalEq] using
-                    (thetaFinalize_extensional hσ hXi.1 hXi.2.1 hXi.2.2.1
-                      hXi.2.2.2.1 hXi.2.2.2.2)
+      (if (thetaXiResult A xi₁).1 == (∅ : AccountMap) then σ₁ else
+         (thetaXiResult A xi₁).1,
+       (thetaXiResult A xi₁).2.1,
+       if (thetaXiResult A xi₁).1 == (∅ : AccountMap) then A else
+         (thetaXiResult A xi₁).2.2.1,
+       if (thetaXiResult A xi₁).1 == (∅ : AccountMap) then false else true,
+       (thetaXiResult A xi₁).2.2.2)
+      (if (thetaXiResult A xi₂).1 == (∅ : AccountMap) then σ₂ else
+         (thetaXiResult A xi₂).1,
+       (thetaXiResult A xi₂).2.1,
+       if (thetaXiResult A xi₂).1 == (∅ : AccountMap) then A else
+         (thetaXiResult A xi₂).2.2.1,
+       if (thetaXiResult A xi₂).1 == (∅ : AccountMap) then false else true,
+       (thetaXiResult A xi₂).2.2.2) := by
+  have hmatch :
+      accountMapExtensionalEq (thetaXiResult A xi₁).1 (thetaXiResult A xi₂).1 ∧
+      (thetaXiResult A xi₁).2.1 = (thetaXiResult A xi₂).2.1 ∧
+      (thetaXiResult A xi₁).2.2.1 = (thetaXiResult A xi₂).2.2.1 ∧
+      (thetaXiResult A xi₁).2.2.2 = (thetaXiResult A xi₂).2.2.2 := by
+    exact xiThetaMatch_extensional (xi₁ := xi₁) (xi₂ := xi₂) (A := A) hXi
+  exact thetaFinalize_extensional hσ hmatch.1 hmatch.2.1 hmatch.2.2.1 hmatch.2.2.2
 
 theorem lambdaFinalize_extensional {σ₁ σ₂ τ₁ τ₂ : AccountMap}
-    {AStar A₁ A₂ : Substate} {created₁ created₂ : Batteries.RBSet AccountAddress compare}
+    {AStar A₁ A₂ : Substate}
     {g₁ g₂ : UInt256} {a : AccountAddress} {returnedData : ByteArray}
     (hσ : accountMapExtensionalEq σ₁ σ₂)
-    (hcreated : created₁ = created₂) (hτ : accountMapExtensionalEq τ₁ τ₂)
+    (hτ : accountMapExtensionalEq τ₁ τ₂)
     (hg : g₁ = g₂) (hA : A₁ = A₂) :
     let c := GasConstants.Gcodedeposit * returnedData.size
     let F₁ : Bool := Id.run do
@@ -6509,8 +6289,7 @@ theorem lambdaFinalize_extensional {σ₁ σ₂ τ₁ τ₂ : AccountMap}
       let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
       let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
       pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
-    created₁ = created₂ ∧
-      UInt256.ofNat (if F₁ then 0 else g₁.toNat - c) =
+    UInt256.ofNat (if F₁ then 0 else g₁.toNat - c) =
         UInt256.ofNat (if F₂ then 0 else g₂.toNat - c) ∧
       (if F₁ then AStar else A₁) = (if F₂ then AStar else A₂) ∧
       not F₁ = not F₂ ∧
@@ -6541,8 +6320,8 @@ theorem lambdaFinalize_extensional {σ₁ σ₂ τ₁ τ₂ : AccountMap}
   cases h₁ : F₁ <;> cases h₂ : F₂ <;> simp [h₁, h₂] at hF ⊢
   all_goals
     first
-    | exact ⟨hcreated, hσ⟩
-    | exact ⟨hcreated, by simp [hg], hA, accountMapExtensionalEq_insert_same hτ
+    | exact hσ
+    | exact ⟨by simp [hg], hA, accountMapExtensionalEq_insert_same hτ
         (accountExtensionalEq_with_code (accountMapExtensionalEq_findD hτ a) returnedData)⟩
 
 private theorem lambdaCollision_code_eq {σ₁ σ₂ : AccountMap}
@@ -6597,16 +6376,15 @@ private theorem lambdaCollision_createdAccounts_eq {σ₁ σ₂ : AccountMap}
   rw [hb]
 
 private def lambdaXiResult
-    (a : AccountAddress) (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (σ : AccountMap) (AStar : Substate)
+    (a : AccountAddress) (σ : AccountMap) (A AStar : Substate)
     (xi : Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
-    AccountAddress × Batteries.RBSet AccountAddress compare × AccountMap ×
-      UInt256 × Substate × Bool × ByteArray :=
+        (ExecutionResult (AccountMap × UInt256 × Substate))) :
+    AccountAddress × AccountMap × UInt256 × Substate × Bool × ByteArray :=
   match xi with
-  | .error _ => (a, createdAccounts, σ, ⟨0⟩, AStar, false, .empty)
-  | .ok (.revert g' o) => (a, createdAccounts, σ, g', AStar, false, o)
-  | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
+  | .error _ => (a, σ, ⟨0⟩, {AStar with createdAccounts := A.createdAccounts}, false, .empty)
+  | .ok (.revert g' o) =>
+      (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, o)
+  | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
       let c := GasConstants.Gcodedeposit * returnedData.size
       let F : Bool := Id.run do
         let F₀ : Bool :=
@@ -6625,119 +6403,21 @@ private def lambdaXiResult
       let g' := if F then 0 else gStarStar.toNat - c
       let A' := if F then AStar else AStarStar
       let z := not F
-      (a, createdAccounts', σ', .ofNat g', A', z, .empty)
-
-private theorem lambdaResult_extensional_of_Xi {σ₁ σ₂ : AccountMap}
-    {createdAccounts₁ createdAccounts₂ : Batteries.RBSet AccountAddress compare}
-    {xi₁ xi₂ : Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
-    {AStar : Substate} {a : AccountAddress}
-    (hcreatedFallback : createdAccounts₁ = createdAccounts₂)
-    (hσ : accountMapExtensionalEq σ₁ σ₂)
-    (hXi : exceptExecutionResultXiExtensionalEq xi₁ xi₂) :
-    lambdaResultExtensionalEq
-      (match xi₁ with
-      | .error _ => (a, createdAccounts₁, σ₁, ⟨0⟩, AStar, false, .empty)
-      | .ok (.revert g' o) => (a, createdAccounts₁, σ₁, g', AStar, false, o)
-      | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-          let c := GasConstants.Gcodedeposit * returnedData.size
-          let F : Bool := Id.run do
-            let F₀ : Bool :=
-              match σ₁.find? a with
-              | .some ac => ac.code ≠ .empty ∨ ac.nonce ≠ ⟨0⟩
-              | .none => false
-            let F₂ : Bool := gStarStar.toNat < c
-            let MAX_CODE_SIZE := 24576
-            let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
-            let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
-            pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
-          let σ' : AccountMap :=
-            if F then σ₁ else
-              let newAccount' := σStarStar.findD a default
-              σStarStar.insert a { newAccount' with code := returnedData }
-          let g' := if F then 0 else gStarStar.toNat - c
-          let A' := if F then AStar else AStarStar
-          let z := not F
-          (a, createdAccounts', σ', .ofNat g', A', z, .empty))
-      (match xi₂ with
-      | .error _ => (a, createdAccounts₂, σ₂, ⟨0⟩, AStar, false, .empty)
-      | .ok (.revert g' o) => (a, createdAccounts₂, σ₂, g', AStar, false, o)
-      | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-          let c := GasConstants.Gcodedeposit * returnedData.size
-          let F : Bool := Id.run do
-            let F₀ : Bool :=
-              match σ₂.find? a with
-              | .some ac => ac.code ≠ .empty ∨ ac.nonce ≠ ⟨0⟩
-              | .none => false
-            let F₂ : Bool := gStarStar.toNat < c
-            let MAX_CODE_SIZE := 24576
-            let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
-            let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
-            pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
-          let σ' : AccountMap :=
-            if F then σ₂ else
-              let newAccount' := σStarStar.findD a default
-              σStarStar.insert a { newAccount' with code := returnedData }
-          let g' := if F then 0 else gStarStar.toNat - c
-          let A' := if F then AStar else AStarStar
-          let z := not F
-          (a, createdAccounts', σ', .ofNat g', A', z, .empty)) := by
-  cases xi₁ with
-  | error e₁ =>
-      cases xi₂ with
-      | error e₂ => simp [lambdaResultExtensionalEq, hcreatedFallback, hσ]
-      | ok r₂ => simp [exceptExecutionResultXiExtensionalEq] at hXi
-  | ok r₁ =>
-      cases xi₂ with
-      | error e₂ => simp [exceptExecutionResultXiExtensionalEq] at hXi
-      | ok r₂ =>
-          cases r₁ with
-          | revert g₁ o₁ =>
-              cases r₂ with
-              | revert g₂ o₂ =>
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq,
-                    lambdaResultExtensionalEq] at hXi ⊢
-                  exact ⟨hcreatedFallback, hXi.1, hXi.2, hσ⟩
-              | success x₂ out₂ =>
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-          | success x₁ out₁ =>
-              cases r₂ with
-              | revert g₂ o₂ =>
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-              | success x₂ out₂ =>
-                  rcases x₁ with ⟨created₁, τ₁, g₁, A₁⟩
-                  rcases x₂ with ⟨created₂, τ₂, g₂, A₂⟩
-                  simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-                  have hout : out₁ = out₂ := hXi.2.2.2.2
-                  subst out₂
-                  have hfinal :=
-                    lambdaFinalize_extensional (σ₁ := σ₁) (σ₂ := σ₂)
-                      (τ₁ := τ₁) (τ₂ := τ₂) (AStar := AStar)
-                      (A₁ := A₁) (A₂ := A₂) (created₁ := created₁)
-                      (created₂ := created₂) (g₁ := g₁) (g₂ := g₂)
-                      (a := a) (returnedData := out₁)
-                      hσ hXi.1 hXi.2.1 hXi.2.2.1 hXi.2.2.2.1
-                  rcases hfinal with ⟨hcreated, hg, hA, hz, hmap⟩
-                  simp [lambdaResultExtensionalEq]
-                  exact ⟨hcreated, by simpa using hg, by simpa using hA,
-                    by simpa using hz, by simpa using hmap⟩
+      (a, σ', .ofNat g', A', z, .empty)
 
 private theorem lambdaResult_extensional_of_Xi_named {σ₁ σ₂ : AccountMap}
-    {createdAccounts₁ createdAccounts₂ : Batteries.RBSet AccountAddress compare}
     {xi₁ xi₂ : Except EVM.ExecutionException
-        (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
-    {AStar : Substate} {a : AccountAddress}
-    (hcreatedFallback : createdAccounts₁ = createdAccounts₂)
+        (ExecutionResult (AccountMap × UInt256 × Substate))}
+    {A AStar : Substate} {a : AccountAddress}
     (hσ : accountMapExtensionalEq σ₁ σ₂)
     (hXi : exceptExecutionResultXiExtensionalEq xi₁ xi₂) :
     lambdaResultExtensionalEq
-      (lambdaXiResult a createdAccounts₁ σ₁ AStar xi₁)
-      (lambdaXiResult a createdAccounts₂ σ₂ AStar xi₂) := by
-  unfold lambdaXiResult
+      (lambdaXiResult a σ₁ A AStar xi₁)
+      (lambdaXiResult a σ₂ A AStar xi₂) := by
   cases xi₁ with
   | error e₁ =>
       cases xi₂ with
-      | error e₂ => simp [lambdaResultExtensionalEq, hcreatedFallback, hσ]
+      | error e₂ => simp [lambdaXiResult, lambdaResultExtensionalEq, hσ]
       | ok r₂ => simp [exceptExecutionResultXiExtensionalEq] at hXi
   | ok r₁ =>
       cases xi₂ with
@@ -6748,8 +6428,8 @@ private theorem lambdaResult_extensional_of_Xi_named {σ₁ σ₂ : AccountMap}
               cases r₂ with
               | revert g₂ o₂ =>
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq,
-                    lambdaResultExtensionalEq] at hXi ⊢
-                  exact ⟨hcreatedFallback, hXi.1, hXi.2, hσ⟩
+                    lambdaXiResult, lambdaResultExtensionalEq] at hXi ⊢
+                  exact ⟨hXi.1, hXi.2, hσ⟩
               | success x₂ out₂ =>
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
           | success x₁ out₁ =>
@@ -6757,21 +6437,21 @@ private theorem lambdaResult_extensional_of_Xi_named {σ₁ σ₂ : AccountMap}
               | revert g₂ o₂ =>
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
               | success x₂ out₂ =>
-                  rcases x₁ with ⟨created₁, τ₁, g₁, A₁⟩
-                  rcases x₂ with ⟨created₂, τ₂, g₂, A₂⟩
+                  rcases x₁ with ⟨τ₁, g₁, A₁⟩
+                  rcases x₂ with ⟨τ₂, g₂, A₂⟩
                   simp [exceptExecutionResultXiExtensionalEq, executionResultXiExtensionalEq] at hXi
-                  have hout : out₁ = out₂ := hXi.2.2.2.2
+                  have hout : out₁ = out₂ := hXi.2.2.2
                   subst out₂
                   have hfinal :=
                     lambdaFinalize_extensional (σ₁ := σ₁) (σ₂ := σ₂)
-                      (τ₁ := τ₁) (τ₂ := τ₂) (AStar := AStar)
-                      (A₁ := A₁) (A₂ := A₂) (created₁ := created₁)
-                      (created₂ := created₂) (g₁ := g₁) (g₂ := g₂)
+                      (τ₁ := τ₁) (τ₂ := τ₂)
+                      (AStar := AStar)
+                      (A₁ := A₁) (A₂ := A₂) (g₁ := g₁) (g₂ := g₂)
                       (a := a) (returnedData := out₁)
-                      hσ hXi.1 hXi.2.1 hXi.2.2.1 hXi.2.2.2.1
-                  rcases hfinal with ⟨hcreated, hg, hA, hz, hmap⟩
-                  simp [lambdaResultExtensionalEq]
-                  exact ⟨hcreated, by simpa using hg, by simpa using hA,
+                      hσ hXi.1 hXi.2.1 hXi.2.2.1
+                  rcases hfinal with ⟨hg, hA, hz, hmap⟩
+                  simp [lambdaXiResult, lambdaResultExtensionalEq]
+                  exact ⟨by simpa using hg, by simpa using hA,
                     by simpa using hz, by simpa using hmap⟩
 
 private theorem precompile_ECREC_accountMap_extensional {σ₁ σ₂ : AccountMap}
@@ -7026,129 +6706,76 @@ private theorem precompile_PointEval_extensional {σ₁ σ₂ : AccountMap}
     · simp [hg]
     · cases hres : PointEval d <;> simp [d, hg, hres, dbgTrace]
 
-private theorem precompile_dispatch_accountMap_extensional {σ₁ σ₂ : AccountMap}
-    (h : accountMapExtensionalEq σ₁ σ₂) (pc : AccountAddress)
-    (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    accountMapExtensionalEq
-      (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-        match pc with
-        | 1 => (∅, Ξ_ECREC σ₁ g A I)
-        | 2 => (∅, Ξ_SHA256 σ₁ g A I)
-        | 3 => (∅, Ξ_RIP160 σ₁ g A I)
-        | 4 => (∅, Ξ_ID σ₁ g A I)
-        | 5 => (∅, Ξ_EXPMOD σ₁ g A I)
-        | 6 => (∅, Ξ_BN_ADD σ₁ g A I)
-        | 7 => (∅, Ξ_BN_MUL σ₁ g A I)
-        | 8 => (∅, Ξ_SNARKV σ₁ g A I)
-        | 9 => (∅, Ξ_BLAKE2_F σ₁ g A I)
-        | 10 => (∅, Ξ_PointEval σ₁ g A I)
-        | _ => default
-       result.2.1)
-      (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-        match pc with
-        | 1 => (∅, Ξ_ECREC σ₂ g A I)
-        | 2 => (∅, Ξ_SHA256 σ₂ g A I)
-        | 3 => (∅, Ξ_RIP160 σ₂ g A I)
-        | 4 => (∅, Ξ_ID σ₂ g A I)
-        | 5 => (∅, Ξ_EXPMOD σ₂ g A I)
-        | 6 => (∅, Ξ_BN_ADD σ₂ g A I)
-        | 7 => (∅, Ξ_BN_MUL σ₂ g A I)
-        | 8 => (∅, Ξ_SNARKV σ₂ g A I)
-        | 9 => (∅, Ξ_BLAKE2_F σ₂ g A I)
-        | 10 => (∅, Ξ_PointEval σ₂ g A I)
-        | _ => default
-       result.2.1) := by
-  repeat split
-  all_goals
-    first
-    | exact precompile_ECREC_accountMap_extensional h g A I
-    | exact precompile_SHA256_accountMap_extensional h g A I
-    | exact precompile_RIP160_accountMap_extensional h g A I
-    | exact precompile_ID_accountMap_extensional h g A I
-    | exact precompile_EXPMOD_accountMap_extensional h g A I
-    | exact precompile_BN_ADD_accountMap_extensional h g A I
-    | exact precompile_BN_MUL_accountMap_extensional h g A I
-    | exact precompile_SNARKV_accountMap_extensional h g A I
-    | exact precompile_BLAKE2_F_accountMap_extensional h g A I
-    | exact precompile_PointEval_accountMap_extensional h g A I
-    | exact accountMapExtensionalEq_refl _
-
 private def precompileDispatchExtensionalEq
     (result₁ result₂ :
-      Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray) :
+      AccountMap × UInt256 × Substate × ByteArray) :
     Prop :=
-  result₁.1 = result₂.1 ∧
-  precompileResultExtensionalEq result₁.2 result₂.2
+  precompileResultExtensionalEq result₁ result₂
 
 private theorem precompile_dispatch_extensional {σ₁ σ₂ : AccountMap}
     (h : accountMapExtensionalEq σ₁ σ₂) (pc : AccountAddress)
     (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     precompileDispatchExtensionalEq
       (match pc with
-        | 1 => (∅, Ξ_ECREC σ₁ g A I)
-        | 2 => (∅, Ξ_SHA256 σ₁ g A I)
-        | 3 => (∅, Ξ_RIP160 σ₁ g A I)
-        | 4 => (∅, Ξ_ID σ₁ g A I)
-        | 5 => (∅, Ξ_EXPMOD σ₁ g A I)
-        | 6 => (∅, Ξ_BN_ADD σ₁ g A I)
-        | 7 => (∅, Ξ_BN_MUL σ₁ g A I)
-        | 8 => (∅, Ξ_SNARKV σ₁ g A I)
-        | 9 => (∅, Ξ_BLAKE2_F σ₁ g A I)
-        | 10 => (∅, Ξ_PointEval σ₁ g A I)
+        | 1 => Ξ_ECREC σ₁ g A I
+        | 2 => Ξ_SHA256 σ₁ g A I
+        | 3 => Ξ_RIP160 σ₁ g A I
+        | 4 => Ξ_ID σ₁ g A I
+        | 5 => Ξ_EXPMOD σ₁ g A I
+        | 6 => Ξ_BN_ADD σ₁ g A I
+        | 7 => Ξ_BN_MUL σ₁ g A I
+        | 8 => Ξ_SNARKV σ₁ g A I
+        | 9 => Ξ_BLAKE2_F σ₁ g A I
+        | 10 => Ξ_PointEval σ₁ g A I
         | _ => default)
       (match pc with
-        | 1 => (∅, Ξ_ECREC σ₂ g A I)
-        | 2 => (∅, Ξ_SHA256 σ₂ g A I)
-        | 3 => (∅, Ξ_RIP160 σ₂ g A I)
-        | 4 => (∅, Ξ_ID σ₂ g A I)
-        | 5 => (∅, Ξ_EXPMOD σ₂ g A I)
-        | 6 => (∅, Ξ_BN_ADD σ₂ g A I)
-        | 7 => (∅, Ξ_BN_MUL σ₂ g A I)
-        | 8 => (∅, Ξ_SNARKV σ₂ g A I)
-        | 9 => (∅, Ξ_BLAKE2_F σ₂ g A I)
-        | 10 => (∅, Ξ_PointEval σ₂ g A I)
+        | 1 => Ξ_ECREC σ₂ g A I
+        | 2 => Ξ_SHA256 σ₂ g A I
+        | 3 => Ξ_RIP160 σ₂ g A I
+        | 4 => Ξ_ID σ₂ g A I
+        | 5 => Ξ_EXPMOD σ₂ g A I
+        | 6 => Ξ_BN_ADD σ₂ g A I
+        | 7 => Ξ_BN_MUL σ₂ g A I
+        | 8 => Ξ_SNARKV σ₂ g A I
+        | 9 => Ξ_BLAKE2_F σ₂ g A I
+        | 10 => Ξ_PointEval σ₂ g A I
         | _ => default) := by
   repeat split
   all_goals
     first
-    | exact ⟨rfl, precompile_ECREC_extensional h g A I⟩
-    | exact ⟨rfl, precompile_SHA256_extensional h g A I⟩
-    | exact ⟨rfl, precompile_RIP160_extensional h g A I⟩
-    | exact ⟨rfl, precompile_ID_extensional h g A I⟩
-    | exact ⟨rfl, precompile_EXPMOD_extensional h g A I⟩
-    | exact ⟨rfl, precompile_BN_ADD_extensional h g A I⟩
-    | exact ⟨rfl, precompile_BN_MUL_extensional h g A I⟩
-    | exact ⟨rfl, precompile_SNARKV_extensional h g A I⟩
-    | exact ⟨rfl, precompile_BLAKE2_F_extensional h g A I⟩
-    | exact ⟨rfl, precompile_PointEval_extensional h g A I⟩
-    | exact ⟨rfl, by simp [precompileResultExtensionalEq, accountMapExtensionalEq_refl]⟩
+    | exact precompile_ECREC_extensional h g A I
+    | exact precompile_SHA256_extensional h g A I
+    | exact precompile_RIP160_extensional h g A I
+    | exact precompile_ID_extensional h g A I
+    | exact precompile_EXPMOD_extensional h g A I
+    | exact precompile_BN_ADD_extensional h g A I
+    | exact precompile_BN_MUL_extensional h g A I
+    | exact precompile_SNARKV_extensional h g A I
+    | exact precompile_BLAKE2_F_extensional h g A I
+    | exact precompile_PointEval_extensional h g A I
+    | exact ⟨rfl, rfl, rfl, accountMapExtensionalEq_refl _⟩
 
 private theorem thetaPrecompiledResult_extensional_of_dispatch {σ₁ σ₂ : AccountMap}
-    {result₁ result₂ :
-      Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray}
+    {result₁ result₂ : AccountMap × UInt256 × Substate × ByteArray}
     (A : Substate)
     (hσ : accountMapExtensionalEq σ₁ σ₂)
     (hdispatch : precompileDispatchExtensionalEq result₁ result₂) :
     thetaResultExtensionalEq
-      (result₁.1,
-       if result₁.2.1 == (∅ : AccountMap) then σ₁ else result₁.2.1,
-       result₁.2.2.1,
-       if result₁.2.1 == (∅ : AccountMap) then A else result₁.2.2.2.1,
-       if result₁.2.1 == (∅ : AccountMap) then false else true,
-       result₁.2.2.2.2)
-      (result₂.1,
-       if result₂.2.1 == (∅ : AccountMap) then σ₂ else result₂.2.1,
-       result₂.2.2.1,
-       if result₂.2.1 == (∅ : AccountMap) then A else result₂.2.2.2.1,
-       if result₂.2.1 == (∅ : AccountMap) then false else true,
-       result₂.2.2.2.2) := by
-  rcases hdispatch with ⟨hcreated, hresult⟩
-  exact thetaFinalize_extensional hσ hcreated hresult.2.2.2 hresult.1 hresult.2.1
-    hresult.2.2.1
+      (if result₁.1 == (∅ : AccountMap) then σ₁ else result₁.1,
+       result₁.2.1,
+       if result₁.1 == (∅ : AccountMap) then A else result₁.2.2.1,
+       if result₁.1 == (∅ : AccountMap) then false else true,
+       result₁.2.2.2)
+      (if result₂.1 == (∅ : AccountMap) then σ₂ else result₂.1,
+       result₂.2.1,
+       if result₂.1 == (∅ : AccountMap) then A else result₂.2.2.1,
+       if result₂.1 == (∅ : AccountMap) then false else true,
+       result₂.2.2.2) := by
+  exact thetaFinalize_extensional hσ hdispatch.2.2.2 hdispatch.1
+    hdispatch.2.1 hdispatch.2.2.1
 
 theorem accountMap_extensionality_of_Theta_and_Lambda
     {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {genesisBlockHeader : BlockHeader}
     {blocks : ProcessedBlocks}
     {σ₁ σ₂ σ₀ : AccountMap}
@@ -7159,33 +6786,31 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
     {ζ : Option ByteArray}
     {H : BlockHeader}
     {w : Bool} :
-    ∀ a₁ a₂ c createdAccounts₁' createdAccounts₂'
+    ∀ a₁ a₂ c
       σ₁' σ₂' g₁' g₂' A₁' A₂' z₁ z₂ o₁' o₂' e,
       accountMapExtensionalEq σ₁ σ₂ →
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r c
+      (Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r c
           g p v v' d e H w =
-        (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-       Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r c
+        (σ₁', g₁', A₁', z₁, o₁') →
+       Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r c
           g p v v' d e H w =
-        (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+        (σ₂', g₂', A₂', z₂, o₂') →
         g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') ∧
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o
+      (Lambda blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o
           g p v i e ζ H w =
-        (a₁, createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') →
-       Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o
+        (a₁, σ₁', g₁', A₁', z₁, o₁') →
+       Lambda blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o
           g p v i e ζ H w =
-        (a₂, createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') →
-        createdAccounts₁' = createdAccounts₂' ∧
+        (a₂, σ₂', g₂', A₂', z₂, o₂') →
         a₁ = a₂ ∧ g₁' = g₂' ∧ A₁' = A₂' ∧ z₁ = z₂ ∧ o₁' = o₂' ∧
         accountMapExtensionalEq σ₁' σ₂') := by
-  intros a₁ a₂ c createdAccounts₁' createdAccounts₂'
+  intros a₁ a₂ c
     σ₁' σ₂' g₁' g₂' A₁' A₂' z₁ z₂ o₁' o₂' e hσ
   generalize hn : 1024 - e.val = n
   induction n generalizing blobVersionedHashes genesisBlockHeader blocks
-      createdAccounts e σ₁ σ₂ σ₀ A s o r c g p v v' d i ζ H w
-      a₁ a₂ createdAccounts₁' createdAccounts₂' σ₁' σ₂' A₁' A₂'
+      e σ₁ σ₂ σ₀ A s o r c g p v v' d i ζ H w
+      a₁ a₂ σ₁' σ₂' A₁' A₂'
       g₁' g₂' z₁ z₂ o₁' o₂' with
   | zero =>
       have he_eq : e = 1024 := by omega
@@ -7202,22 +6827,22 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             have hdispatch := precompile_dispatch_extensional hpre pc g A I
             have hrel :
                 thetaResultExtensionalEq
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                     (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w)
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                     (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w) := by
               unfold Θ
               dsimp [I]
               exact thetaPrecompiledResult_extensional_of_dispatch A hσ hdispatch
             have hTheta₁' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                   (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w =
-                (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') := by
+                (σ₁', g₁', A₁', z₁, o₁') := by
               simpa [hc] using hTheta₁
             have hTheta₂' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                   (ToExecute.Precompiled pc) g p v v' d (1024 : Fin 1025) H w =
-                (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') := by
+                (σ₂', g₂', A₂', z₂, o₂') := by
               simpa [hc] using hTheta₂
             rw [hTheta₁', hTheta₂'] at hrel
             simpa [thetaResultExtensionalEq] using hrel
@@ -7225,7 +6850,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             have hpre := accountMapExtensionalEq_call_prelude hσ r s v
             have hXi :
                 exceptExecutionResultXiExtensionalEq
-                  (Ξ createdAccounts genesisBlockHeader blocks
+                  (Ξ genesisBlockHeader blocks
                     (let σ' :=
                       match σ₁.find? r with
                       | none =>
@@ -7242,7 +6867,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                     { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
                       source := s, weiValue := v', depth := (1024 : Fin 1025), perm := w,
                       code := code, header := H, blobVersionedHashes := blobVersionedHashes })
-                  (Ξ createdAccounts genesisBlockHeader blocks
+                  (Ξ genesisBlockHeader blocks
                     (let σ' :=
                       match σ₂.find? r with
                       | none =>
@@ -7262,9 +6887,9 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
               Xi_extensional_max_depth hpre (by simp)
             have hrel :
                 thetaResultExtensionalEq
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                     (ToExecute.Code code) g p v v' d (1024 : Fin 1025) H w)
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                     (ToExecute.Code code) g p v v' d (1024 : Fin 1025) H w) := by
               unfold Θ
               by_cases hv : v != UInt256.ofNat 0
@@ -7276,7 +6901,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 simp [bne, hvb] at hXi'
                 simpa [bne, hv, hvb, hvne] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
-                    (createdAccounts := createdAccounts) (A := A) hσ hXi')
+                    (A := A) hσ hXi')
               · have hveq : v = UInt256.ofNat 0 := by
                   simpa [bne] using hv
                 have hvb : (!v == UInt256.ofNat 0) = false := by
@@ -7285,16 +6910,16 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 simp [bne, hveq] at hXi'
                 simpa [bne, hv, hvb, hveq] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
-                    (createdAccounts := createdAccounts) (A := A) hσ hXi')
+                    (A := A) hσ hXi')
             have hTheta₁' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                   (ToExecute.Code code) g p v v' d (1024 : Fin 1025) H w =
-                (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') := by
+                (σ₁', g₁', A₁', z₁, o₁') := by
               simpa [hc] using hTheta₁
             have hTheta₂' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                   (ToExecute.Code code) g p v v' d (1024 : Fin 1025) H w =
-                (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') := by
+                (σ₂', g₂', A₂', z₂, o₂') := by
               simpa [hc] using hTheta₂
             rw [hTheta₁', hTheta₂'] at hrel
             simpa [thetaResultExtensionalEq] using hrel
@@ -7303,7 +6928,6 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
         let lₐ := Lambda.L_A s n₁ ζ i
         let a : AccountAddress :=
           (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
-        let AStar := A.addAccessedAccount a
         let collision₁ : Bool :=
           (σ₁.findD a default).nonce ≠ ⟨0⟩ ||
             (σ₁.findD a default).code.size ≠ 0 ||
@@ -7313,10 +6937,11 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             (σ₂.findD a default).code.size ≠ 0 ||
             (σ₂.findD a default).storage != default
         let collisionResult₁ : ByteArray × Batteries.RBSet AccountAddress compare :=
-          if collision₁ then (⟨#[0xfe]⟩, createdAccounts) else (i, createdAccounts.insert a)
+          if collision₁ then (⟨#[0xfe]⟩, A.createdAccounts) else (i, A.createdAccounts.insert a)
         let collisionResult₂ : ByteArray × Batteries.RBSet AccountAddress compare :=
-          if collision₂ then (⟨#[0xfe]⟩, createdAccounts) else (i, createdAccounts.insert a)
+          if collision₂ then (⟨#[0xfe]⟩, A.createdAccounts) else (i, A.createdAccounts.insert a)
         let createdAccountsStar₁ := collisionResult₁.2
+        let AStar := { A.addAccessedAccount a with createdAccounts := createdAccountsStar₁ }
         let codeStar₁ := collisionResult₁.1
         have hnonce :
             ((σ₂.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩) = n₁ := by
@@ -7376,8 +7001,8 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
           simp [collisionResult₁, collisionResult₂, hcollisionBool]
         have hpre := accountMapExtensionalEq_create_prelude hσ a s v
         let xi₁ : Except EVM.ExecutionException
-            (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)) :=
-          Ξ createdAccountsStar₁ genesisBlockHeader blocks
+            (ExecutionResult (AccountMap × UInt256 × Substate)) :=
+          Ξ genesisBlockHeader blocks
             (match σ₁.find? s with
              | none => σ₁
              | some ac =>
@@ -7392,8 +7017,8 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
               header := H, depth := (1024 : Fin 1025), perm := w,
               blobVersionedHashes := blobVersionedHashes }
         let xi₂ : Except EVM.ExecutionException
-            (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)) :=
-          Ξ createdAccountsStar₁ genesisBlockHeader blocks
+            (ExecutionResult (AccountMap × UInt256 × Substate)) :=
+          Ξ genesisBlockHeader blocks
             (match σ₂.find? s with
              | none => σ₂
              | some ac =>
@@ -7409,7 +7034,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
               blobVersionedHashes := blobVersionedHashes }
         have hXi :
             exceptExecutionResultXiExtensionalEq
-              (Ξ createdAccountsStar₁ genesisBlockHeader blocks
+              (Ξ genesisBlockHeader blocks
                 (match σ₁.find? s with
                  | none => σ₁
                  | some ac =>
@@ -7423,7 +7048,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                   calldata := default, code := codeStar₁, gasPrice := p.toNat,
                   header := H, depth := (1024 : Fin 1025), perm := w,
                   blobVersionedHashes := blobVersionedHashes })
-              (Ξ createdAccountsStar₁ genesisBlockHeader blocks
+              (Ξ genesisBlockHeader blocks
                 (match σ₂.find? s with
                  | none => σ₂
                  | some ac =>
@@ -7440,34 +7065,32 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
           Xi_extensional_max_depth hpre (by simp)
         have hrel :
             lambdaResultExtensionalEq
-              (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o
+              (Lambda blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o
                 g p v i (1024 : Fin 1025) ζ H w)
-              (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o
+              (Lambda blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o
                 g p v i (1024 : Fin 1025) ζ H w) := by
           have hXiNamed : exceptExecutionResultXiExtensionalEq xi₁ xi₂ := by
             simpa [xi₁, xi₂] using hXi
           have hcore :=
             lambdaResult_extensional_of_Xi_named (σ₁ := σ₁) (σ₂ := σ₂)
-              (createdAccounts₁ := createdAccountsStar₁)
-              (createdAccounts₂ := createdAccountsStar₁)
-              (xi₁ := xi₁) (xi₂ := xi₂) (AStar := AStar) (a := a)
-              rfl hσ hXiNamed
+              (xi₁ := xi₁) (xi₂ := xi₂) (A := A) (AStar := AStar) (a := a)
+              hσ hXiNamed
           have hleft :
-              Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o
+              Lambda blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o
                 g p v i (1024 : Fin 1025) ζ H w =
-              lambdaXiResult a createdAccountsStar₁ σ₁ AStar xi₁ := by
+              lambdaXiResult a σ₁ A AStar xi₁ := by
             unfold Lambda
             dsimp [lambdaXiResult, xi₁, AStar, a, lₐ, n₁,
               createdAccountsStar₁, codeStar₁, collisionResult₁, collision₁]
             rfl
           have hright :
-              Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o
+              Lambda blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o
                 g p v i (1024 : Fin 1025) ζ H w =
-              lambdaXiResult a createdAccountsStar₁ σ₂ AStar xi₂ := by
+              lambdaXiResult a σ₂ A AStar xi₂ := by
             let lambdaBody (collisionResult : ByteArray ×
                 Batteries.RBSet AccountAddress compare) :=
-              lambdaXiResult a collisionResult.2 σ₂ AStar
-                (Ξ collisionResult.2 genesisBlockHeader blocks
+              lambdaXiResult a σ₂ A {A.addAccessedAccount a with createdAccounts := collisionResult.2}
+                (Ξ genesisBlockHeader blocks
                   (match σ₂.find? s with
                    | none => σ₂
                    | some ac =>
@@ -7476,7 +7099,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                           { (σ₂.findD a default) with
                             nonce := (σ₂.findD a default).nonce + ⟨1⟩
                             balance := v + (σ₂.findD a default).balance })
-                  σ₀ g AStar
+                  σ₀ g {A.addAccessedAccount a with createdAccounts := collisionResult.2}
                   { codeOwner := a, sender := o, source := s, weiValue := v,
                     calldata := default, code := collisionResult.1, gasPrice := p.toNat,
                     header := H, depth := (1024 : Fin 1025), perm := w,
@@ -7484,7 +7107,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             unfold Lambda
             rw [hnonce]
             change lambdaBody collisionResult₂ =
-              lambdaXiResult a createdAccountsStar₁ σ₂ AStar xi₂
+              lambdaXiResult a σ₂ A AStar xi₂
             rw [hcollision]
           rw [hleft, hright]
           exact hcore
@@ -7503,22 +7126,22 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             have hdispatch := precompile_dispatch_extensional hpre pc g A I
             have hrel :
                 thetaResultExtensionalEq
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                     (ToExecute.Precompiled pc) g p v v' d e H w)
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                     (ToExecute.Precompiled pc) g p v v' d e H w) := by
               unfold Θ
               dsimp [I]
               exact thetaPrecompiledResult_extensional_of_dispatch A hσ hdispatch
             have hTheta₁' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                   (ToExecute.Precompiled pc) g p v v' d e H w =
-                (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') := by
+                (σ₁', g₁', A₁', z₁, o₁') := by
               simpa [hc] using hTheta₁
             have hTheta₂' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                   (ToExecute.Precompiled pc) g p v v' d e H w =
-                (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') := by
+                (σ₂', g₂', A₂', z₂, o₂') := by
               simpa [hc] using hTheta₂
             rw [hTheta₁', hTheta₂'] at hrel
             simpa [thetaResultExtensionalEq] using hrel
@@ -7526,7 +7149,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             have hpre := accountMapExtensionalEq_call_prelude hσ r s v
             have hXi :
                 exceptExecutionResultXiExtensionalEq
-                  (Ξ createdAccounts genesisBlockHeader blocks
+                  (Ξ genesisBlockHeader blocks
                     (let σ' :=
                       match σ₁.find? r with
                       | none =>
@@ -7543,7 +7166,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                     { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
                       source := s, weiValue := v', depth := e, perm := w,
                       code := code, header := H, blobVersionedHashes := blobVersionedHashes })
-                  (Ξ createdAccounts genesisBlockHeader blocks
+                  (Ξ genesisBlockHeader blocks
                     (let σ' :=
                       match σ₂.find? r with
                       | none =>
@@ -7562,40 +7185,40 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                       code := code, header := H, blobVersionedHashes := blobVersionedHashes }) := by
               apply Xi_extensional_of_Theta_Lambda_at_depth hpre (n := n')
               · simpa using hn
-              · intro blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
+              · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
                   σ₁ᵢ σ₂ᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ wᵢ
-                  createdAccounts₁ᵢ createdAccounts₂ᵢ σ₁ᵢ' σ₂ᵢ'
+                  σ₁ᵢ' σ₂ᵢ'
                   g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ'
                   hσᵢ heᵢ hTheta₁ᵢ hTheta₂ᵢ
                 exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
                   (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-                  (createdAccounts := createdAccountsᵢ) (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
+                  (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
                   (σ₀ := σ₀ᵢ) (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := rᵢ)
                   (g := gᵢ) (p := pᵢ) (v := vᵢ) (v' := v'ᵢ) (d := dᵢ)
                   (i := default) (ζ := none) (H := Hᵢ) (w := wᵢ)
-                  default default cᵢ createdAccounts₁ᵢ createdAccounts₂ᵢ
+                  default default cᵢ
                   σ₁ᵢ' σ₂ᵢ' g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ' eᵢ
                   hσᵢ heᵢ).1 hTheta₁ᵢ hTheta₂ᵢ
-              · intro blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
+              · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
                   σ₁ᵢ σ₂ᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ eᵢ ζᵢ Hᵢ wᵢ
-                  a₁ᵢ a₂ᵢ createdAccounts₁ᵢ createdAccounts₂ᵢ σ₁ᵢ' σ₂ᵢ'
+                  a₁ᵢ a₂ᵢ σ₁ᵢ' σ₂ᵢ'
                   g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ'
                   hσᵢ heᵢ hLambda₁ᵢ hLambda₂ᵢ
                 exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
                   (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-                  (createdAccounts := createdAccountsᵢ) (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
+                  (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
                   (σ₀ := σ₀ᵢ) (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := default)
                   (g := gᵢ) (p := pᵢ) (v := vᵢ) (v' := default) (d := default)
                   (i := iᵢ) (ζ := ζᵢ) (H := Hᵢ) (w := wᵢ)
                   a₁ᵢ a₂ᵢ (toExecute σ₁ᵢ default)
-                  createdAccounts₁ᵢ createdAccounts₂ᵢ σ₁ᵢ' σ₂ᵢ'
+                  σ₁ᵢ' σ₂ᵢ'
                   g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ' eᵢ
                   hσᵢ heᵢ).2 hLambda₁ᵢ hLambda₂ᵢ
             have hrel :
                 thetaResultExtensionalEq
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                     (ToExecute.Code code) g p v v' d e H w)
-                  (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                  (Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                     (ToExecute.Code code) g p v v' d e H w) := by
               unfold Θ
               by_cases hv : v != UInt256.ofNat 0
@@ -7607,7 +7230,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 simp [bne, hvb] at hXi'
                 simpa [bne, hv, hvb, hvne] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
-                    (createdAccounts := createdAccounts) (A := A) hσ hXi')
+                    (A := A) hσ hXi')
               · have hveq : v = UInt256.ofNat 0 := by
                   simpa [bne] using hv
                 have hvb : (!v == UInt256.ofNat 0) = false := by
@@ -7616,16 +7239,16 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                 simp [bne, hveq] at hXi'
                 simpa [bne, hv, hvb, hveq] using
                   (thetaCodeResult_extensional_of_Xi_expanded (σ₁ := σ₁) (σ₂ := σ₂)
-                    (createdAccounts := createdAccounts) (A := A) hσ hXi')
+                    (A := A) hσ hXi')
             have hTheta₁' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o r
                   (ToExecute.Code code) g p v v' d e H w =
-                (createdAccounts₁', σ₁', g₁', A₁', z₁, o₁') := by
+                (σ₁', g₁', A₁', z₁, o₁') := by
               simpa [hc] using hTheta₁
             have hTheta₂' :
-                Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o r
+                Θ blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o r
                   (ToExecute.Code code) g p v v' d e H w =
-                (createdAccounts₂', σ₂', g₂', A₂', z₂, o₂') := by
+                (σ₂', g₂', A₂', z₂, o₂') := by
               simpa [hc] using hTheta₂
             rw [hTheta₁', hTheta₂'] at hrel
             simpa [thetaResultExtensionalEq] using hrel
@@ -7634,7 +7257,6 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
         let lₐ := Lambda.L_A s n₁ ζ i
         let a : AccountAddress :=
           (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
-        let AStar := A.addAccessedAccount a
         let collision₁ : Bool :=
           (σ₁.findD a default).nonce ≠ ⟨0⟩ ||
             (σ₁.findD a default).code.size ≠ 0 ||
@@ -7644,10 +7266,11 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             (σ₂.findD a default).code.size ≠ 0 ||
             (σ₂.findD a default).storage != default
         let collisionResult₁ : ByteArray × Batteries.RBSet AccountAddress compare :=
-          if collision₁ then (⟨#[0xfe]⟩, createdAccounts) else (i, createdAccounts.insert a)
+          if collision₁ then (⟨#[0xfe]⟩, A.createdAccounts) else (i, A.createdAccounts.insert a)
         let collisionResult₂ : ByteArray × Batteries.RBSet AccountAddress compare :=
-          if collision₂ then (⟨#[0xfe]⟩, createdAccounts) else (i, createdAccounts.insert a)
+          if collision₂ then (⟨#[0xfe]⟩, A.createdAccounts) else (i, A.createdAccounts.insert a)
         let createdAccountsStar₁ := collisionResult₁.2
+        let AStar := { A.addAccessedAccount a with createdAccounts := createdAccountsStar₁ }
         let codeStar₁ := collisionResult₁.1
         have hnonce :
             ((σ₂.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩) = n₁ := by
@@ -7707,8 +7330,8 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
           simp [collisionResult₁, collisionResult₂, hcollisionBool]
         have hpre := accountMapExtensionalEq_create_prelude hσ a s v
         let xi₁ : Except EVM.ExecutionException
-            (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)) :=
-          Ξ createdAccountsStar₁ genesisBlockHeader blocks
+            (ExecutionResult (AccountMap × UInt256 × Substate)) :=
+          Ξ genesisBlockHeader blocks
             (match σ₁.find? s with
              | none => σ₁
              | some ac =>
@@ -7723,8 +7346,8 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
               header := H, depth := e, perm := w,
               blobVersionedHashes := blobVersionedHashes }
         let xi₂ : Except EVM.ExecutionException
-            (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)) :=
-          Ξ createdAccountsStar₁ genesisBlockHeader blocks
+            (ExecutionResult (AccountMap × UInt256 × Substate)) :=
+          Ξ genesisBlockHeader blocks
             (match σ₂.find? s with
              | none => σ₂
              | some ac =>
@@ -7740,7 +7363,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
               blobVersionedHashes := blobVersionedHashes }
         have hXi :
             exceptExecutionResultXiExtensionalEq
-              (Ξ createdAccountsStar₁ genesisBlockHeader blocks
+              (Ξ genesisBlockHeader blocks
                 (match σ₁.find? s with
                  | none => σ₁
                  | some ac =>
@@ -7754,7 +7377,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                   calldata := default, code := codeStar₁, gasPrice := p.toNat,
                   header := H, depth := e, perm := w,
                   blobVersionedHashes := blobVersionedHashes })
-              (Ξ createdAccountsStar₁ genesisBlockHeader blocks
+              (Ξ genesisBlockHeader blocks
                 (match σ₂.find? s with
                  | none => σ₂
                  | some ac =>
@@ -7770,65 +7393,63 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                   blobVersionedHashes := blobVersionedHashes }) := by
           apply Xi_extensional_of_Theta_Lambda_at_depth hpre (n := n')
           · simpa using hn
-          · intro blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
+          · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
               σ₁ᵢ σ₂ᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ wᵢ
-              createdAccounts₁ᵢ createdAccounts₂ᵢ σ₁ᵢ' σ₂ᵢ'
+              σ₁ᵢ' σ₂ᵢ'
               g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ'
               hσᵢ heᵢ hTheta₁ᵢ hTheta₂ᵢ
             exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
               (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-              (createdAccounts := createdAccountsᵢ) (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
+              (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
               (σ₀ := σ₀ᵢ) (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := rᵢ)
               (g := gᵢ) (p := pᵢ) (v := vᵢ) (v' := v'ᵢ) (d := dᵢ)
               (i := default) (ζ := none) (H := Hᵢ) (w := wᵢ)
-              default default cᵢ createdAccounts₁ᵢ createdAccounts₂ᵢ
+              default default cᵢ
               σ₁ᵢ' σ₂ᵢ' g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ' eᵢ
               hσᵢ heᵢ).1 hTheta₁ᵢ hTheta₂ᵢ
-          · intro blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
+          · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
               σ₁ᵢ σ₂ᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ eᵢ ζᵢ Hᵢ wᵢ
-              a₁ᵢ a₂ᵢ createdAccounts₁ᵢ createdAccounts₂ᵢ σ₁ᵢ' σ₂ᵢ'
+              a₁ᵢ a₂ᵢ σ₁ᵢ' σ₂ᵢ'
               g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ'
               hσᵢ heᵢ hLambda₁ᵢ hLambda₂ᵢ
             exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
               (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-              (createdAccounts := createdAccountsᵢ) (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
+              (σ₁ := σ₁ᵢ) (σ₂ := σ₂ᵢ)
               (σ₀ := σ₀ᵢ) (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := default)
               (g := gᵢ) (p := pᵢ) (v := vᵢ) (v' := default) (d := default)
               (i := iᵢ) (ζ := ζᵢ) (H := Hᵢ) (w := wᵢ)
               a₁ᵢ a₂ᵢ (toExecute σ₁ᵢ default)
-              createdAccounts₁ᵢ createdAccounts₂ᵢ σ₁ᵢ' σ₂ᵢ'
+              σ₁ᵢ' σ₂ᵢ'
               g₁ᵢ' g₂ᵢ' A₁ᵢ' A₂ᵢ' z₁ᵢ z₂ᵢ o₁ᵢ' o₂ᵢ' eᵢ
               hσᵢ heᵢ).2 hLambda₁ᵢ hLambda₂ᵢ
         have hrel :
             lambdaResultExtensionalEq
-              (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o
+              (Lambda blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o
                 g p v i e ζ H w)
-              (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o
+              (Lambda blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o
                 g p v i e ζ H w) := by
           have hXiNamed : exceptExecutionResultXiExtensionalEq xi₁ xi₂ := by
             simpa [xi₁, xi₂] using hXi
           have hcore :=
             lambdaResult_extensional_of_Xi_named (σ₁ := σ₁) (σ₂ := σ₂)
-              (createdAccounts₁ := createdAccountsStar₁)
-              (createdAccounts₂ := createdAccountsStar₁)
-              (xi₁ := xi₁) (xi₂ := xi₂) (AStar := AStar) (a := a)
-              rfl hσ hXiNamed
+              (xi₁ := xi₁) (xi₂ := xi₂) (A := A) (AStar := AStar) (a := a)
+              hσ hXiNamed
           have hleft :
-              Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₁ σ₀ A s o
+              Lambda blobVersionedHashes genesisBlockHeader blocks σ₁ σ₀ A s o
                 g p v i e ζ H w =
-              lambdaXiResult a createdAccountsStar₁ σ₁ AStar xi₁ := by
+              lambdaXiResult a σ₁ A AStar xi₁ := by
             unfold Lambda
             dsimp [lambdaXiResult, xi₁, AStar, a, lₐ, n₁,
               createdAccountsStar₁, codeStar₁, collisionResult₁, collision₁]
             rfl
           have hright :
-              Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ₂ σ₀ A s o
+              Lambda blobVersionedHashes genesisBlockHeader blocks σ₂ σ₀ A s o
                 g p v i e ζ H w =
-              lambdaXiResult a createdAccountsStar₁ σ₂ AStar xi₂ := by
+              lambdaXiResult a σ₂ A AStar xi₂ := by
             let lambdaBody (collisionResult : ByteArray ×
                 Batteries.RBSet AccountAddress compare) :=
-              lambdaXiResult a collisionResult.2 σ₂ AStar
-                (Ξ collisionResult.2 genesisBlockHeader blocks
+              lambdaXiResult a σ₂ A {A.addAccessedAccount a with createdAccounts := collisionResult.2}
+                (Ξ genesisBlockHeader blocks
                   (match σ₂.find? s with
                    | none => σ₂
                    | some ac =>
@@ -7837,7 +7458,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
                           { (σ₂.findD a default) with
                             nonce := (σ₂.findD a default).nonce + ⟨1⟩
                             balance := v + (σ₂.findD a default).balance })
-                  σ₀ g AStar
+                  σ₀ g {A.addAccessedAccount a with createdAccounts := collisionResult.2}
                   { codeOwner := a, sender := o, source := s, weiValue := v,
                     calldata := default, code := collisionResult.1, gasPrice := p.toNat,
                     header := H, depth := e, perm := w,
@@ -7845,7 +7466,7 @@ theorem accountMap_extensionality_of_Theta_and_Lambda
             unfold Lambda
             rw [hnonce]
             change lambdaBody collisionResult₂ =
-              lambdaXiResult a createdAccountsStar₁ σ₂ AStar xi₂
+              lambdaXiResult a σ₂ A AStar xi₂
             rw [hcollision]
           rw [hleft, hright]
           exact hcore
