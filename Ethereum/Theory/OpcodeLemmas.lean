@@ -2470,8 +2470,7 @@ theorem step_mload : ∀ (s : State),
         else
         .ok ({s with
                   machineState.stack :=
-                    (if a.toNat ≥ s.machineState.memory.size ∨
-                        a ≥ s.machineState.activeWords * ⟨32⟩ then
+                    (if a.toNat ≥ s.machineState.memory.size then
                       ⟨0⟩
                     else
                       UInt256.ofNat

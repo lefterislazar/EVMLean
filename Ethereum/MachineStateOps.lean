@@ -38,7 +38,7 @@ def writeWord (self : MachineState) (addr val : UInt256) : MachineState :=
   writeBytes source 0 self addr.toNat numOctets
 
 def lookupMemory (self : MachineState) (addr : UInt256) : UInt256 :=
-  if addr.toNat ≥ self.memory.size ∨ addr ≥ self.activeWords * ⟨32⟩ then ⟨0⟩ else
+  if addr.toNat ≥ self.memory.size then ⟨0⟩ else
     let bytes := self.memory.readWithPadding addr.toNat 32
     let val := fromByteArrayBigEndian bytes
     .ofNat val
