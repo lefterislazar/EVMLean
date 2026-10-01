@@ -1,5 +1,3 @@
-import Batteries.Data.RBMap
-
 import Ethereum.MachineState
 
 import Ethereum.SpongeHash.Keccak256
@@ -17,8 +15,6 @@ def writeBytes
   }
 
 namespace MachineState
-
-open Batteries (RBMap)
 
 -- Appendix H, (320)
 def M (s f l : ℕ) : ℕ :=

@@ -138,81 +138,36 @@ lemma Z_no_OutOfFuel {w s} validJumps :
 
 @[simp] private lemma call_ne_error
     (gasCost : Nat)
-    (blobVersionedHashes : List ByteArray)
     (gas source recipient t value value' inOffset inSize outOffset outSize : UInt256)
     (permission : Bool)
     (evmState : State)
     (e : ExecutionException) :
-    call gasCost blobVersionedHashes gas source recipient t value value' inOffset inSize
+    call gasCost gas source recipient t value value' inOffset inSize
         outOffset outSize permission evmState ≠ .error e := by
   unfold call
   simp
 
-set_option maxHeartbeats 2000000 in
+@[simp] private lemma create_no_OutOfFuel
+    (value offset size : UInt256) (salt : Option ByteArray) (evmState : State) :
+    create value offset size salt evmState ≠ .error .OutOfFuel := by
+  intro h
+  unfold create at h
+  simp [bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
+
 private lemma step_create_no_OutOfFuel {g state arg} :
     step g (.CREATE, arg) state ≠ .error .OutOfFuel := by
-  intro hstep
-  unfold step at hstep
-  simp [bind, Except.bind] at hstep
-  split at hstep
-  · split at hstep
-    · split at hstep
-      · simp at hstep
-      · split at hstep
-        · rename_i heq
-          simp [pure, Except.pure] at heq
-        · simp at hstep
-    · split at hstep
-      · split at hstep
-        · simp at hstep
-        · split at hstep
-          · rename_i heq
-            simp [pure, Except.pure] at heq
-          · split at hstep
-            · split at hstep <;> simp at hstep
-            · simp at hstep
-      · split at hstep
-        · simp at hstep
-        · split at hstep
-          · rename_i heq
-            simp [pure, Except.pure] at heq
-          · split at hstep
-            · split at hstep <;> simp at hstep
-            · simp at hstep
-  · simp at hstep
+  intro h
+  simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
+  cases hpop : state.machineState.stack.pop3 <;> simp [hpop, Option.option] at h
+  split at h <;> simp_all
 
-set_option maxHeartbeats 2000000 in
 private lemma step_create2_no_OutOfFuel {g state arg} :
     step g (.CREATE2, arg) state ≠ .error .OutOfFuel := by
-  intro hstep
-  unfold step at hstep
-  simp [bind, Except.bind] at hstep
-  split at hstep
-  · split at hstep
-    · split at hstep
-      · simp at hstep
-      · split at hstep
-        · rename_i heq
-          simp [pure, Except.pure] at heq
-        · simp at hstep
-    · split at hstep
-      · split at hstep
-        · simp at hstep
-        · split at hstep
-          · rename_i heq
-            simp [pure, Except.pure] at heq
-          · split at hstep
-            · split at hstep <;> simp at hstep
-            · simp at hstep
-      · split at hstep
-        · simp at hstep
-        · split at hstep
-          · rename_i heq
-            simp [pure, Except.pure] at heq
-          · split at hstep
-            · split at hstep <;> simp at hstep
-            · simp at hstep
-  · simp at hstep
+  intro h
+  simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
+  cases hpop : state.machineState.stack.pop4 <;> simp [hpop, Option.option] at h
+  split at h <;> simp_all
 
 private lemma step_call_no_OutOfFuel {g state arg} :
     step g (.CALL, arg) state ≠ .error .OutOfFuel := by

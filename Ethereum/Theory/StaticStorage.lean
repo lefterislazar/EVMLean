@@ -1,7 +1,5 @@
 import Ethereum.Theory.AccountLocality
-import Ethereum.Theory.StorageExtensionality
-
-import Batteries.Data.RBMap.Lemmas
+import Ethereum.Semantics
 
 namespace Ethereum
 namespace EVM
@@ -90,22 +88,22 @@ theorem accountStorageStateEq_insert_preserve
   intro query
   by_cases hcmp : compare query addr = .eq
   · have hfind : (σ.insert addr acc).find? query = some acc := by
-      exact Batteries.RBMap.find?_insert_of_eq σ hcmp
+      exact Std.ExtTreeMap.find?_insert_of_eq σ hcmp
     have hcmp' : compare addr query = .eq := by
       have hswap :=
         (Std.OrientedCmp.eq_swap (cmp := compare) (a := query) (b := addr))
       rw [hcmp] at hswap
       simpa using hswap.symm
     have hquery : σ.find? addr = σ.find? query := by
-      exact Batteries.RBMap.find?_congr σ hcmp'
+      exact Std.ExtTreeMap.find?_congr σ hcmp'
     have hstorage' : acc.storage = (σ.findD query default).storage := by
-      simpa [Batteries.RBMap.findD, hquery] using hstorage
+      simpa [Std.ExtTreeMap.findD, hquery] using hstorage
     have htstorage' : acc.tstorage = (σ.findD query default).tstorage := by
-      simpa [Batteries.RBMap.findD, hquery] using htstorage
-    simp [Batteries.RBMap.findD, hfind, hstorage', htstorage']
+      simpa [Std.ExtTreeMap.findD, hquery] using htstorage
+    simp [Std.ExtTreeMap.findD, hfind, hstorage', htstorage']
   · have hfind : (σ.insert addr acc).find? query = σ.find? query := by
-      exact Batteries.RBMap.find?_insert_of_ne σ hcmp
-    simp [Batteries.RBMap.findD, hfind]
+      exact Std.ExtTreeMap.find?_insert_of_ne σ hcmp
+    simp [Std.ExtTreeMap.findD, hfind]
 
 theorem accountStorageStateEq_debit_if_present
     (σ : AccountMap) (addr : AccountAddress) (value : UInt256) :
@@ -119,8 +117,8 @@ theorem accountStorageStateEq_debit_if_present
   | some acc =>
       simp
       exact accountStorageStateEq_insert_preserve σ addr { acc with balance := acc.balance - value }
-        (by simp [Batteries.RBMap.findD, hfind])
-        (by simp [Batteries.RBMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.findD, hfind])
 
 theorem accountCodeStateEq_insert_preserve
     (σ : AccountMap) (addr : AccountAddress) (acc : Account)
@@ -129,20 +127,20 @@ theorem accountCodeStateEq_insert_preserve
   intro query
   by_cases hcmp : compare query addr = .eq
   · have hfind : (σ.insert addr acc).find? query = some acc := by
-      exact Batteries.RBMap.find?_insert_of_eq σ hcmp
+      exact Std.ExtTreeMap.find?_insert_of_eq σ hcmp
     have hcmp' : compare addr query = .eq := by
       have hswap :=
         (Std.OrientedCmp.eq_swap (cmp := compare) (a := query) (b := addr))
       rw [hcmp] at hswap
       simpa using hswap.symm
     have hquery : σ.find? addr = σ.find? query := by
-      exact Batteries.RBMap.find?_congr σ hcmp'
+      exact Std.ExtTreeMap.find?_congr σ hcmp'
     have hcode' : acc.code = (σ.findD query default).code := by
-      simpa [Batteries.RBMap.findD, hquery] using hcode
-    simp [Batteries.RBMap.findD, hfind, hcode']
+      simpa [Std.ExtTreeMap.findD, hquery] using hcode
+    simp [Std.ExtTreeMap.findD, hfind, hcode']
   · have hfind : (σ.insert addr acc).find? query = σ.find? query := by
-      exact Batteries.RBMap.find?_insert_of_ne σ hcmp
-    simp [Batteries.RBMap.findD, hfind]
+      exact Std.ExtTreeMap.find?_insert_of_ne σ hcmp
+    simp [Std.ExtTreeMap.findD, hfind]
 
 theorem accountCodeStateEq_debit_if_present
     (σ : AccountMap) (addr : AccountAddress) (value : UInt256) :
@@ -156,7 +154,7 @@ theorem accountCodeStateEq_debit_if_present
   | some acc =>
       simp
       exact accountCodeStateEq_insert_preserve σ addr { acc with balance := acc.balance - value }
-        (by simp [Batteries.RBMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.findD, hfind])
 
 theorem sendEth_accountStorageStateEq
     (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) :
@@ -184,14 +182,14 @@ theorem sendEth_accountStorageStateEq
           by_cases hv : (v != UInt256.ofNat 0) = true
           · simp [hv]
             apply accountStorageStateEq_insert_preserve
-            · simp [Batteries.RBMap.findD, hr]
-            · simp [Batteries.RBMap.findD, hr]
+            · simp [Std.ExtTreeMap.findD, hr]
+            · simp [Std.ExtTreeMap.findD, hr]
           · simp [hv]
       | some acc =>
           simp
           apply accountStorageStateEq_insert_preserve
-          · simp [Batteries.RBMap.findD, hr]
-          · simp [Batteries.RBMap.findD, hr]
+          · simp [Std.ExtTreeMap.findD, hr]
+          · simp [Std.ExtTreeMap.findD, hr]
     simpa [σ₁] using accountStorageStateEq_trans hσ₁
       (accountStorageStateEq_debit_if_present σ₁ s v)
   · simp [hz]
@@ -222,12 +220,12 @@ theorem sendEth_accountCodeStateEq
           by_cases hv : (v != UInt256.ofNat 0) = true
           · simp [hv]
             apply accountCodeStateEq_insert_preserve
-            simp [Batteries.RBMap.findD, hr]
+            simp [Std.ExtTreeMap.findD, hr]
           · simp [hv]
       | some acc =>
           simp
           apply accountCodeStateEq_insert_preserve
-          simp [Batteries.RBMap.findD, hr]
+          simp [Std.ExtTreeMap.findD, hr]
     simpa [σ₁] using accountCodeStateEq_trans hσ₁
       (accountCodeStateEq_debit_if_present σ₁ s v)
   · simp [hz]
@@ -243,7 +241,7 @@ theorem accountStorageStateEq_final_of_empty_or_self {σ τ ρ : AccountMap}
     (hστ : accountStorageStateEq σ τ) (hρ : ρ = ∅ ∨ ρ = τ) :
     accountStorageStateEq σ (if ρ == ∅ then σ else ρ) := by
   rcases hρ with rfl | rfl
-  · simp [rbMap_empty_beq_empty]
+  · simp
   · by_cases hempty : (ρ == ∅) = true
     · simp [hempty]
     · simp [hempty, hστ]
@@ -252,7 +250,7 @@ theorem accountCodeStateEq_final_of_empty_or_self {σ τ ρ : AccountMap}
     (hστ : accountCodeStateEq σ τ) (hρ : ρ = ∅ ∨ ρ = τ) :
     accountCodeStateEq σ (if ρ == ∅ then σ else ρ) := by
   rcases hρ with rfl | rfl
-  · simp [rbMap_empty_beq_empty]
+  · simp
   · by_cases hempty : (ρ == ∅) = true
     · simp [hempty]
     · simp [hempty, hστ]
@@ -361,34 +359,34 @@ theorem precompile_PointEval_accountMap_empty_or_self
 
 theorem precompiled_result_accountMap_empty_or_self
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+    (let result : AccountMap × UInt256 × Substate × ByteArray :=
       match pc with
-      | 1 => (∅, Ξ_ECREC σ g A I)
-      | 2 => (∅, Ξ_SHA256 σ g A I)
-      | 3 => (∅, Ξ_RIP160 σ g A I)
-      | 4 => (∅, Ξ_ID σ g A I)
-      | 5 => (∅, Ξ_EXPMOD σ g A I)
-      | 6 => (∅, Ξ_BN_ADD σ g A I)
-      | 7 => (∅, Ξ_BN_MUL σ g A I)
-      | 8 => (∅, Ξ_SNARKV σ g A I)
-      | 9 => (∅, Ξ_BLAKE2_F σ g A I)
-      | 10 => (∅, Ξ_PointEval σ g A I)
+      | 1 => Ξ_ECREC σ g A I
+      | 2 => Ξ_SHA256 σ g A I
+      | 3 => Ξ_RIP160 σ g A I
+      | 4 => Ξ_ID σ g A I
+      | 5 => Ξ_EXPMOD σ g A I
+      | 6 => Ξ_BN_ADD σ g A I
+      | 7 => Ξ_BN_MUL σ g A I
+      | 8 => Ξ_SNARKV σ g A I
+      | 9 => Ξ_BLAKE2_F σ g A I
+      | 10 => Ξ_PointEval σ g A I
       | _ => default
-     result.2.1) = ∅ ∨
-    (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+     result.1) = ∅ ∨
+    (let result : AccountMap × UInt256 × Substate × ByteArray :=
       match pc with
-      | 1 => (∅, Ξ_ECREC σ g A I)
-      | 2 => (∅, Ξ_SHA256 σ g A I)
-      | 3 => (∅, Ξ_RIP160 σ g A I)
-      | 4 => (∅, Ξ_ID σ g A I)
-      | 5 => (∅, Ξ_EXPMOD σ g A I)
-      | 6 => (∅, Ξ_BN_ADD σ g A I)
-      | 7 => (∅, Ξ_BN_MUL σ g A I)
-      | 8 => (∅, Ξ_SNARKV σ g A I)
-      | 9 => (∅, Ξ_BLAKE2_F σ g A I)
-      | 10 => (∅, Ξ_PointEval σ g A I)
+      | 1 => Ξ_ECREC σ g A I
+      | 2 => Ξ_SHA256 σ g A I
+      | 3 => Ξ_RIP160 σ g A I
+      | 4 => Ξ_ID σ g A I
+      | 5 => Ξ_EXPMOD σ g A I
+      | 6 => Ξ_BN_ADD σ g A I
+      | 7 => Ξ_BN_MUL σ g A I
+      | 8 => Ξ_SNARKV σ g A I
+      | 9 => Ξ_BLAKE2_F σ g A I
+      | 10 => Ξ_PointEval σ g A I
       | _ => default
-     result.2.1) = σ := by
+     result.1) = σ := by
   repeat split
   all_goals
     first
@@ -405,10 +403,6 @@ theorem precompiled_result_accountMap_empty_or_self
     | exact Or.inl rfl
 
 theorem precompiled_Theta_accountMap_eq
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader)
-    (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap)
     (A : Substate)
     (s o r pc : AccountAddress)
@@ -416,120 +410,121 @@ theorem precompiled_Theta_accountMap_eq
     (d : ByteArray)
     (e : Fin 1025)
     (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w).2.1 =
+    (Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 =
       (let σ₁ := sendEth r s v true σ
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes }
-       let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+       let result : AccountMap × UInt256 × Substate × ByteArray :=
         match pc with
-        | 1 => (∅, Ξ_ECREC σ₁ g A I)
-        | 2 => (∅, Ξ_SHA256 σ₁ g A I)
-        | 3 => (∅, Ξ_RIP160 σ₁ g A I)
-        | 4 => (∅, Ξ_ID σ₁ g A I)
-        | 5 => (∅, Ξ_EXPMOD σ₁ g A I)
-        | 6 => (∅, Ξ_BN_ADD σ₁ g A I)
-        | 7 => (∅, Ξ_BN_MUL σ₁ g A I)
-        | 8 => (∅, Ξ_SNARKV σ₁ g A I)
-        | 9 => (∅, Ξ_BLAKE2_F σ₁ g A I)
-        | 10 => (∅, Ξ_PointEval σ₁ g A I)
+        | 1 => Ξ_ECREC σ₁ g A I
+        | 2 => Ξ_SHA256 σ₁ g A I
+        | 3 => Ξ_RIP160 σ₁ g A I
+        | 4 => Ξ_ID σ₁ g A I
+        | 5 => Ξ_EXPMOD σ₁ g A I
+        | 6 => Ξ_BN_ADD σ₁ g A I
+        | 7 => Ξ_BN_MUL σ₁ g A I
+        | 8 => Ξ_SNARKV σ₁ g A I
+        | 9 => Ξ_BLAKE2_F σ₁ g A I
+        | 10 => Ξ_PointEval σ₁ g A I
         | _ => default
-       if result.2.1 == ∅ then σ else result.2.1) := by
+       if result.1 == ∅ then σ else result.1) := by
   unfold Θ sendEth
   simp
   rfl
 
 theorem accountStorageStateEq_of_precompiled_Theta
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r pc : AccountAddress} {g g' p v v' : UInt256}
-    {d out : ByteArray} {e : Fin 1025} {H : BlockHeader} {w z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, out)) :
+    {d out : ByteArray} {e : Fin 1025} {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w z : Bool}
+    (hTheta : Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, out)) :
     accountStorageStateEq σ σ' := by
   let σ₁ := sendEth r s v true σ
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
       code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   have hproj :
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w).2.1 = σ' := by
-    simpa using congrArg (fun x => x.2.1) hTheta
+      (Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ' := by
+    simpa using congrArg (fun x => x.1) hTheta
   rw [← hproj]
-  rw [precompiled_Theta_accountMap_eq blobVersionedHashes createdAccounts
-    genesisBlockHeader blocks σ σ₀ A s o r pc g p v v' d e H w]
+  rw [precompiled_Theta_accountMap_eq σ σ₀ A s o r pc g p v v' d e H
+    blobVersionedHashes blocks w]
   exact accountStorageStateEq_final_of_empty_or_self
     (sendEth_accountStorageStateEq r s v true σ)
     (by simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 theorem accountCodeStateEq_of_precompiled_Theta
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r pc : AccountAddress} {g g' p v v' : UInt256}
-    {d out : ByteArray} {e : Fin 1025} {H : BlockHeader} {w z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, out)) :
+    {d out : ByteArray} {e : Fin 1025} {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w z : Bool}
+    (hTheta : Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, out)) :
     accountCodeStateEq σ σ' := by
   let σ₁ := sendEth r s v true σ
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
       code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   have hproj :
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w).2.1 = σ' := by
-    simpa using congrArg (fun x => x.2.1) hTheta
+      (Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ' := by
+    simpa using congrArg (fun x => x.1) hTheta
   rw [← hproj]
-  rw [precompiled_Theta_accountMap_eq blobVersionedHashes createdAccounts
-    genesisBlockHeader blocks σ σ₀ A s o r pc g p v v' d e H w]
+  rw [precompiled_Theta_accountMap_eq σ σ₀ A s o r pc g p v v' d e H
+    blobVersionedHashes blocks w]
   exact accountCodeStateEq_final_of_empty_or_self
     (sendEth_accountCodeStateEq r s v true σ)
     (by simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 theorem accountStaticStateEq_of_precompiled_Theta
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r pc : AccountAddress} {g g' p v v' : UInt256}
-    {d out : ByteArray} {e : Fin 1025} {H : BlockHeader} {w z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, out)) :
+    {d out : ByteArray} {e : Fin 1025} {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w z : Bool}
+    (hTheta : Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, out)) :
     accountStaticStateEq σ σ' := by
   exact accountStaticStateEq_of_storage_code
     (accountStorageStateEq_of_precompiled_Theta hTheta)
     (accountCodeStateEq_of_precompiled_Theta hTheta)
 
 def thetaXiResult
-    (createdAccounts : Batteries.RBSet AccountAddress compare) (A : Substate)
-    (xi : Except EVM.ExecutionException
-      (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
-    Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
-  match xi with
-  | .error _ => (createdAccounts, ∅, ⟨0⟩, A, .empty)
-  | .ok (.revert g' o) => (createdAccounts, ∅, g', A, o)
-  | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
-      (createdAccounts', σStarStar, gStarStar, AStarStar, returnedData)
-
-def thetaXiAccountMap
-    (σ : AccountMap) (createdAccounts : Batteries.RBSet AccountAddress compare)
     (A : Substate)
     (xi : Except EVM.ExecutionException
-      (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))) :
+      (ExecutionResult (AccountMap × UInt256 × Substate))) :
+    AccountMap × UInt256 × Substate × ByteArray :=
+  match xi with
+  | .error _ => (∅, ⟨0⟩, A, .empty)
+  | .ok (.revert g' o) => (∅, g', A, o)
+  | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
+      (σStarStar, gStarStar, AStarStar, returnedData)
+
+def thetaXiAccountMap
+    (σ : AccountMap) (A : Substate)
+    (xi : Except EVM.ExecutionException
+      (ExecutionResult (AccountMap × UInt256 × Substate))) :
     AccountMap :=
-  let result := thetaXiResult createdAccounts A xi
-  if result.2.1 == (∅ : AccountMap) then σ else result.2.1
+  let result := thetaXiResult A xi
+  if result.1 == (∅ : AccountMap) then σ else result.1
 
 def stateStorageStateEq (state₁ state₂ : State) : Prop :=
   accountStorageStateEq state₁.accountMap state₂.accountMap
@@ -586,6 +581,76 @@ theorem stateStaticStateEq_of_accountMap_eq {state state' : State}
     (h : state'.accountMap = state.accountMap) :
     stateStaticStateEq state state' := by
   simp [stateStaticStateEq, h]
+
+theorem Z_ok_eq_charged_cost {validJumps : Array UInt256} {instr : Operation}
+    {state stateZ : State} {cost : ℕ}
+    (hZ : Z validJumps instr state = .ok (stateZ, cost)) :
+    let charged : State :=
+      { state with machineState.gasAvailable :=
+          state.machineState.gasAvailable.subNat (memoryExpansionCost state instr) }
+    stateZ = charged ∧ cost = C' charged instr := by
+  intro charged
+  unfold Z at hZ
+  by_cases hδ : δ instr = none
+  · rw [if_pos hδ] at hZ
+    contradiction
+  rw [if_neg hδ] at hZ
+  by_cases hstack : state.machineState.stack.length < (δ instr).getD 0
+  · rw [if_pos hstack] at hZ
+    contradiction
+  rw [if_neg hstack] at hZ
+  by_cases hcost₁ : state.machineState.gasAvailable.toNat < memoryExpansionCost state instr
+  · rw [if_pos hcost₁] at hZ
+    contradiction
+  rw [if_neg hcost₁] at hZ
+  by_cases hcost₂ : charged.machineState.gasAvailable.toNat < C' charged instr
+  · rw [if_pos (by simpa [charged] using hcost₂)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hcost₂)] at hZ
+  by_cases hjump :
+      instr = Operation.JUMP ∧ Z.notIn charged.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [charged] using hjump)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hjump)] at hZ
+  by_cases hjumpi :
+      instr = Operation.JUMPI ∧ charged.machineState.stack[1]? ≠ some ⟨0⟩ ∧
+        Z.notIn charged.machineState.stack[0]? validJumps = true
+  · rw [if_pos (by simpa [charged] using hjumpi)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hjumpi)] at hZ
+  by_cases hreturndata :
+      instr = Operation.RETURNDATACOPY ∧
+        (charged.machineState.stack.getD 1 ⟨0⟩).toNat +
+          (charged.machineState.stack.getD 2 ⟨0⟩).toNat >
+            charged.machineState.returnData.size
+  · rw [if_pos (by simpa [charged] using hreturndata)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hreturndata)] at hZ
+  by_cases hstackover :
+      charged.machineState.stack.length - (δ instr).getD 0 + (α instr).getD 0 > 1024
+  · rw [if_pos (by simpa [charged] using hstackover)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hstackover)] at hZ
+  by_cases hstatic :
+      (¬ charged.executionEnv.perm) ∧
+        (instr ∈ [.CREATE, .CREATE2, .SSTORE, .SELFDESTRUCT, .LOG0, .LOG1, .LOG2,
+          .LOG3, .LOG4, .TSTORE] ∨
+          (instr = .CALL ∧ charged.machineState.stack[2]? ≠ some ⟨0⟩))
+  · rw [if_pos (by simpa [charged] using hstatic)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hstatic)] at hZ
+  by_cases hsstore :
+      (instr = .SSTORE) ∧ charged.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend
+  · rw [if_pos (by simpa [charged] using hsstore)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hsstore)] at hZ
+  by_cases hcreate :
+      instr.isCreate ∧ charged.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
+  · rw [if_pos (by simpa [charged] using hcreate)] at hZ
+    contradiction
+  rw [if_neg (by simpa [charged] using hcreate)] at hZ
+  simp at hZ
+  exact ⟨hZ.1.symm, hZ.2.symm⟩
 
 theorem Z_static_stateStaticStateEq
     {validJumps : Array UInt256} {op : Operation} {state stateZ : State}
@@ -1107,21 +1172,18 @@ lemma static_step_stackmemflow_static_stateStorageStateEq_of_Z
 
 lemma call_static_stateStorageStateEq_at_depth
     {n gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hdepth : 1024 - evmState.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ')
     (hperm : permission = false)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateStorageStateEq evmState state' := by
   unfold call at h
@@ -1132,8 +1194,7 @@ lemma call_static_stateStorageStateEq_at_depth
     rw [← hstate]
     simp [stateStorageStateEq]
     let θ :=
-      Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-        evmState.blocks evmState.accountMap evmState.σ₀
+      Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
         (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
         (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
         (AccountAddress.ofUInt256 recipient)
@@ -1145,8 +1206,7 @@ lemma call_static_stateStorageStateEq_at_depth
         (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
         (evmState.executionEnv.depth + 1) evmState.executionEnv.header false
     have hθ :
-        Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-          evmState.blocks evmState.accountMap evmState.σ₀
+        Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
           (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
@@ -1157,12 +1217,10 @@ lemma call_static_stateStorageStateEq_at_depth
           (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header false =
-        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2.1, θ.2.2.2.2.2) := by
+        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2) := by
       rfl
-    have hpres : accountStorageStateEq evmState.accountMap θ.2.1 :=
-      ihTheta blobVersionedHashes evmState.genesisBlockHeader evmState.blocks
-        evmState.createdAccounts (evmState.executionEnv.depth + 1)
-        evmState.accountMap evmState.σ₀
+    have hpres : accountStorageStateEq evmState.accountMap θ.1 :=
+      ihTheta evmState.accountMap evmState.σ₀
         ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
         (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
         (AccountAddress.ofUInt256 recipient)
@@ -1172,8 +1230,9 @@ lemma call_static_stateStorageStateEq_at_depth
             value gas evmState.accountMap evmState.machineState evmState.substate))
         (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
         (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        evmState.executionEnv.header
-        θ.1 θ.2.1 θ.2.2.1 θ.2.2.2.1 θ.2.2.2.2.1 θ.2.2.2.2.2
+        (evmState.executionEnv.depth + 1) evmState.executionEnv.header
+        evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks
+        θ.1 θ.2.1 θ.2.2.1 θ.2.2.2.1 θ.2.2.2.2
         (static_depth_succ_measure hdepth hcall.2)
         hθ
     simpa [θ, hperm] using hpres
@@ -1183,11 +1242,10 @@ lemma call_static_stateStorageStateEq_at_depth
 
 lemma call_static_stateStorageStateEq_max_depth
     {gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hdepth : evmState.executionEnv.depth = 1024)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateStorageStateEq evmState state' := by
   unfold call at h
@@ -1207,14 +1265,12 @@ lemma step_system_call_static_stateStorageStateEq_of_Z_at_depth
     {state stateZ stepped : State} {cost : Nat}
     (hcallkind : op = .CALL ∨ op = .CALLCODE ∨ op = .DELEGATECALL ∨ op = .STATICCALL)
     (hdepth : 1024 - state.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ')
     (hperm : state.executionEnv.perm = false)
     (hZ : Z validJumps (.System op) state = .ok (stateZ, cost))
@@ -1436,14 +1492,12 @@ theorem step_system_static_stateStorageStateEq_of_Z_succ_depth
     {state stateZ stepped : State} {cost : Nat} :
     state.executionEnv.perm = false →
     1024 - state.executionEnv.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ') →
     Z validJumps (.System op) state = .ok (stateZ, cost) →
     step cost (.System op, arg) {stateZ with executionEnv.depth := state.executionEnv.depth} =
@@ -1511,14 +1565,12 @@ theorem step_static_stateStorageStateEq_of_Z_succ_depth
     {state stateZ stepped : State} {cost : Nat} :
     state.executionEnv.perm = false →
     1024 - state.executionEnv.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ') →
     Z validJumps op state = .ok (stateZ, cost) →
     step cost (op, arg) {stateZ with executionEnv.depth := state.executionEnv.depth} =
@@ -1612,14 +1664,12 @@ theorem Xstep_static_stateStorageStateEq_succ_depth
     {ret : Option (HaltCause × ByteArray)} :
     state.executionEnv.perm = false →
     1024 - state.executionEnv.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ') →
     Xstep validJumps state = .ok (state', ret) →
     stateStorageStateEq state state' := by
@@ -1764,14 +1814,12 @@ theorem X_static_stateStorageStateEq_succ_depth
     (fuel : Nat)
     (hperm : state.executionEnv.perm = false)
     (hdepth : 1024 - state.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ')
     (hX : X fuel validJumps state = .ok (.success state' out)) :
     stateStorageStateEq state state' := by
@@ -1815,14 +1863,12 @@ theorem X_static_stateStorageStateEq_succ_depth
                   exact hnext
 
 theorem Xi_static_accountStorageStateEq_max_depth
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {out : ByteArray} :
     I.perm = false →
     I.depth = 1024 →
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I =
-      .ok (.success (createdAccounts', σ', g', A') out) →
+    Ξ σ σ₀ g A I =
+      .ok (.success (σ', g', A') out) →
     accountStorageStateEq σ σ' := by
   intro hperm hdepth hXi
   let freshEvmState : State :=
@@ -1831,10 +1877,8 @@ theorem Xi_static_accountStorageStateEq_max_depth
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
-      blocks := blocks
-      genesisBlockHeader := genesisBlockHeader
+
     }
   unfold Ξ at hXi
   simp only [bind, Except.bind] at hXi
@@ -1858,29 +1902,25 @@ theorem Xi_static_accountStorageStateEq_max_depth
           rw [hX] at hXi
           simp at hXi
           rcases hXi with ⟨hcomponents, _hout⟩
-          rcases hcomponents with ⟨_hcreated, hσ, _hg, _hA⟩
+          rcases hcomponents with ⟨hσ, _hg, _hA⟩
           subst σ'
           simpa [stateStorageStateEq, freshEvmState] using hstate
 
 theorem Xi_static_accountStorageStateEq_succ_depth
     {n : Nat}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {out : ByteArray} :
     I.perm = false →
     1024 - I.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStorageStateEq σ σ') →
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I =
-      .ok (.success (createdAccounts', σ', g', A') out) →
+    Ξ σ σ₀ g A I =
+      .ok (.success (σ', g', A') out) →
     accountStorageStateEq σ σ' := by
   intro hperm hdepth ihTheta hXi
   let freshEvmState : State :=
@@ -1889,10 +1929,8 @@ theorem Xi_static_accountStorageStateEq_succ_depth
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
-      blocks := blocks
-      genesisBlockHeader := genesisBlockHeader
+
     }
   unfold Ξ at hXi
   simp only [bind, Except.bind] at hXi
@@ -1917,20 +1955,19 @@ theorem Xi_static_accountStorageStateEq_succ_depth
           rw [hX] at hXi
           simp at hXi
           rcases hXi with ⟨hcomponents, _hout⟩
-          rcases hcomponents with ⟨_hcreated, hσ, _hg, _hA⟩
+          rcases hcomponents with ⟨hσ, _hg, _hA⟩
           subst σ'
           simpa [stateStorageStateEq, freshEvmState] using hstate
 
 theorem thetaXiAccountMap_static
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {σ σPre : AccountMap} {A : Substate}
     {xi : Except EVM.ExecutionException
-      (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
+      (ExecutionResult (AccountMap × UInt256 × Substate))}
     (hpre : accountStorageStateEq σ σPre)
-    (hxi : ∀ {createdAccounts' σ' g' A' out},
-      xi = .ok (.success (createdAccounts', σ', g', A') out) →
+    (hxi : ∀ {σ' g' A' out},
+      xi = .ok (.success (σ', g', A') out) →
       accountStorageStateEq σPre σ') :
-    accountStorageStateEq σ (thetaXiAccountMap σ createdAccounts A xi) := by
+    accountStorageStateEq σ (thetaXiAccountMap σ A xi) := by
   cases h : xi with
   | error e =>
       simp [thetaXiAccountMap, thetaXiResult]
@@ -1939,17 +1976,13 @@ theorem thetaXiAccountMap_static
       | revert g' out =>
           simp [thetaXiAccountMap, thetaXiResult]
       | success result out =>
-          rcases result with ⟨createdAccounts', σ', g', A'⟩
+          rcases result with ⟨σ', g', A'⟩
           by_cases hempty : (σ' == (∅ : AccountMap)) = true
           · simp [thetaXiAccountMap, thetaXiResult, hempty]
           · simpa [thetaXiAccountMap, thetaXiResult, hempty] using
               accountStorageStateEq_trans hpre (hxi h)
 
 theorem code_Theta_accountMap_eq
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader)
-    (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap)
     (A : Substate)
     (s o r : AccountAddress)
@@ -1957,92 +1990,90 @@ theorem code_Theta_accountMap_eq
     (g p v v' : UInt256)
     (d : ByteArray)
     (e : Fin 1025)
-    (H : BlockHeader) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Code code) g p v v' d e H false).2.1 =
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    :
+    (Θ σ σ₀ A s o r
+        (.Code code) g p v v' d e H blobVersionedHashes blocks false).1 =
       (let σ₁ := sendEth r s v true σ
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
           source := s, weiValue := v', depth := e, perm := false,
-          code := code, header := H, blobVersionedHashes := blobVersionedHashes }
-       thetaXiAccountMap σ createdAccounts A
-        (Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I)) := by
+          code := code, header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+       thetaXiAccountMap σ A
+        (Ξ σ₁ σ₀ g A I)) := by
   unfold Θ sendEth thetaXiAccountMap thetaXiResult
   simp
   rfl
 
 theorem Theta_static_accountStorageStateEq
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r : AccountAddress} {c : ToExecute}
     {g g' p v v' : UInt256} {d out : ByteArray} {e : Fin 1025}
-    {H : BlockHeader} {z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H false =
-      (createdAccounts', σ', g', A', z, out)) :
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {z : Bool}
+    (hTheta : Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks false =
+      (σ', g', A', z, out)) :
     accountStorageStateEq σ σ' := by
   generalize hn : 1024 - e.val = n
-  induction n generalizing blobVersionedHashes createdAccounts genesisBlockHeader blocks
-      createdAccounts' σ σ₀ σ' A A' s o r c g g' p v v' d out e H z with
+  induction n generalizing blobVersionedHashes blocks
+      σ σ₀ σ' A A' s o r c g g' p v v' d out e H z with
   | zero =>
       have he : e = 1024 := by omega
       subst e
       cases hc : c with
       | Precompiled pc =>
           exact accountStorageStateEq_of_precompiled_Theta
-            (createdAccounts' := createdAccounts') (pc := pc) (by simpa [hc] using hTheta)
+            (pc := pc) (by simpa [hc] using hTheta)
       | Code code =>
           let σ₁ := sendEth r s v true σ
           let I : ExecutionEnv :=
             { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
               source := s, weiValue := v', depth := (1024 : Fin 1025), perm := false,
-              code := code, header := H, blobVersionedHashes := blobVersionedHashes }
-          let xi := Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I
+              code := code, header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+          let xi := Ξ σ₁ σ₀ g A I
           have hproj :
-              (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-                (.Code code) g p v v' d (1024 : Fin 1025) H false).2.1 = σ' := by
-            simpa [hc] using congrArg (fun x => x.2.1) hTheta
+              (Θ σ σ₀ A s o r
+                (.Code code) g p v v' d (1024 : Fin 1025) H blobVersionedHashes blocks false).1 = σ' := by
+            simpa [hc] using congrArg (fun x => x.1) hTheta
           rw [← hproj]
-          rw [code_Theta_accountMap_eq blobVersionedHashes createdAccounts
-            genesisBlockHeader blocks σ σ₀ A s o r code g p v v' d (1024 : Fin 1025) H]
+          rw [code_Theta_accountMap_eq σ σ₀ A s o r code g p v v' d (1024 : Fin 1025) H blobVersionedHashes blocks]
           exact thetaXiAccountMap_static (sendEth_accountStorageStateEq r s v true σ)
             (by
-              intro createdAccounts' σ' g' A' out hsuccess
+              intro σ' g' A' out hsuccess
               exact Xi_static_accountStorageStateEq_max_depth (I := I)
                 rfl rfl (by simpa [σ₁, I, xi] using hsuccess))
   | succ n ih =>
       cases hc : c with
       | Precompiled pc =>
           exact accountStorageStateEq_of_precompiled_Theta
-            (createdAccounts' := createdAccounts') (pc := pc) (by simpa [hc] using hTheta)
+            (pc := pc) (by simpa [hc] using hTheta)
       | Code code =>
           let σ₁ := sendEth r s v true σ
           let I : ExecutionEnv :=
             { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
               source := s, weiValue := v', depth := e, perm := false,
-              code := code, header := H, blobVersionedHashes := blobVersionedHashes }
-          let xi := Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I
+              code := code, header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+          let xi := Ξ σ₁ σ₀ g A I
           have hproj :
-              (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-                (.Code code) g p v v' d e H false).2.1 = σ' := by
-            simpa [hc] using congrArg (fun x => x.2.1) hTheta
+              (Θ σ σ₀ A s o r
+                (.Code code) g p v v' d e H blobVersionedHashes blocks false).1 = σ' := by
+            simpa [hc] using congrArg (fun x => x.1) hTheta
           rw [← hproj]
-          rw [code_Theta_accountMap_eq blobVersionedHashes createdAccounts
-            genesisBlockHeader blocks σ σ₀ A s o r code g p v v' d e H]
+          rw [code_Theta_accountMap_eq σ σ₀ A s o r code g p v v' d e H blobVersionedHashes blocks]
           exact thetaXiAccountMap_static (sendEth_accountStorageStateEq r s v true σ)
             (by
-              intro createdAccounts' σ' g' A' out hsuccess
+              intro σ' g' A' out hsuccess
               exact Xi_static_accountStorageStateEq_succ_depth (n := n) (I := I)
                 rfl (by simpa [I] using hn)
                 (by
-                  intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
-                    createdAccountsᵢ eᵢ σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ Hᵢ
-                    createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ outᵢ heᵢ hThetaᵢ
-                  exact ih (blobVersionedHashes := blobVersionedHashesᵢ)
-                    (createdAccounts := createdAccountsᵢ)
-                    (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
+                  intro σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ
+                    blobVersionedHashesᵢ blocksᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ outᵢ heᵢ hThetaᵢ
+                  exact ih (blobVersionedHashes := blobVersionedHashesᵢ) (blocks := blocksᵢ)
                     (σ := σᵢ) (σ₀ := σ₀ᵢ) (σ' := σ'ᵢ) (A := Aᵢ) (A' := A'ᵢ)
                     (s := sᵢ) (o := oᵢ) (r := rᵢ) (c := cᵢ) (g := gᵢ) (g' := g'ᵢ)
                     (p := pᵢ) (v := vᵢ) (v' := v'ᵢ) (d := dᵢ) (out := outᵢ)
@@ -2109,21 +2140,18 @@ lemma static_step_stackmemflow_static_stateStaticStateEq_of_Z
 
 lemma call_static_stateStaticStateEq_at_depth
     {n gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hdepth : 1024 - evmState.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ')
     (hperm : permission = false)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateStaticStateEq evmState state' := by
   unfold call at h
@@ -2134,8 +2162,7 @@ lemma call_static_stateStaticStateEq_at_depth
     rw [← hstate]
     simp [stateStaticStateEq]
     let θ :=
-      Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-        evmState.blocks evmState.accountMap evmState.σ₀
+      Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
         (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
         (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
         (AccountAddress.ofUInt256 recipient)
@@ -2147,8 +2174,7 @@ lemma call_static_stateStaticStateEq_at_depth
         (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
         (evmState.executionEnv.depth + 1) evmState.executionEnv.header false
     have hθ :
-        Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-          evmState.blocks evmState.accountMap evmState.σ₀
+        Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
           (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
@@ -2159,12 +2185,10 @@ lemma call_static_stateStaticStateEq_at_depth
           (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header false =
-        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2.1, θ.2.2.2.2.2) := by
+        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2) := by
       rfl
-    have hpres : accountStaticStateEq evmState.accountMap θ.2.1 :=
-      ihTheta blobVersionedHashes evmState.genesisBlockHeader evmState.blocks
-        evmState.createdAccounts (evmState.executionEnv.depth + 1)
-        evmState.accountMap evmState.σ₀
+    have hpres : accountStaticStateEq evmState.accountMap θ.1 :=
+      ihTheta evmState.accountMap evmState.σ₀
         ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
         (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
         (AccountAddress.ofUInt256 recipient)
@@ -2174,8 +2198,9 @@ lemma call_static_stateStaticStateEq_at_depth
             value gas evmState.accountMap evmState.machineState evmState.substate))
         (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
         (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        evmState.executionEnv.header
-        θ.1 θ.2.1 θ.2.2.1 θ.2.2.2.1 θ.2.2.2.2.1 θ.2.2.2.2.2
+        (evmState.executionEnv.depth + 1) evmState.executionEnv.header
+        evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks
+        θ.1 θ.2.1 θ.2.2.1 θ.2.2.2.1 θ.2.2.2.2
         (static_depth_succ_measure hdepth hcall.2)
         hθ
     simpa [θ, hperm] using hpres
@@ -2185,11 +2210,10 @@ lemma call_static_stateStaticStateEq_at_depth
 
 lemma call_static_stateStaticStateEq_max_depth
     {gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hdepth : evmState.executionEnv.depth = 1024)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateStaticStateEq evmState state' := by
   unfold call at h
@@ -2209,14 +2233,12 @@ lemma step_system_call_static_stateStaticStateEq_of_Z_at_depth
     {state stateZ stepped : State} {cost : Nat}
     (hcallkind : op = .CALL ∨ op = .CALLCODE ∨ op = .DELEGATECALL ∨ op = .STATICCALL)
     (hdepth : 1024 - state.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ')
     (hperm : state.executionEnv.perm = false)
     (hZ : Z validJumps (.System op) state = .ok (stateZ, cost))
@@ -2438,14 +2460,12 @@ theorem step_system_static_stateStaticStateEq_of_Z_succ_depth
     {state stateZ stepped : State} {cost : Nat} :
     state.executionEnv.perm = false →
     1024 - state.executionEnv.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ') →
     Z validJumps (.System op) state = .ok (stateZ, cost) →
     step cost (.System op, arg) {stateZ with executionEnv.depth := state.executionEnv.depth} =
@@ -2513,14 +2533,12 @@ theorem step_static_stateStaticStateEq_of_Z_succ_depth
     {state stateZ stepped : State} {cost : Nat} :
     state.executionEnv.perm = false →
     1024 - state.executionEnv.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ') →
     Z validJumps op state = .ok (stateZ, cost) →
     step cost (op, arg) {stateZ with executionEnv.depth := state.executionEnv.depth} =
@@ -2614,14 +2632,12 @@ theorem Xstep_static_stateStaticStateEq_succ_depth
     {ret : Option (HaltCause × ByteArray)} :
     state.executionEnv.perm = false →
     1024 - state.executionEnv.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ') →
     Xstep validJumps state = .ok (state', ret) →
     stateStaticStateEq state state' := by
@@ -2728,14 +2744,12 @@ theorem X_static_stateStaticStateEq_succ_depth
     (fuel : Nat)
     (hperm : state.executionEnv.perm = false)
     (hdepth : 1024 - state.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ')
     (hX : X fuel validJumps state = .ok (.success state' out)) :
     stateStaticStateEq state state' := by
@@ -2779,14 +2793,12 @@ theorem X_static_stateStaticStateEq_succ_depth
                   exact hnext
 
 theorem Xi_static_accountStaticStateEq_max_depth
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {out : ByteArray} :
     I.perm = false →
     I.depth = 1024 →
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I =
-      .ok (.success (createdAccounts', σ', g', A') out) →
+    Ξ σ σ₀ g A I =
+      .ok (.success (σ', g', A') out) →
     accountStaticStateEq σ σ' := by
   intro hperm hdepth hXi
   let freshEvmState : State :=
@@ -2795,10 +2807,8 @@ theorem Xi_static_accountStaticStateEq_max_depth
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
-      blocks := blocks
-      genesisBlockHeader := genesisBlockHeader
+
     }
   unfold Ξ at hXi
   simp only [bind, Except.bind] at hXi
@@ -2822,29 +2832,25 @@ theorem Xi_static_accountStaticStateEq_max_depth
           rw [hX] at hXi
           simp at hXi
           rcases hXi with ⟨hcomponents, _hout⟩
-          rcases hcomponents with ⟨_hcreated, hσ, _hg, _hA⟩
+          rcases hcomponents with ⟨hσ, _hg, _hA⟩
           subst σ'
           simpa [stateStaticStateEq, freshEvmState] using hstate
 
 theorem Xi_static_accountStaticStateEq_succ_depth
     {n : Nat}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {out : ByteArray} :
     I.perm = false →
     1024 - I.depth.val = n + 1 →
-    (∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H
-        createdAccounts' σ' g' A' z out,
+    (∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        σ' g' A' z out,
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H false =
-            (createdAccounts', σ', g', A', z, out) →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ false =
+            (σ', g', A', z, out) →
           accountStaticStateEq σ σ') →
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I =
-      .ok (.success (createdAccounts', σ', g', A') out) →
+    Ξ σ σ₀ g A I =
+      .ok (.success (σ', g', A') out) →
     accountStaticStateEq σ σ' := by
   intro hperm hdepth ihTheta hXi
   let freshEvmState : State :=
@@ -2853,10 +2859,8 @@ theorem Xi_static_accountStaticStateEq_succ_depth
       σ₀ := σ₀
       executionEnv := I
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
-      blocks := blocks
-      genesisBlockHeader := genesisBlockHeader
+
     }
   unfold Ξ at hXi
   simp only [bind, Except.bind] at hXi
@@ -2881,20 +2885,19 @@ theorem Xi_static_accountStaticStateEq_succ_depth
           rw [hX] at hXi
           simp at hXi
           rcases hXi with ⟨hcomponents, _hout⟩
-          rcases hcomponents with ⟨_hcreated, hσ, _hg, _hA⟩
+          rcases hcomponents with ⟨hσ, _hg, _hA⟩
           subst σ'
           simpa [stateStaticStateEq, freshEvmState] using hstate
 
 theorem thetaXiAccountMap_static_accountStaticStateEq
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
     {σ σPre : AccountMap} {A : Substate}
     {xi : Except EVM.ExecutionException
-      (ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate))}
+      (ExecutionResult (AccountMap × UInt256 × Substate))}
     (hpre : accountStaticStateEq σ σPre)
-    (hxi : ∀ {createdAccounts' σ' g' A' out},
-      xi = .ok (.success (createdAccounts', σ', g', A') out) →
+    (hxi : ∀ {σ' g' A' out},
+      xi = .ok (.success (σ', g', A') out) →
       accountStaticStateEq σPre σ') :
-    accountStaticStateEq σ (thetaXiAccountMap σ createdAccounts A xi) := by
+    accountStaticStateEq σ (thetaXiAccountMap σ A xi) := by
   cases h : xi with
   | error e =>
       simp [thetaXiAccountMap, thetaXiResult]
@@ -2903,84 +2906,81 @@ theorem thetaXiAccountMap_static_accountStaticStateEq
       | revert g' out =>
           simp [thetaXiAccountMap, thetaXiResult]
       | success result out =>
-          rcases result with ⟨createdAccounts', σ', g', A'⟩
+          rcases result with ⟨σ', g', A'⟩
           by_cases hempty : (σ' == (∅ : AccountMap)) = true
           · simp [thetaXiAccountMap, thetaXiResult, hempty]
           · simpa [thetaXiAccountMap, thetaXiResult, hempty] using
               accountStaticStateEq_trans hpre (hxi h)
 
 theorem Theta_static_accountStaticStateEq
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r : AccountAddress} {c : ToExecute}
     {g g' p v v' : UInt256} {d out : ByteArray} {e : Fin 1025}
-    {H : BlockHeader} {z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H false =
-      (createdAccounts', σ', g', A', z, out)) :
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {z : Bool}
+    (hTheta : Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks false =
+      (σ', g', A', z, out)) :
     accountStaticStateEq σ σ' := by
   generalize hn : 1024 - e.val = n
-  induction n generalizing blobVersionedHashes createdAccounts genesisBlockHeader blocks
-      createdAccounts' σ σ₀ σ' A A' s o r c g g' p v v' d out e H z with
+  induction n generalizing blobVersionedHashes blocks
+      σ σ₀ σ' A A' s o r c g g' p v v' d out e H z with
   | zero =>
       have he : e = 1024 := by omega
       subst e
       cases hc : c with
       | Precompiled pc =>
           exact accountStaticStateEq_of_precompiled_Theta
-            (createdAccounts' := createdAccounts') (pc := pc) (by simpa [hc] using hTheta)
+            (pc := pc) (by simpa [hc] using hTheta)
       | Code code =>
           let σ₁ := sendEth r s v true σ
           let I : ExecutionEnv :=
             { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
               source := s, weiValue := v', depth := (1024 : Fin 1025), perm := false,
-              code := code, header := H, blobVersionedHashes := blobVersionedHashes }
-          let xi := Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I
+              code := code, header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+          let xi := Ξ σ₁ σ₀ g A I
           have hproj :
-              (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-                (.Code code) g p v v' d (1024 : Fin 1025) H false).2.1 = σ' := by
-            simpa [hc] using congrArg (fun x => x.2.1) hTheta
+              (Θ σ σ₀ A s o r
+                (.Code code) g p v v' d (1024 : Fin 1025) H blobVersionedHashes blocks false).1 = σ' := by
+            simpa [hc] using congrArg (fun x => x.1) hTheta
           rw [← hproj]
-          rw [code_Theta_accountMap_eq blobVersionedHashes createdAccounts
-            genesisBlockHeader blocks σ σ₀ A s o r code g p v v' d (1024 : Fin 1025) H]
+          rw [code_Theta_accountMap_eq σ σ₀ A s o r code g p v v' d (1024 : Fin 1025) H
+            blobVersionedHashes blocks]
           exact thetaXiAccountMap_static_accountStaticStateEq (sendEth_accountStaticStateEq r s v true σ)
             (by
-              intro createdAccounts' σ' g' A' out hsuccess
+              intro σ' g' A' out hsuccess
               exact Xi_static_accountStaticStateEq_max_depth (I := I)
                 rfl rfl (by simpa [σ₁, I, xi] using hsuccess))
   | succ n ih =>
       cases hc : c with
       | Precompiled pc =>
           exact accountStaticStateEq_of_precompiled_Theta
-            (createdAccounts' := createdAccounts') (pc := pc) (by simpa [hc] using hTheta)
+            (pc := pc) (by simpa [hc] using hTheta)
       | Code code =>
           let σ₁ := sendEth r s v true σ
           let I : ExecutionEnv :=
             { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
               source := s, weiValue := v', depth := e, perm := false,
-              code := code, header := H, blobVersionedHashes := blobVersionedHashes }
-          let xi := Ξ createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I
+              code := code, header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+          let xi := Ξ σ₁ σ₀ g A I
           have hproj :
-              (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-                (.Code code) g p v v' d e H false).2.1 = σ' := by
-            simpa [hc] using congrArg (fun x => x.2.1) hTheta
+              (Θ σ σ₀ A s o r
+                (.Code code) g p v v' d e H blobVersionedHashes blocks false).1 = σ' := by
+            simpa [hc] using congrArg (fun x => x.1) hTheta
           rw [← hproj]
-          rw [code_Theta_accountMap_eq blobVersionedHashes createdAccounts
-            genesisBlockHeader blocks σ σ₀ A s o r code g p v v' d e H]
+          rw [code_Theta_accountMap_eq σ σ₀ A s o r code g p v v' d e H
+            blobVersionedHashes blocks]
           exact thetaXiAccountMap_static_accountStaticStateEq (sendEth_accountStaticStateEq r s v true σ)
             (by
-              intro createdAccounts' σ' g' A' out hsuccess
+              intro σ' g' A' out hsuccess
               exact Xi_static_accountStaticStateEq_succ_depth (n := n) (I := I)
                 rfl (by simpa [I] using hn)
                 (by
-                  intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
-                    createdAccountsᵢ eᵢ σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ Hᵢ
-                    createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ outᵢ heᵢ hThetaᵢ
-                  exact ih (blobVersionedHashes := blobVersionedHashesᵢ)
-                    (createdAccounts := createdAccountsᵢ)
-                    (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
+                  intro σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ
+                    blobVersionedHashesᵢ blocksᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ outᵢ heᵢ hThetaᵢ
+                  exact ih (blobVersionedHashes := blobVersionedHashesᵢ) (blocks := blocksᵢ)
                     (σ := σᵢ) (σ₀ := σ₀ᵢ) (σ' := σ'ᵢ) (A := Aᵢ) (A' := A'ᵢ)
                     (s := sᵢ) (o := oᵢ) (r := rᵢ) (c := cᵢ) (g := gᵢ) (g' := g'ᵢ)
                     (p := pᵢ) (v := vᵢ) (v' := v'ᵢ) (d := dᵢ) (out := outᵢ)
@@ -2989,27 +2989,26 @@ theorem Theta_static_accountStaticStateEq
 
 
 theorem Theta_static_accountStorageState_eq
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r : AccountAddress} {c : ToExecute}
     {g g' p v v' : UInt256} {d out : ByteArray} {e : Fin 1025}
-    {H : BlockHeader} {z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H false =
-      (createdAccounts', σ', g', A', z, out)) :
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {z : Bool}
+    (hTheta : Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks false =
+      (σ', g', A', z, out)) :
     accountStorageState σ = accountStorageState σ' := by
   exact accountStorageState_eq_of_accountStorageStateEq
     (Theta_static_accountStorageStateEq hTheta)
 
 lemma call_static_stateStorageStateEq
     {gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hperm : permission = false)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateStorageStateEq evmState state' := by
   unfold call at h
@@ -3019,8 +3018,7 @@ lemma call_static_stateStorageStateEq
     rw [← hstate]
     simp [stateStorageStateEq]
     let θ :=
-      Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-        evmState.blocks evmState.accountMap evmState.σ₀
+      Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
         (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
         (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
         (AccountAddress.ofUInt256 recipient)
@@ -3032,8 +3030,7 @@ lemma call_static_stateStorageStateEq
         (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
         (evmState.executionEnv.depth + 1) evmState.executionEnv.header false
     have hθ :
-        Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-          evmState.blocks evmState.accountMap evmState.σ₀
+        Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
           (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
@@ -3044,9 +3041,9 @@ lemma call_static_stateStorageStateEq
           (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header false =
-        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2.1, θ.2.2.2.2.2) := by
+        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2) := by
       rfl
-    have hpres : accountStorageStateEq evmState.accountMap θ.2.1 :=
+    have hpres : accountStorageStateEq evmState.accountMap θ.1 :=
       Theta_static_accountStorageStateEq hθ
     simpa [θ, hperm] using hpres
   · rcases h with ⟨_, hstate⟩
@@ -3054,27 +3051,26 @@ lemma call_static_stateStorageStateEq
     simp [stateStorageStateEq]
 
 theorem Theta_static_accountCodeStateEq
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap} {A A' : Substate}
     {s o r : AccountAddress} {c : ToExecute}
     {g g' p v v' : UInt256} {d out : ByteArray} {e : Fin 1025}
-    {H : BlockHeader} {z : Bool}
-    (hTheta : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H false =
-      (createdAccounts', σ', g', A', z, out)) :
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {z : Bool}
+    (hTheta : Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks false =
+      (σ', g', A', z, out)) :
     accountCodeStateEq σ σ' := by
   intro addr
   exact (Theta_static_accountStaticStateEq hTheta addr).2.2
 
 lemma call_static_stateStaticStateEq
     {gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hperm : permission = false)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateStaticStateEq evmState state' := by
   unfold call at h
@@ -3084,8 +3080,7 @@ lemma call_static_stateStaticStateEq
     rw [← hstate]
     simp [stateStaticStateEq]
     let θ :=
-      Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-        evmState.blocks evmState.accountMap evmState.σ₀
+      Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
         (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
         (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
         (AccountAddress.ofUInt256 recipient)
@@ -3097,8 +3092,7 @@ lemma call_static_stateStaticStateEq
         (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
         (evmState.executionEnv.depth + 1) evmState.executionEnv.header false
     have hθ :
-        Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-          evmState.blocks evmState.accountMap evmState.σ₀
+        Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks) evmState.accountMap evmState.σ₀
           (evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
@@ -3109,9 +3103,9 @@ lemma call_static_stateStaticStateEq
           (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header false =
-        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2.1, θ.2.2.2.2.2) := by
+        (θ.1, θ.2.1, θ.2.2.1, θ.2.2.2.1, θ.2.2.2.2) := by
       rfl
-    have hpres : accountStaticStateEq evmState.accountMap θ.2.1 :=
+    have hpres : accountStaticStateEq evmState.accountMap θ.1 :=
       Theta_static_accountStaticStateEq hθ
     simpa [θ, hperm, stateStaticStateEq] using hpres
   · rcases h with ⟨_, hstate⟩
@@ -3120,11 +3114,10 @@ lemma call_static_stateStaticStateEq
 
 lemma call_static_stateCodeStateEq
     {gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State}
     (hperm : permission = false)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     stateCodeStateEq evmState state' := by
   intro addr

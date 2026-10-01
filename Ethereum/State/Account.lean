@@ -1,3 +1,4 @@
+import Batteries.Data.RBMap
 import Ethereum.Maps.StorageMap
 import Ethereum.SpongeHash.Keccak256
 

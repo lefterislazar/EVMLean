@@ -419,20 +419,17 @@ lemma X_revert_output_size_lt_uint256 {fuel : Nat} {validJumps : Array UInt256}
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_success_output_size_le_maxReturnDataSizeByGas
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
-    {res : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate}
+    {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
-    (h : Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok (.success res out)) :
+    (h : Ξ σ σ₀ g A I = .ok (.success res out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
   cases hx : X (g.toNat + 1) (D_J I.code 0)
       { (default : State) with
         accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
-        createdAccounts := createdAccounts, machineState.gasAvailable := .ofUInt256 g,
-        blocks := blocks, genesisBlockHeader := genesisBlockHeader } with
+        machineState.gasAvailable := .ofUInt256 g } with
   | error e => simp [hx] at h
   | ok xres =>
       cases xres with
@@ -446,31 +443,25 @@ lemma Xi_success_output_size_le_maxReturnDataSizeByGas
           simp [hx] at h
 
 lemma Xi_success_output_size_lt_uint256
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
-    {res : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate}
+    {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
-    (h : Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok (.success res out)) :
+    (h : Ξ σ σ₀ g A I = .ok (.success res out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xi_success_output_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
-    (h : Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok (.revert g' out)) :
+    (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
   cases hx : X (g.toNat + 1) (D_J I.code 0)
       { (default : State) with
-        accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
-        createdAccounts := createdAccounts, machineState.gasAvailable := .ofUInt256 g,
-        blocks := blocks, genesisBlockHeader := genesisBlockHeader } with
+        accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A, machineState.gasAvailable := .ofUInt256 g } with
   | error e => simp [hx] at h
   | ok xres =>
       cases xres with
@@ -484,26 +475,22 @@ lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
           exact hout
 
 lemma Xi_revert_output_size_lt_uint256
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
-    (h : Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok (.revert g' out)) :
+    (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xi_revert_output_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I with
-      | .error _ => (createdAccounts, ∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
-      | .ok (.revert g' out) => (createdAccounts, ∅, g', A, out)
-      | .ok (.success (createdAccounts', σ', g', A') out) =>
-          (createdAccounts', σ', g', A', out)).2.2.2.2.size ≤ maxReturnDataSizeByGas := by
-  cases hxi : Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I with
+    (match Ξ σ σ₀ g A I with
+      | .error _ => (∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
+      | .ok (.revert g' out) => (∅, g', A, out)
+      | .ok (.success (σ', g', A') out) =>
+          (σ', g', A', out)).2.2.2.size ≤ maxReturnDataSizeByGas := by
+  cases hxi : Ξ σ σ₀ g A I with
   | error err =>
       simp [maxReturnDataSizeByGas]
   | ok xres =>
@@ -511,31 +498,28 @@ lemma Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
       | revert g' out =>
           exact Xi_revert_output_size_le_maxReturnDataSizeByGas hxi
       | success res out =>
-          rcases res with ⟨createdAccounts', σ', g', A'⟩
+          rcases res with ⟨σ', g', A'⟩
           exact Xi_success_output_size_le_maxReturnDataSizeByGas hxi
 
 lemma Xi_tuple_match_output_size_lt_uint256
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I with
-      | .error _ => (createdAccounts, ∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
-      | .ok (.revert g' out) => (createdAccounts, ∅, g', A, out)
-      | .ok (.success (createdAccounts', σ', g', A') out) =>
-          (createdAccounts', σ', g', A', out)).2.2.2.2.size < UInt256.size := by
+    (match Ξ σ σ₀ g A I with
+      | .error _ => (∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
+      | .ok (.revert g' out) => (∅, g', A, out)
+      | .ok (.success (σ', g', A') out) =>
+          (σ', g', A', out)).2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-      createdAccounts genesisBlockHeader blocks σ σ₀ g A I)
+      σ σ₀ g A I)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-    (a : AccountAddress) (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
-    (σ σStar σ₀ : AccountMap) (g : UInt256) (AStar : Substate) (I : ExecutionEnv) :
-    (match Ξ createdAccounts genesisBlockHeader blocks σStar σ₀ g AStar I with
-      | .error _ => (a, createdAccounts, σ, (⟨0⟩ : UInt256), AStar, false, ByteArray.empty)
-      | .ok (.revert g' out) => (a, createdAccounts, σ, g', AStar, false, out)
-      | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
+    (a : AccountAddress)
+    (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar : Substate) (I : ExecutionEnv) :
+    (match Ξ σStar σ₀ g AStar I with
+      | .error _ => (a, σ, (⟨0⟩ : UInt256), {AStar with createdAccounts := A.createdAccounts}, false, ByteArray.empty)
+      | .ok (.revert g' out) => (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, out)
+      | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
           let c := GasConstants.Gcodedeposit * returnedData.size
           let F : Bool := Id.run do
             let F₀ : Bool :=
@@ -554,9 +538,9 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
           let g' := if F then 0 else gStarStar.toNat - c
           let A' := if F then AStar else AStarStar
           let z := not F
-          (a, createdAccounts', σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.2.size ≤
+          (a, σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
-  cases hxi : Ξ createdAccounts genesisBlockHeader blocks σStar σ₀ g AStar I with
+  cases hxi : Ξ σStar σ₀ g AStar I with
   | error err =>
       simp [maxReturnDataSizeByGas]
   | ok xres =>
@@ -564,17 +548,16 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
       | revert g' out =>
           exact Xi_revert_output_size_le_maxReturnDataSizeByGas hxi
       | success res returnedData =>
-          rcases res with ⟨createdAccounts', σStarStar, gStarStar, AStarStar⟩
+          rcases res with ⟨σStarStar, gStarStar, AStarStar⟩
           simp [maxReturnDataSizeByGas]
 
 lemma Lambda_Xi_tuple_match_output_size_lt_uint256
-    (a : AccountAddress) (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
-    (σ σStar σ₀ : AccountMap) (g : UInt256) (AStar : Substate) (I : ExecutionEnv) :
-    (match Ξ createdAccounts genesisBlockHeader blocks σStar σ₀ g AStar I with
-      | .error _ => (a, createdAccounts, σ, (⟨0⟩ : UInt256), AStar, false, ByteArray.empty)
-      | .ok (.revert g' out) => (a, createdAccounts, σ, g', AStar, false, out)
-      | .ok (.success (createdAccounts', σStarStar, gStarStar, AStarStar) returnedData) =>
+    (a : AccountAddress)
+    (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar : Substate) (I : ExecutionEnv) :
+    (match Ξ σStar σ₀ g AStar I with
+      | .error _ => (a, σ, (⟨0⟩ : UInt256), {AStar with createdAccounts := A.createdAccounts}, false, ByteArray.empty)
+      | .ok (.revert g' out) => (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, out)
+      | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
           let c := GasConstants.Gcodedeposit * returnedData.size
           let F : Bool := Id.run do
             let F₀ : Bool :=
@@ -593,21 +576,21 @@ lemma Lambda_Xi_tuple_match_output_size_lt_uint256
           let g' := if F then 0 else gStarStar.toNat - c
           let A' := if F then AStar else AStarStar
           let z := not F
-          (a, createdAccounts', σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.2.size <
+          (a, σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.size <
       UInt256.size := by
   have hle := Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-    a createdAccounts genesisBlockHeader blocks σ σStar σ₀ g AStar I
+    a σ σStar σ₀ g A AStar I
   exact Nat.lt_of_le_of_lt hle maxReturnDataSizeByGas_lt_uint256
 
 lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
     (g p v : UInt256) (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray)
-    (H : BlockHeader) (w : Bool) :
-    (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-      s o g p v i e ζ H w).2.2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
+    (Lambda σ σ₀ A
+      s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
   let n : UInt256 := (σ.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
   let lₐ := Lambda.L_A s n ζ i
   let a : AccountAddress := (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
@@ -616,11 +599,12 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
   let collision : ByteArray × Batteries.RBSet AccountAddress compare :=
     if existentAccount.nonce ≠ ⟨0⟩ || existentAccount.code.size ≠ 0 ||
         existentAccount.storage != default then
-      (⟨#[0xfe]⟩, createdAccounts)
+      (⟨#[0xfe]⟩, A.createdAccounts)
     else
-      (i, createdAccounts.insert a)
+      (i, A.createdAccounts.insert a)
   let initCode := collision.1
   let createdAccountsStar := collision.2
+  let AStar := { AStar with createdAccounts := createdAccountsStar }
   let newAccount : Account :=
     { existentAccount with
       nonce := existentAccount.nonce + ⟨1⟩
@@ -632,40 +616,40 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
   let exEnv : ExecutionEnv :=
     { codeOwner := a, sender := o, source := s, weiValue := v, calldata := default,
       code := initCode, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   unfold Lambda
   simp only
   exact (by
     simpa only [n, lₐ, a, AStar, existentAccount, collision, initCode, createdAccountsStar,
       newAccount, σStar, exEnv] using
-      (Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas a createdAccountsStar genesisBlockHeader blocks
-        σ σStar σ₀ g AStar exEnv))
+      (Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas a
+        σ σStar σ₀ g A AStar exEnv))
 
 lemma lambda_projection_output_size_lt_uint256
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
     (g p v : UInt256) (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray)
-    (H : BlockHeader) (w : Bool) :
-    (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-      s o g p v i e ζ H w).2.2.2.2.2.2.size < UInt256.size := by
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
+    (Lambda σ σ₀ A
+      s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (lambda_projection_output_size_le_maxReturnDataSizeByGas blobVersionedHashes
-      createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w)
+    (lambda_projection_output_size_le_maxReturnDataSizeByGas
+      σ σ₀ A s o g p v i e ζ H blobVersionedHashes blocks w)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma lambda_output_size_eq_zero_of_success
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
-    {a : AccountAddress} {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
+    {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
-    (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', true, out)) :
+    (h : Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', true, out)) :
     out.size = 0 := by
   unfold Lambda at h
   simp only at h
@@ -673,107 +657,104 @@ lemma lambda_output_size_eq_zero_of_success
   · simp at h
   · simp at h
   · simp at h
-    rcases h with ⟨_, _, _, _, _, _hz, hout⟩
+    rcases h with ⟨_, _, _, _, _, hout⟩
     cases hout
     rfl
 
 lemma lambda_output_size_le_zero_of_success
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
-    {a : AccountAddress} {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
+    {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
-    (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', true, out)) :
+    (h : Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', true, out)) :
     out.size ≤ 0 := by
   exact Nat.le_of_eq (lambda_output_size_eq_zero_of_success h)
 
 lemma lambda_projection_output_size_eq_zero_of_success
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
     (g p v : UInt256) (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hz :
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.2.2.2.2.1 = true) :
-    (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-      s o g p v i e ζ H w).2.2.2.2.2.2.size = 0 := by
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.1 = true) :
+    (Lambda σ σ₀ A
+      s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size = 0 := by
   exact lambda_output_size_eq_zero_of_success
     (a :=
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).1)
-    (createdAccounts' :=
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.1)
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).1)
     (σ' :=
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.2.1)
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).2.1)
     (g' :=
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.2.2.1)
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).2.2.1)
     (A' :=
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.2.2.2.1)
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.1)
     (out :=
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.2.2.2.2.2)
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2)
     (by
       rw [← hz])
 
 lemma lambda_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
-    {a : AccountAddress} {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
+    {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', z, out)) :
+    (h : Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   by_cases hz : z = true
   · subst z
     exact Nat.le_trans (lambda_output_size_le_zero_of_success h) (Nat.zero_le _)
   have hout : out =
-      (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w).2.2.2.2.2.2 := by
-    have hp := congrArg (fun x => x.2.2.2.2.2.2) h
+      (Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2 := by
+    have hp := congrArg (fun x => x.2.2.2.2.2) h
     simpa using hp.symm
   rw [hout]
-  exact lambda_projection_output_size_le_maxReturnDataSizeByGas blobVersionedHashes createdAccounts
-    genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w
+  exact lambda_projection_output_size_le_maxReturnDataSizeByGas
+    σ σ₀ A s o g p v i e ζ H blobVersionedHashes blocks w
 
 lemma lambda_output_size_lt_uint256
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
     {g p v : UInt256} {i : ByteArray} {e : Fin 1025} {ζ : Option ByteArray}
-    {H : BlockHeader} {w : Bool}
-    {a : AccountAddress} {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
+    {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A
-        s o g p v i e ζ H w = (a, createdAccounts', σ', g', A', z, out)) :
+    (h : Lambda σ σ₀ A
+        s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', z, out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (lambda_output_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (code d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Code code) g p v v' d e H w).2.2.2.2.2.size ≤
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
+    (Θ σ σ₀ A s o r
+        (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
   let σ'₁ :=
     match σ.find? r with
@@ -792,81 +773,78 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
       source := s, weiValue := v', depth := e, perm := w, code := code,
-      header := H, blobVersionedHashes := blobVersionedHashes }
+      header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   unfold Θ
   simp only
   exact (by
     simpa only [σ'₁, σ₁, I] using
-      (Xi_tuple_match_output_size_le_maxReturnDataSizeByGas createdAccounts genesisBlockHeader blocks σ₁ σ₀ g A I))
+      (Xi_tuple_match_output_size_le_maxReturnDataSizeByGas σ₁ σ₀ g A I))
 
 lemma theta_code_projection_output_size_lt_uint256
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (code d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Code code) g p v v' d e H w).2.2.2.2.2.size < UInt256.size := by
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
+    (Θ σ σ₀ A s o r
+        (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (theta_code_projection_output_size_le_maxReturnDataSizeByGas
-      blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-      code d g p v v' e H w)
+      σ σ₀ A s o r
+      code d g p v v' e H blobVersionedHashes blocks w)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma theta_code_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {code d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Code code) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+    (h : Θ σ σ₀ A s o r
+        (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   have hout : out =
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Code code) g p v v' d e H w).2.2.2.2.2 := by
-    have hp := congrArg (fun x => x.2.2.2.2.2) h
+      (Θ σ σ₀ A s o r
+        (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2 := by
+    have hp := congrArg (fun x => x.2.2.2.2) h
     simpa using hp.symm
   rw [hout]
   exact theta_code_projection_output_size_le_maxReturnDataSizeByGas
-    blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-    code d g p v v' e H w
+    σ σ₀ A s o r
+    code d g p v v' e H blobVersionedHashes blocks w
 
 lemma theta_code_output_size_lt_uint256
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {code d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Code code) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+    (h : Θ σ σ₀ A s o r
+        (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (theta_code_output_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (hnot : r ∉ π)
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+    (h : Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold toExecute at h
   simp [hnot] at h
@@ -879,18 +857,17 @@ lemma theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas
       exact theta_code_output_size_le_maxReturnDataSizeByGas h
 
 lemma theta_toExecute_nonprecompile_output_size_lt_uint256
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
     (hnot : r ∉ π)
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+    (h : Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas hnot h)
@@ -1141,18 +1118,18 @@ private def thetaValueTransferAccountMap
 private def precompileDispatchResult
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
-    Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+    AccountMap × UInt256 × Substate × ByteArray :=
   match pc with
-  | 1 => (∅, Ξ_ECREC σ g A I)
-  | 2 => (∅, Ξ_SHA256 σ g A I)
-  | 3 => (∅, Ξ_RIP160 σ g A I)
-  | 4 => (∅, Ξ_ID σ g A I)
-  | 5 => (∅, Ξ_EXPMOD σ g A I)
-  | 6 => (∅, Ξ_BN_ADD σ g A I)
-  | 7 => (∅, Ξ_BN_MUL σ g A I)
-  | 8 => (∅, Ξ_SNARKV σ g A I)
-  | 9 => (∅, Ξ_BLAKE2_F σ g A I)
-  | 10 => (∅, Ξ_PointEval σ g A I)
+  | 1 => Ξ_ECREC σ g A I
+  | 2 => Ξ_SHA256 σ g A I
+  | 3 => Ξ_RIP160 σ g A I
+  | 4 => Ξ_ID σ g A I
+  | 5 => Ξ_EXPMOD σ g A I
+  | 6 => Ξ_BN_ADD σ g A I
+  | 7 => Ξ_BN_MUL σ g A I
+  | 8 => Ξ_SNARKV σ g A I
+  | 9 => Ξ_BLAKE2_F σ g A I
+  | 10 => Ξ_PointEval σ g A I
   | _ => default
 
 lemma precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
@@ -1342,168 +1319,126 @@ lemma precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
+set_option maxRecDepth 8192 in
 lemma precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
-    (precompileDispatchResult pc σ g A I).2.2.2.2.size ≤
+    (precompileDispatchResult pc σ g A I).2.2.2.size ≤
       max maxReturnDataSizeByGas I.calldata.size := by
-  by_cases h1 : pc = 1
-  · subst pc
-    change (Ξ_ECREC σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size
-    exact precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
-  · by_cases h2 : pc = 2
-    · subst pc
-      change (Ξ_SHA256 σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size
-      exact precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · by_cases h3 : pc = 3
-      · subst pc
-        change (Ξ_RIP160 σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size
-        exact precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
-      · by_cases h4 : pc = 4
-        · subst pc
-          change (Ξ_ID σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size
-          exact precompile_ID_output_size_le_maxReturnDataSizeByGas_or_calldata
-        · by_cases h5 : pc = 5
-          · subst pc
-            change (Ξ_EXPMOD σ g A I).2.2.2.size ≤
-              max maxReturnDataSizeByGas I.calldata.size
-            exact precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
-          · by_cases h6 : pc = 6
-            · subst pc
-              change (Ξ_BN_ADD σ g A I).2.2.2.size ≤
-                max maxReturnDataSizeByGas I.calldata.size
-              exact precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
-            · by_cases h7 : pc = 7
-              · subst pc
-                change (Ξ_BN_MUL σ g A I).2.2.2.size ≤
-                  max maxReturnDataSizeByGas I.calldata.size
-                exact precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
-              · by_cases h8 : pc = 8
-                · subst pc
-                  change (Ξ_SNARKV σ g A I).2.2.2.size ≤
-                    max maxReturnDataSizeByGas I.calldata.size
-                  exact precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
-                · by_cases h9 : pc = 9
-                  · subst pc
-                    change (Ξ_BLAKE2_F σ g A I).2.2.2.size ≤
-                      max maxReturnDataSizeByGas I.calldata.size
-                    exact precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
-                  · by_cases h10 : pc = 10
-                    · subst pc
-                      change (Ξ_PointEval σ g A I).2.2.2.size ≤
-                        max maxReturnDataSizeByGas I.calldata.size
-                      exact precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
-                    · rw [precompileDispatchResult.eq_def]
-                      repeat' split <;> (try contradiction)
-                      · change (default : ByteArray).size ≤
-                          max maxReturnDataSizeByGas I.calldata.size
-                        simp [default, Inhabited.default, maxReturnDataSizeByGas]
+  unfold precompileDispatchResult
+  split
+  · exact precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_ID_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · exact precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
+  · change (default : ByteArray).size ≤ max maxReturnDataSizeByGas I.calldata.size
+    change 0 ≤ max maxReturnDataSizeByGas I.calldata.size
+    exact Nat.zero_le _
 
 private lemma theta_precompiled_output_eq
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r pc : AccountAddress)
     (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w).2.2.2.2.2 =
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool) :
+    (Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2 =
       (let σ₁ := thetaValueTransferAccountMap σ s r v
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
        let result := precompileDispatchResult pc σ₁ g A I
-       result.2.2.2.2) := by
+       result.2.2.2) := by
   unfold Θ thetaValueTransferAccountMap
   simp
   rfl
 
 lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Precompiled pc) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out) →
+    Θ σ σ₀ A s o r
+        (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out) →
     out.size ≤ max maxReturnDataSizeByGas d.size := by
   intro h
   have hout := congrArg
-    (fun x : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 ×
-        Substate × Bool × ByteArray => x.2.2.2.2.2) h
-  change ((fun x : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 ×
-      Substate × Bool × ByteArray => x.2.2.2.2.2)
-        (createdAccounts', σ', g', A', z, out)).size ≤
+    (fun x : AccountMap × UInt256 × Substate × Bool × ByteArray => x.2.2.2.2) h
+  change ((fun x : AccountMap × UInt256 × Substate × Bool × ByteArray => x.2.2.2.2)
+        (σ', g', A', z, out)).size ≤
     max maxReturnDataSizeByGas d.size
   rw [← congrArg ByteArray.size hout]
-  change (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-      (ToExecute.Precompiled pc) g p v v' d e H w).2.2.2.2.2.size ≤
+  change (Θ σ σ₀ A s o r
+      (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
     max maxReturnDataSizeByGas d.size
-  rw [theta_precompiled_output_eq blobVersionedHashes createdAccounts genesisBlockHeader
-    blocks σ σ₀ A s o r pc d g p v v' e H w]
+  rw [theta_precompiled_output_eq σ σ₀ A s o r pc d g p v v' e H blobVersionedHashes blocks w]
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
       code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   have hdispatch := precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata pc
     (thetaValueTransferAccountMap σ s r v) g A I
   simpa [I] using hdispatch
 
 lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Precompiled pc) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out) →
+    Θ σ σ₀ A s o r
+        (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out) →
     d.size ≤ maxReturnDataSizeByGas →
     out.size ≤ maxReturnDataSizeByGas := by
   intro h hd
   exact Nat.le_trans
-    (theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata h)
+    (theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata (blocks := blocks) h)
     (max_le le_rfl hd)
 
 lemma theta_precompiled_output_size_lt_uint256
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (ToExecute.Precompiled pc) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out) →
+    Θ σ σ₀ A s o r
+        (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out) →
     d.size < UInt256.size →
     out.size < UInt256.size := by
   intro h hd
   exact Nat.lt_of_le_of_lt
-    (theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata h)
+    (theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata (blocks := blocks) h)
     (max_lt maxReturnDataSizeByGas_lt_uint256 hd)
 
 lemma theta_output_size_le_maxReturnDataSizeByGas_or_calldata
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {c : ToExecute} {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out)) :
+    (h : Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out)) :
     out.size ≤ max maxReturnDataSizeByGas d.size := by
   cases c with
   | Code code =>
@@ -1511,20 +1446,19 @@ lemma theta_output_size_le_maxReturnDataSizeByGas_or_calldata
         (theta_code_output_size_le_maxReturnDataSizeByGas h)
         (le_max_left _ _)
   | Precompiled pc =>
-      exact theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata h
+      exact theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata (blocks := blocks) h
 
 lemma theta_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {c : ToExecute} {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out))
+    (h : Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out))
     (hd : d.size ≤ maxReturnDataSizeByGas) :
     out.size ≤ maxReturnDataSizeByGas := by
   cases c with
@@ -1534,150 +1468,141 @@ lemma theta_output_size_le_maxReturnDataSizeByGas
       exact theta_precompiled_output_size_le_maxReturnDataSizeByGas h hd
 
 lemma theta_output_size_lt_uint256
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {c : ToExecute} {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out))
+    (h : Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out))
     (hd : d.size < UInt256.size) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (theta_output_size_le_maxReturnDataSizeByGas_or_calldata h)
+    (theta_output_size_le_maxReturnDataSizeByGas_or_calldata (blocks := blocks) h)
     (max_lt maxReturnDataSizeByGas_lt_uint256 hd)
 
 lemma theta_toExecute_output_size_le_maxReturnDataSizeByGas
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out))
+    (h : Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out))
     (hd : d.size ≤ maxReturnDataSizeByGas) :
     out.size ≤ maxReturnDataSizeByGas := by
   exact theta_output_size_le_maxReturnDataSizeByGas h hd
 
 lemma theta_toExecute_output_size_lt_uint256
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader} {blocks : ProcessedBlocks}
     {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
-    {H : BlockHeader} {w : Bool}
-    {createdAccounts' : Batteries.RBSet AccountAddress compare}
+    {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
+    {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w =
-        (createdAccounts', σ', g', A', z, out))
+    (h : Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+        (σ', g', A', z, out))
     (hd : d.size < UInt256.size) :
     out.size < UInt256.size := by
   exact theta_output_size_lt_uint256 h hd
 
 lemma theta_projection_output_size_le_maxReturnDataSizeByGas
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (c : ToExecute) (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hd : d.size ≤ maxReturnDataSizeByGas) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
+    (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤ maxReturnDataSizeByGas := by
   exact theta_output_size_le_maxReturnDataSizeByGas
-    (createdAccounts' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).1)
     (σ' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).1)
     (g' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.1)
     (A' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.1)
     (z :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.2.1)
     (out :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.2.2)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2)
     rfl hd
 
 lemma theta_projection_output_size_lt_uint256
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (c : ToExecute) (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hd : d.size < UInt256.size) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.2.2.size < UInt256.size := by
+    (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
   exact theta_output_size_lt_uint256
-    (createdAccounts' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).1)
     (σ' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).1)
     (g' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.1)
     (A' :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.1)
     (z :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.2.1)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.2.1)
     (out :=
-      (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        c g p v v' d e H w).2.2.2.2.2)
+      (Θ σ σ₀ A s o r
+        c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2)
     rfl hd
 
 lemma theta_toExecute_projection_output_size_le_maxReturnDataSizeByGas
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hd : d.size ≤ maxReturnDataSizeByGas) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w).2.2.2.2.2.size ≤
+    (Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
-  exact theta_projection_output_size_le_maxReturnDataSizeByGas blobVersionedHashes createdAccounts
-    genesisBlockHeader blocks σ σ₀ A s o r (toExecute σ r) d g p v v' e H w hd
+  exact theta_projection_output_size_le_maxReturnDataSizeByGas
+    σ σ₀ A s o r (toExecute σ r) d g p v v' e H blobVersionedHashes blocks w hd
 
 lemma theta_toExecute_projection_output_size_lt_uint256
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader) (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader) (w : Bool)
+    (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
+    (w : Bool)
     (hd : d.size < UInt256.size) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w).2.2.2.2.2.size < UInt256.size := by
-  exact theta_projection_output_size_lt_uint256 blobVersionedHashes createdAccounts
-    genesisBlockHeader blocks σ σ₀ A s o r (toExecute σ r) d g p v v' e H w hd
+    (Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
+  exact theta_projection_output_size_lt_uint256
+    σ σ₀ A s o r (toExecute σ r) d g p v v' e H blobVersionedHashes blocks w hd
 
 set_option linter.unusedSimpArgs false in
 lemma call_returnData_size_le_maxReturnDataSizeByGas
-    {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+    {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   unfold call at h
@@ -1693,8 +1618,7 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
     try
       simpa using
         (theta_projection_output_size_le_maxReturnDataSizeByGas
-          blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader
-          evmState.blocks evmState.accountMap evmState.σ₀
+          evmState.accountMap evmState.σ₀
           (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
@@ -1704,14 +1628,15 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
             (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
               evmState.accountMap evmState.machineState evmState.substate))
           (.ofNat evmState.executionEnv.gasPrice) value value'
-          (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission
+          (evmState.executionEnv.depth + 1) evmState.executionEnv.header
+          evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks permission
           (ByteArray.readWithPadding_size_le_maxReturnDataSizeByGas _ _ _))
 
 set_option linter.unusedSimpArgs false in
-lemma call_returnData_size_lt_uint256 {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+lemma call_returnData_size_lt_uint256 {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
@@ -1818,6 +1743,22 @@ lemma step_staticcall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (
     (step_staticcall_returnData_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
+lemma create_returnData_size_le_maxReturnDataSizeByGas
+    {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState state' : State} {x : UInt256}
+    (h : create value offset size salt evmState = .ok (x, state')) :
+    state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
+  unfold create at h
+  simp [bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    rw [← hstate]
+    simp
+    try simpa using
+      (lambda_projection_output_size_le_maxReturnDataSizeByGas _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+
 set_option linter.unusedSimpArgs false in
 lemma step_create_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -1827,14 +1768,12 @@ lemma step_create_returnData_size_le_maxReturnDataSizeByGas
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    rw [← h]
-    simp
-    try
-      simpa using
-        (lambda_projection_output_size_le_maxReturnDataSizeByGas _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_returnData_size_le_maxReturnDataSizeByGas hCreate
+  rw [← h]
+  simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_create_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -1854,14 +1793,12 @@ lemma step_create2_returnData_size_le_maxReturnDataSizeByGas
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    rw [← h]
-    simp
-    try
-      simpa using
-        (lambda_projection_output_size_le_maxReturnDataSizeByGas _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_returnData_size_le_maxReturnDataSizeByGas hCreate
+  rw [← h]
+  simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}

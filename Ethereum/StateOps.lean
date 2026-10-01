@@ -88,7 +88,7 @@ def blockHash (self : State) (blockNumber : UInt256) : UInt256 :=
   let v := self.executionEnv.header.number
   if v ≤ blockNumber.toNat || blockNumber.toNat + 256 < v then ⟨0⟩
   else
-    let hashes := self.blockHashes
+    let hashes := self.executionEnv.blocks.map ProcessedBlock.hash
     hashes.getD blockNumber.toNat ⟨0⟩
 
 def coinBase (self : State) : AccountAddress :=
@@ -109,7 +109,7 @@ def gasLimit (self : State) : UInt256 :=
 def chainId (_ : State) : UInt256 := .ofNat Ethereum.chainId
 
 def selfbalance (self : State) : UInt256 :=
-  Batteries.RBMap.find? self.accountMap self.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)
+  self.accountMap.find? self.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)
 
 def setCode (self : State) (code : ByteArray) : State :=
   { self with executionEnv.code := code }

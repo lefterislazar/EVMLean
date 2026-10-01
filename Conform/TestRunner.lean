@@ -34,7 +34,7 @@ def PersistentAccountMap.toAccountMap (self : PersistentAccountMap) : AccountMap
         nonce    := acc.nonce
         balance  := acc.balance
         code     := acc.code
-        storage  := acc.storage.toEthereumStorage
+        storage  := acc.storage
       }
     s.insert addr account
 
@@ -47,7 +47,7 @@ def PersistentAccountMap.toEVMState (self : PersistentAccountMap) : State :=
         nonce    := acc.nonce
         balance  := acc.balance
         code     := acc.code
-        storage  := acc.storage.toEthereumStorage
+        storage  := acc.storage
       }
     s.setAccount addr account
 
@@ -123,8 +123,7 @@ def executeTransaction
       s.accountMap
       header.baseFeePerGas
       header
-      s.genesisBlockHeader
-      s.blocks
+      s.executionEnv.blocks
       transaction
       sender
 
@@ -465,8 +464,7 @@ def processBlocks
   let (genesisHash, genesisBlockHeader, _) ← deserializeBlock genesisRLP
   let state₀ :=
     { pre.toEVMState with
-        genesisBlockHeader := genesisBlockHeader
-        blocks :=
+        executionEnv.blocks :=
           #[
             ⟨ genesisHash
             , genesisBlockHeader
@@ -480,15 +478,15 @@ def processBlocks
         try
           let block ← deserializeRawBlock rawBlock
           let parent ←
-            validateHeaderBeforeTransactions accState.blocks block.blockHeader
+            validateHeaderBeforeTransactions accState.executionEnv.blocks block.blockHeader
           let accState ← processBlock {accState with accountMap := parent.σ} block
           validateBlock accState parent.blockHeader block
           if ¬block.exception.isEmpty then
             throw <| .MissedExpectedException block.exception
           pure
             { accState with
-                blocks :=
-                  accState.blocks.push
+                executionEnv.blocks :=
+                  accState.executionEnv.blocks.push
                     ⟨block.hash, block.blockHeader, accState.accountMap⟩
             }
         catch e =>
@@ -521,10 +519,6 @@ def processBlocks
           -- the call does not count against the block’s gas limit
           let beaconCallResult :=
           EVM.Θ
-              []
-              .empty
-              s₀.genesisBlockHeader
-              s₀.blocks
               s₀.accountMap
               s₀.accountMap
               default
@@ -539,10 +533,12 @@ def processBlocks
               block.blockHeader.parentBeaconBlockRoot
               0
               block.blockHeader
+              []
+              s₀.executionEnv.blocks
               true
           let σ ←
             match beaconCallResult with
-              | (_, σ, _, _, _ /- can't fail-/, _) => pure σ
+              | (σ, _, _, _ /- can't fail-/, _) => pure σ
           let s := {s₀ with accountMap := σ}
           pure s
 
@@ -577,11 +573,9 @@ def preImpliesPost (entry : TestEntry)
 := do
     let resultState ← processBlocks entry.pre entry.blocks entry.genesisRLP
     let lastAccountMap :=
-      resultState.blocks.findRev? (·.hash == entry.lastblockhash)
+      resultState.executionEnv.blocks.findRev? (·.hash == entry.lastblockhash)
       |>.option resultState.accountMap ProcessedBlock.σ
-    let result : PersistentAccountMap :=
-      lastAccountMap.foldl
-        (λ r addr ⟨⟨nonce, balance, storage, code⟩, _, _⟩ ↦ r.insert addr ⟨nonce, balance, storage, code⟩) default
+    let result : PersistentAccountMap := lastAccountMap.toPersistentAccountMap
     let persistentAccountMap := resultState.accountMap.toPersistentAccountMap
     match entry.postState with
       | .Map post =>

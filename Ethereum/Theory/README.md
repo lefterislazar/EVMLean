@@ -36,10 +36,6 @@ component.
   statement. The current relations and theorems should not yet be treated as a
   definitive formulation of that property.**
 
-- [`StorageExtensionality.lean`](StorageExtensionality.lean) defines
-  extensional equality for storage, accounts, and account maps, and proves that
-  the execution semantics respects that equality.
-
 - [`StaticStorage.lean`](StaticStorage.lean) proves preservation results for
   static execution, including that static calls preserve persistent storage,
   transient storage, and account code.

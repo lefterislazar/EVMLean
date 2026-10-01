@@ -2115,7 +2115,7 @@ theorem step_blockhash : ∀ (s : State),
                     (if s.executionEnv.header.number ≤ a.toNat || a.toNat + 256 < s.executionEnv.header.number then
                       ⟨0⟩
                     else
-                      s.blocks.map ProcessedBlock.hash |>.getD a.toNat ⟨0⟩) :: t,
+                      s.executionEnv.blocks.map ProcessedBlock.hash |>.getD a.toNat ⟨0⟩) :: t,
                   machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Gblockhash
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
@@ -2146,7 +2146,7 @@ theorem step_blockhash : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            simp [Ethereum.State.blockHash, Ethereum.State.blockHashes]
+            simp [Ethereum.State.blockHash]
 
 theorem step_blobhash : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -2403,7 +2403,7 @@ theorem step_extcodehash : ∀ (s : State),
             Ethereum.Substate.addAccessedAccount, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero']
           by_cases hdead :
               Option.option true Account.emptyAccount
-                (Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 a)) = true
+                (Std.ExtTreeMap.find? s.accountMap (AccountAddress.ofUInt256 a)) = true
           · simp [hdead, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero']
           · simp [hdead, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero']
 
@@ -2845,7 +2845,7 @@ theorem step_tstore : ∀ (s : State),
             simp [Id.run, binaryStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
             cases hacc :
-                Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
             | none =>
               simp [Ethereum.State.tstore, Ethereum.State.lookupAccount,
                 Ethereum.State.updateAccount, Account.updateTransientStorage,
@@ -3900,7 +3900,7 @@ theorem step_sstore : ∀ (s : State),
               simp [Id.run, binaryStateOp, Stack.pop2, Ethereum.State.replaceStackAndIncrPC]
               unfold Ethereum.State.incrPC
               cases hacc :
-                  Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                  Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
               | none =>
                 simp [Ethereum.State.sstore, Ethereum.State.lookupAccount,
                   Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey,
@@ -3918,13 +3918,13 @@ theorem step_sstore : ∀ (s : State),
                     Account.updateStorage, Stack.push, UInt256_ofNat_1, Sat256.subNat_zero, UInt256_subzero',
                     hacc, hperm, Option.option]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   rw [Account_fst_storage
-                    (Batteries.RBMap.find! s.accountMap s.executionEnv.codeOwner)]
+                    (Std.ExtTreeMap.find! s.accountMap s.executionEnv.codeOwner)]
                   simp [Csstore, hstack, hgas0]
                   rfl
 
@@ -3956,17 +3956,16 @@ theorem step_call : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -3985,7 +3984,6 @@ theorem step_call : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4106,17 +4104,16 @@ theorem step_call' : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4135,7 +4132,6 @@ theorem step_call' : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4168,17 +4164,16 @@ theorem step_callcode : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4197,7 +4192,6 @@ theorem step_callcode : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4312,17 +4306,16 @@ theorem step_delegatecall : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value') (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4341,7 +4334,6 @@ theorem step_delegatecall : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4452,17 +4444,16 @@ theorem step_staticcall : ∀ (s : State),
             let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
             let Astar := s.addAccessedAccount tAddr |>.substate
-            let (cA, σ', g', A', z, o) :=
+            let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (createdAccounts := s.createdAccounts) (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := false)
               else
-                (s.createdAccounts, s.accountMap, .ofNat callgas, Astar, false, .empty)
+                (s.accountMap, .ofNat callgas, Astar, false, .empty)
             let n : UInt256 := min outSize (.ofNat o.size)
             let x : UInt256 :=
               if (!z) || value > (σ.find? s.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) ||
@@ -4481,7 +4472,6 @@ theorem step_staticcall : ∀ (s : State),
                   activeWords :=
                     let m := MachineState.M s.machineState.activeWords.toNat inOffset.toNat inSize.toNat
                     .ofNat <| MachineState.M m outOffset.toNat outSize.toNat }
-                createdAccounts := cA
               }, .none)
       | _ => .error .StackUnderflow
 := by
@@ -4596,14 +4586,13 @@ theorem step_create : ∀ (s : State),
             (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
           else
             if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
-              let (a, cA, σ', g', A', z, o) :=
-                Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
-                  createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+              let (a, σ', g', A', z, o) :=
+                Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
                   createState.executionEnv.header createState.executionEnv.perm
-              (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+              (a, {createState with accountMap := σ', substate := A'}, g', z, o)
             else
               (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
         let (a, state', g', z, o) := createResult
@@ -4718,7 +4707,7 @@ theorem step_create : ∀ (s : State),
                 simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
                   hmem', hgas', hgas'', hoverflow, hoverflow', hperm, hperm_true, hsize, C', hstack,
                   hnot_underflow, Operation.isCreate, bind, Except.bind, α]
-                unfold step
+                unfold step create
                 let initCode := createState.machineState.memory.readWithPadding offset.toNat size.toNat
                 let Iₐ := createState.executionEnv.codeOwner
                 let Iₒ := createState.executionEnv.sender
@@ -4731,14 +4720,13 @@ theorem step_create : ∀ (s : State),
                   else
                     if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
-                      let (a, cA, σ', g', A', z, o) :=
-                        Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
-                          createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+                      let (a, σ', g', A', z, o) :=
+                        Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
                           createState.executionEnv.header createState.executionEnv.perm
-                      (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+                      (a, {createState with accountMap := σ', substate := A'}, g', z, o)
                     else
                       (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
                 let g' := createResult.2.2.1
@@ -4746,7 +4734,7 @@ theorem step_create : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hrefund :
                       createState.machineState.gasAvailable.toNat + g'.toNat <
@@ -4757,11 +4745,10 @@ theorem step_create : ∀ (s : State),
                       createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded]
-                    rfl
                   ·
                     have hrefund_expanded := hrefund
                     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
@@ -4769,7 +4756,7 @@ theorem step_create : ∀ (s : State),
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                     simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded,
@@ -4778,7 +4765,7 @@ theorem step_create : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       ¬ 18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hDepth :
                       value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
@@ -4787,7 +4774,7 @@ theorem step_create : ∀ (s : State),
                     have hDepth_expanded :
                         value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152 := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
@@ -4800,7 +4787,7 @@ theorem step_create : ∀ (s : State),
                         createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4817,7 +4804,7 @@ theorem step_create : ∀ (s : State),
                         createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4835,14 +4822,14 @@ theorem step_create : ∀ (s : State),
                     have hDepth_expanded :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
                     have hDepth_expanded_nat :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           (↑s.executionEnv.depth : Nat) < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       intro h
@@ -4856,7 +4843,7 @@ theorem step_create : ∀ (s : State),
                         createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4871,7 +4858,7 @@ theorem step_create : ∀ (s : State),
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4911,14 +4898,13 @@ theorem step_create2 : ∀ (s : State),
             (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
           else
             if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
-              let (a, cA, σ', g', A', z, o) :=
-                Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
-                  createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+              let (a, σ', g', A', z, o) :=
+                Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
                   createState.executionEnv.header createState.executionEnv.perm
-              (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+              (a, {createState with accountMap := σ', substate := A'}, g', z, o)
             else
               (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
         let (a, state', g', z, o) := createResult
@@ -5035,7 +5021,7 @@ theorem step_create2 : ∀ (s : State),
                 simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
                   hmem', hgas', hgas'', hoverflow, hoverflow', hperm, hperm_true, hsize, C', hstack,
                   hnot_underflow, Operation.isCreate, bind, Except.bind, α]
-                unfold step
+                unfold step create
                 let initCode := createState.machineState.memory.readWithPadding offset.toNat size.toNat
                 let ζ := Ethereum.UInt256.toByteArray salt
                 let Iₐ := createState.executionEnv.codeOwner
@@ -5049,14 +5035,13 @@ theorem step_create2 : ∀ (s : State),
                   else
                     if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
-                      let (a, cA, σ', g', A', z, o) :=
-                        Lambda createState.executionEnv.blobVersionedHashes createState.createdAccounts
-                          createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+                      let (a, σ', g', A', z, o) :=
+                        Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
                           createState.executionEnv.header createState.executionEnv.perm
-                      (a, {createState with accountMap := σ', substate := A', createdAccounts := cA}, g', z, o)
+                      (a, {createState with accountMap := σ', substate := A'}, g', z, o)
                     else
                       (0, createState, UInt256.ofNat (L createState.machineState.gasAvailable.toNat), false, ByteArray.empty)
                 let g' := createResult.2.2.1
@@ -5064,7 +5049,7 @@ theorem step_create2 : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hrefund :
                       createState.machineState.gasAvailable.toNat + g'.toNat <
@@ -5075,11 +5060,10 @@ theorem step_create2 : ∀ (s : State),
                       createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded]
-                    rfl
                   ·
                     have hrefund_expanded := hrefund
                     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
@@ -5087,7 +5071,7 @@ theorem step_create2 : ∀ (s : State),
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                     simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded,
@@ -5096,7 +5080,7 @@ theorem step_create2 : ∀ (s : State),
                 ·
                   have hnonce_expanded :
                       ¬ 18446744073709551615 ≤
-                        ((Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
+                        ((Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner).getD default).nonce.toNat := by
                     simpa [σ_Iₐ, σ, Iₐ, createState] using hnonce
                   by_cases hDepth :
                       value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
@@ -5105,7 +5089,7 @@ theorem step_create2 : ∀ (s : State),
                     have hDepth_expanded :
                         value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152 := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
@@ -5118,7 +5102,7 @@ theorem step_create2 : ∀ (s : State),
                         createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5135,7 +5119,7 @@ theorem step_create2 : ∀ (s : State),
                         createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5153,14 +5137,14 @@ theorem step_create2 : ∀ (s : State),
                     have hDepth_expanded :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           s.executionEnv.depth < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       simpa [σ, Iₐ, initCode, createState] using hDepth
                     have hDepth_expanded_nat :
                         ¬ (value ≤
                             Option.option { val := 0 } (fun x => x.balance)
-                              (Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner) ∧
+                              (Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner) ∧
                           (↑s.executionEnv.depth : Nat) < 1024 ∧
                             (s.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152) := by
                       intro h
@@ -5174,7 +5158,7 @@ theorem step_create2 : ∀ (s : State),
                         createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5189,7 +5173,7 @@ theorem step_create2 : ∀ (s : State),
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5214,7 +5198,7 @@ theorem step_selfdestruct : ∀ (s : State),
         let Iₐ := sdState.executionEnv.codeOwner
         let r := AccountAddress.ofUInt256 target
         let substate :=
-          if sdState.createdAccounts.contains Iₐ then
+          if sdState.substate.createdAccounts.contains Iₐ then
             {sdState.substate with
               selfDestructSet := sdState.substate.selfDestructSet.insert Iₐ
               accessedAccounts := sdState.substate.accessedAccounts.insert r}
@@ -5222,7 +5206,7 @@ theorem step_selfdestruct : ∀ (s : State),
             {sdState.substate with
               accessedAccounts := sdState.substate.accessedAccounts.insert r}
         let accountMap :=
-          if sdState.createdAccounts.contains Iₐ then
+          if sdState.substate.createdAccounts.contains Iₐ then
             match sdState.accountMap.find? Iₐ with
             | none => sdState.accountMap
             | some selfAcc =>
@@ -5325,19 +5309,19 @@ theorem step_selfdestruct : ∀ (s : State),
               simp [Id.run, Stack.pop, Ethereum.State.replaceStackAndIncrPC,
                 Ethereum.State.incrPC, Ethereum.State.lookupAccount,
                 gasCost, sdState, Iₐ, r]
-              cases hcreated : s.createdAccounts.contains s.executionEnv.codeOwner
-              · have hcreated_mem : ¬ s.executionEnv.codeOwner ∈ s.createdAccounts := by
+              cases hcreated : s.substate.createdAccounts.contains s.executionEnv.codeOwner
+              · have hcreated_mem : ¬ s.executionEnv.codeOwner ∈ s.substate.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :
-                    Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                    Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
                   simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r, hgas0,
                     chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
-                      Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
+                      Std.ExtTreeMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
                   | none =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>
@@ -5350,18 +5334,18 @@ theorem step_selfdestruct : ∀ (s : State),
                         chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
                     · simp [hcreated, hcreated_mem, hneq, sdState, Iₐ, r, hgas0,
                         chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
-              · have hcreated_mem : s.executionEnv.codeOwner ∈ s.createdAccounts := by
+              · have hcreated_mem : s.executionEnv.codeOwner ∈ s.substate.createdAccounts := by
                   rw [← Batteries.RBSet.contains_iff]
                   simp [hcreated]
                 cases hself :
-                    Batteries.RBMap.find? s.accountMap s.executionEnv.codeOwner with
+                    Std.ExtTreeMap.find? s.accountMap s.executionEnv.codeOwner with
                 | none =>
                   simp [hcreated, hcreated_mem, hself, dbgTrace, sdState, Iₐ, r, hgas0,
                     chargedState, Cselfdestruct, hstack, Sat256.subNat_zero, UInt256_subzero', UInt256_ofNat_1]
                 | some selfAcc =>
                   simp [hcreated, hcreated_mem, hself, sdState, Iₐ, r]
                   cases htarget :
-                      Batteries.RBMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
+                      Std.ExtTreeMap.find? s.accountMap (AccountAddress.ofUInt256 target) with
                   | none =>
                     simp [hcreated, hcreated_mem, htarget, sdState, Iₐ, r]
                     cases hbal : (selfAcc.balance == (⟨0⟩ : UInt256)) <;>

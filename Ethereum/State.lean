@@ -1,4 +1,3 @@
-import Batteries.Data.RBMap
 import Mathlib.Data.Finset.Basic
 
 import Ethereum.MachineState
@@ -32,16 +31,10 @@ structure State where
   substate            : Substate
   executionEnv        : ExecutionEnv
   machineState        : MachineState
-  blocks              : ProcessedBlocks
-  genesisBlockHeader  : BlockHeader
-  createdAccounts     : Batteries.RBSet AccountAddress compare
 deriving Inhabited
 
 inductive ExecutionResult (S : Type) where
   | success (state : S) (o : ByteArray)
   | revert (g : UInt256) (o : ByteArray)
-
-def State.blockHashes (self : State) : Array UInt256 :=
-  self.blocks.map ProcessedBlock.hash
 
 end Ethereum

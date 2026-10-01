@@ -528,10 +528,10 @@ lemma step_system_nonrecursive_gas {gasCost : Nat} {op : Operation.SOp}
     all_goals try (injection h with hs; subst s'; rfl)
 
 set_option linter.unusedSimpArgs false in
-lemma call_gas_le {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+lemma call_gas_le {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
   unfold call at h
@@ -539,6 +539,20 @@ lemma call_gas_le {gasCost : Nat} {blobVersionedHashes : List ByteArray}
     Ethereum.State.addAccessedAccount, Ethereum.State.replaceStackAndIncrPC,
     Ethereum.State.incrPC] at h
   repeat split at h
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    rw [← hstate]
+    simp
+
+lemma create_gas_le
+    {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState state' : State} {x : UInt256}
+    (h : create value offset size salt evmState = .ok (x, state')) :
+    state'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
+  unfold create at h
+  simp [bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
   all_goals
     try contradiction
     rcases h with ⟨_, hstate⟩
@@ -553,11 +567,13 @@ lemma step_create_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | simp [← h]
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -569,14 +585,13 @@ lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | rw [← h]
-      simp
-      omega
-    | simp [← h]
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -586,14 +601,13 @@ lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | rw [← h]
-      simp
-      omega
-    | simp [← h]
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -605,17 +619,13 @@ lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | rw [← h]
-      simp
-      omega
-    | injection h with hs
-      rw [← hs]
-      simp
-      omega
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_call_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -1117,13 +1127,13 @@ theorem X_gas_le {fuel : Nat} {validJumps : Array UInt256} {state : State}
               simpa using hstepLe
 
 def XiResultGas :
-    ExecutionResult (Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate) →
+    ExecutionResult (AccountMap × UInt256 × Substate) →
       Nat
-  | .success (_, _, g, _) _ => g.toNat
+  | .success (_, g, _) _ => g.toNat
   | .revert g _ => g.toNat
 
-theorem Xi_gas_le {createdAccounts genesisBlockHeader blocks σ σ₀ g A I result}
-    (h : Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok result) :
+theorem Xi_gas_le {σ σ₀ g A I result}
+    (h : Ξ σ σ₀ g A I = .ok result) :
     XiResultGas result ≤ g.toNat := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
@@ -1264,70 +1274,40 @@ lemma precompile_PointEval_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
     | error e =>
         simp [hgas, hres, dbgTrace]
 
+set_option maxRecDepth 65536 in
 lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
     (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (match p with
-      | 1 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_ECREC σ g A I)
-      | 2 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_SHA256 σ g A I)
-      | 3 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_RIP160 σ g A I)
-      | 4 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_ID σ g A I)
-      | 5 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_EXPMOD σ g A I)
-      | 6 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_BN_ADD σ g A I)
-      | 7 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_BN_MUL σ g A I)
-      | 8 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_SNARKV σ g A I)
-      | 9 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_BLAKE2_F σ g A I)
-      | 10 => ((∅ : Batteries.RBSet AccountAddress compare), Ξ_PointEval σ g A I)
-      | _ => default).2.2.1.toNat ≤ g.toNat := by
-  by_cases h1 : p = 1
-  · subst p
-    change (Ξ_ECREC σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_ECREC_gas_le _ _ _ _
-  by_cases h2 : p = 2
-  · subst p
-    change (Ξ_SHA256 σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_SHA256_gas_le _ _ _ _
-  by_cases h3 : p = 3
-  · subst p
-    change (Ξ_RIP160 σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_RIP160_gas_le _ _ _ _
-  by_cases h4 : p = 4
-  · subst p
-    change (Ξ_ID σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_ID_gas_le _ _ _ _
-  by_cases h5 : p = 5
-  · subst p
-    change (Ξ_EXPMOD σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_EXPMOD_gas_le _ _ _ _
-  by_cases h6 : p = 6
-  · subst p
-    change (Ξ_BN_ADD σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_BN_ADD_gas_le _ _ _ _
-  by_cases h7 : p = 7
-  · subst p
-    change (Ξ_BN_MUL σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_BN_MUL_gas_le _ _ _ _
-  by_cases h8 : p = 8
-  · subst p
-    change (Ξ_SNARKV σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_SNARKV_gas_le _ _ _ _
-  by_cases h9 : p = 9
-  · subst p
-    change (Ξ_BLAKE2_F σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_BLAKE2_F_gas_le _ _ _ _
-  by_cases h10 : p = 10
-  · subst p
-    change (Ξ_PointEval σ g A I).2.1.toNat ≤ g.toNat
-    exact precompile_PointEval_gas_le _ _ _ _
-  repeat split
-  all_goals try contradiction
+      | 1 => Ξ_ECREC σ g A I
+      | 2 => Ξ_SHA256 σ g A I
+      | 3 => Ξ_RIP160 σ g A I
+      | 4 => Ξ_ID σ g A I
+      | 5 => Ξ_EXPMOD σ g A I
+      | 6 => Ξ_BN_ADD σ g A I
+      | 7 => Ξ_BN_MUL σ g A I
+      | 8 => Ξ_SNARKV σ g A I
+      | 9 => Ξ_BLAKE2_F σ g A I
+      | 10 => Ξ_PointEval σ g A I
+      | _ => default).2.1.toNat ≤ g.toNat := by
+  split
+  · exact precompile_ECREC_gas_le _ _ _ _
+  · exact precompile_SHA256_gas_le _ _ _ _
+  · exact precompile_RIP160_gas_le _ _ _ _
+  · exact precompile_ID_gas_le _ _ _ _
+  · exact precompile_EXPMOD_gas_le _ _ _ _
+  · exact precompile_BN_ADD_gas_le _ _ _ _
+  · exact precompile_BN_MUL_gas_le _ _ _ _
+  · exact precompile_SNARKV_gas_le _ _ _ _
+  · exact precompile_BLAKE2_F_gas_le _ _ _ _
+  · exact precompile_PointEval_gas_le _ _ _ _
   · change (default : UInt256).toNat ≤ g.toNat
     simp
 
 set_option maxHeartbeats 800000 in
-theorem Theta_gas_le {blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-    g p v v' d e H w} :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-      g p v v' d e H w).2.2.1.toNat ≤ g.toNat := by
+theorem Theta_gas_le {σ σ₀ A s o r c g p v v' d e H
+    blobVersionedHashes blocks w} :
+    (Θ σ σ₀ A s o r c
+      g p v v' d e H blobVersionedHashes blocks w).2.1.toNat ≤ g.toNat := by
   cases c with
   | Code code =>
       unfold Θ
@@ -1344,14 +1324,14 @@ theorem Theta_gas_le {blobVersionedHashes createdAccounts genesisBlockHeader blo
       simp
       exact precompile_dispatch_gas_le p _ g A _
 
-lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+lemma call_gas_decreases {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
     (hgasCost : gasCost ≤ evmState.machineState.gasAvailable.toNat)
     (hcallgasLt :
       Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
         value gas evmState.accountMap evmState.machineState evmState.substate < gasCost)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat + 1 ≤ evmState.machineState.gasAvailable.toNat := by
   unfold call at h
@@ -1362,10 +1342,9 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
-        (blobVersionedHashes := blobVersionedHashes)
-        (createdAccounts := evmState.createdAccounts)
-        (genesisBlockHeader := evmState.genesisBlockHeader)
-        (blocks := evmState.blocks)
+        (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
+
+        (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
         (A := evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
@@ -1384,7 +1363,7 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
+          ((Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
               (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
@@ -1395,7 +1374,7 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
                   value gas evmState.accountMap evmState.machineState evmState.substate))
               (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
               (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-              (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.2.1.toNat) ≤
+              (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1.toNat) ≤
             Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate := by
         exact Nat.le_trans htheta
@@ -1407,10 +1386,9 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
-        (blobVersionedHashes := blobVersionedHashes)
-        (createdAccounts := evmState.createdAccounts)
-        (genesisBlockHeader := evmState.genesisBlockHeader)
-        (blocks := evmState.blocks)
+        (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
+
+        (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
         (A := evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
@@ -1429,7 +1407,7 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
+          ((Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
               (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
@@ -1440,7 +1418,7 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
                   value gas evmState.accountMap evmState.machineState evmState.substate))
               (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
               (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-              (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.2.1.toNat) ≤
+              (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1.toNat) ≤
             Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate := by
         exact Nat.le_trans htheta

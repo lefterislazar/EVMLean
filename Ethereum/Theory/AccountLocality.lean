@@ -17,10 +17,6 @@ not yet be treated as a definitive formulation of that property.
 namespace Ethereum
 namespace EVM
 
-variable {blobVersionedHashes : List ByteArray}
-variable {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-variable {genesisBlockHeader : BlockHeader}
-variable {blocks : ProcessedBlocks}
 variable {σ σ₀ σ' : AccountMap}
 variable {A A' : Substate}
 variable {s o r acc pc : AccountAddress}
@@ -28,6 +24,8 @@ variable {g g' p v v' : UInt256}
 variable {d i o' : ByteArray}
 variable {e : Fin 1025}
 variable {H : BlockHeader}
+variable {blobVersionedHashes : List ByteArray}
+variable {blocks : ProcessedBlocks}
 variable {w z : Bool}
 variable {ζ : Option ByteArray}
 variable {f n : Nat}
@@ -83,15 +81,15 @@ theorem unchanged_insert_of_same_core
   | some acc =>
       by_cases hcmp : compare l k = .eq
       · have hfind : s.find? k = some acc := by
-          have hcongr := Batteries.RBMap.find?_congr s hcmp
+          have hcongr := Std.ExtTreeMap.find?_congr s hcmp
           rw [hacc] at hcongr
           exact hcongr.symm
         have hfields := hnew acc hfind
         exact unchanged.present acc new hacc
-          (Batteries.RBMap.find?_insert_of_eq s hcmp)
+          (Std.ExtTreeMap.find?_insert_of_eq s hcmp)
           hfields.1 hfields.2.1 hfields.2.2.1 hfields.2.2.2.1 hfields.2.2.2.2
       · apply unchanged.present acc acc hacc
-          (by simp [Batteries.RBMap.find?_insert_of_ne s hcmp]; exact hacc)
+          (by simp [Std.ExtTreeMap.find?_insert_of_ne s hcmp]; exact hacc)
         repeat rfl
 
 theorem unchanged_insert_of_different_core
@@ -104,7 +102,7 @@ theorem unchanged_insert_of_different_core
       exact unchanged.null hacc
   | some acc =>
         apply unchanged.present acc acc hacc
-        · rw [Batteries.RBMap.find?_insert_of_ne]
+        · rw [Std.ExtTreeMap.find?_insert_of_ne]
           · exact hacc
           · simp [compare, compareOfLessAndEq]
             repeat (split; simp; grind)
@@ -156,16 +154,16 @@ theorem unchanged_insert_insert_of_same_core
 
 def sendEth (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) : AccountMap :=
   if z then
-    let σ'₁ := match Batteries.RBMap.find? σ r with
+    let σ'₁ := match Std.ExtTreeMap.find? σ r with
       | none =>
         if (v != UInt256.ofNat 0) = true then
-          Batteries.RBMap.insert σ r
+          Std.ExtTreeMap.insert σ r
             (let __src := (default : Account);
             { nonce := __src.nonce, balance := v, storage := __src.storage, code := __src.code,
               tstorage := __src.tstorage })
         else σ
       | some acc =>
-        Batteries.RBMap.insert σ r
+        Std.ExtTreeMap.insert σ r
           { nonce := acc.nonce, balance := acc.balance + v, storage := acc.storage, code := acc.code,
             tstorage := acc.tstorage };
     match σ'₁.find? s with
@@ -233,10 +231,6 @@ inductive account_change_consistent (acc : AccountAddress) : AccountMap → Acco
     account_change_consistent acc σ (sendEthCreate a s v z σ)
 
   | by_own_code
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader}
-    {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap}
     {A A' : Substate}
     {s o : AccountAddress}
@@ -244,15 +238,13 @@ inductive account_change_consistent (acc : AccountAddress) : AccountMap → Acco
     {d o' : ByteArray}
     {e : Fin 1025}
     {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
     {w z : Bool} :
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀  A s o acc (toExecute σ acc) g p v v' d e H w = (createdAccounts', σ', g', A', z, o')
+    Θ σ σ₀ A s o acc (toExecute σ acc) g p v v' d e H blobVersionedHashes blocks w = (σ', g', A', z, o')
     → account_change_consistent acc (sendEth acc s v z σ) σ'
 
   | by_own_code_from_start
-    {blobVersionedHashes : List ByteArray}
-    {createdAccounts createdAccounts' : Batteries.RBSet AccountAddress compare}
-    {genesisBlockHeader : BlockHeader}
-    {blocks : ProcessedBlocks}
     {σ σ₀ σ' : AccountMap}
     {A A' : Substate}
     {s o : AccountAddress}
@@ -260,10 +252,12 @@ inductive account_change_consistent (acc : AccountAddress) : AccountMap → Acco
     {d o' : ByteArray}
     {e : Fin 1025}
     {H : BlockHeader}
+    {blobVersionedHashes : List ByteArray}
+    {blocks : ProcessedBlocks}
     {w z : Bool} :
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o acc
-        (toExecute σ acc) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o')
+    Θ σ σ₀ A s o acc
+        (toExecute σ acc) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o')
     → account_change_consistent acc σ σ'
 
 def account_changes_consistent (acc : AccountAddress) :=
@@ -435,7 +429,7 @@ private lemma sendEth_true_find?_some_find?_some_ne
   have hcmp : compare s r ≠ .eq := accountAddress_compare_ne_eq_of_ne (by
     intro hsr
     exact hne hsr.symm)
-  simp [sendEth, hr, Batteries.RBMap.find?_insert_of_ne, hcmp, hs]
+  simp [sendEth, hr, Std.ExtTreeMap.find?_insert_of_ne, hcmp, hs]
 
 private lemma depth_succ_measure {e : Fin 1025} {n : Nat}
     (hdepth : 1024 - e.val = n + 1) (hlt : e < 1024) :
@@ -449,22 +443,19 @@ private lemma depth_succ_measure {e : Fin 1025} {n : Nat}
 
 private lemma account_changes_consistent_of_call_except_recipient_succ_depth
     {gasCost n : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State} {acc : AccountAddress}
     (hdepth : 1024 - evmState.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H w
-        createdAccounts' σ' g' A' z o',
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        σ' g' A' z o',
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H w =
-            (createdAccounts', σ', g', A', z, o') →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ w =
+            (σ', g', A', z, o') →
           acc ≠ r →
           account_changes_consistent acc σ σ')
     (hacc : acc ≠ AccountAddress.ofUInt256 recipient)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   unfold call at h
@@ -474,97 +465,33 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
     rcases h with ⟨_, hstate⟩
     rw [← hstate]
     simp
-    exact ihTheta
-      blobVersionedHashes evmState.genesisBlockHeader evmState.blocks
-      evmState.createdAccounts (evmState.executionEnv.depth + 1)
+    let θ := Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
       evmState.accountMap evmState.σ₀
       ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-      (AccountAddress.ofUInt256 source)
-      evmState.executionEnv.sender
+      (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
       (AccountAddress.ofUInt256 recipient)
       (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
       (UInt256.ofNat
         (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
           value gas evmState.accountMap evmState.machineState evmState.substate))
-      (UInt256.ofNat evmState.executionEnv.gasPrice)
-      value value'
+      (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
       (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-      evmState.executionEnv.header permission
-      (Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
-        evmState.accountMap evmState.σ₀
-        ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-        (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-        (AccountAddress.ofUInt256 recipient)
-        (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
-        (UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
-            value gas evmState.accountMap evmState.machineState evmState.substate))
-        (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
-        (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).1
-      (Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
-        evmState.accountMap evmState.σ₀
-        ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-        (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-        (AccountAddress.ofUInt256 recipient)
-        (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
-        (UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
-            value gas evmState.accountMap evmState.machineState evmState.substate))
-        (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
-        (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1
-      (Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
-        evmState.accountMap evmState.σ₀
-        ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-        (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-        (AccountAddress.ofUInt256 recipient)
-        (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
-        (UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
-            value gas evmState.accountMap evmState.machineState evmState.substate))
-        (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
-        (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.2.1
-      (Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
-        evmState.accountMap evmState.σ₀
-        ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-        (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-        (AccountAddress.ofUInt256 recipient)
-        (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
-        (UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
-            value gas evmState.accountMap evmState.machineState evmState.substate))
-        (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
-        (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.2.2.1
-      (Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
-        evmState.accountMap evmState.σ₀
-        ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-        (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-        (AccountAddress.ofUInt256 recipient)
-        (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
-        (UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
-            value gas evmState.accountMap evmState.machineState evmState.substate))
-        (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
-        (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.2.2.2.1
-      (Θ blobVersionedHashes evmState.createdAccounts evmState.genesisBlockHeader evmState.blocks
-        evmState.accountMap evmState.σ₀
-        ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
-        (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-        (AccountAddress.ofUInt256 recipient)
-        (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
-        (UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
-            value gas evmState.accountMap evmState.machineState evmState.substate))
-        (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
-        (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-        (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.2.2.2.2
-      (depth_succ_measure hdepth hcall.2)
-      rfl
-      hacc
+      (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission
+    exact ihTheta
+      evmState.accountMap evmState.σ₀
+      ((evmState.addAccessedAccount (AccountAddress.ofUInt256 t)).substate)
+      (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
+      (AccountAddress.ofUInt256 recipient)
+      (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+      (UInt256.ofNat
+        (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          value gas evmState.accountMap evmState.machineState evmState.substate))
+      (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
+      (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
+      (evmState.executionEnv.depth + 1) evmState.executionEnv.header
+      evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks permission
+      θ.1 θ.2.1 θ.2.2.1 θ.2.2.2.1 θ.2.2.2.2
+      (depth_succ_measure hdepth hcall.2) rfl hacc
   · rcases h with ⟨_, hstate⟩
     rw [← hstate]
     simp
@@ -572,12 +499,11 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
 
 private lemma account_changes_consistent_of_call_recipient_own_code_succ_depth
     {gasCost : Nat}
-    {blobVersionedHashes : List ByteArray}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
     {permission : Bool} {evmState state' : State} {acc : AccountAddress}
     (hsame : AccountAddress.ofUInt256 t = AccountAddress.ofUInt256 recipient)
     (hacc : acc = AccountAddress.ofUInt256 recipient)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   subst acc
@@ -595,6 +521,97 @@ private lemma account_changes_consistent_of_call_recipient_own_code_succ_depth
     rw [← hstate]
     simp
     exact account_changes_consistent_rfl (AccountAddress.ofUInt256 recipient)
+
+private lemma create_accountMap_eq_at_max_depth
+    {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState result : State} {x : UInt256}
+    (hdepth : evmState.executionEnv.depth = 1024)
+    (h : create value offset size salt evmState = .ok (x, result)) :
+    result.accountMap = evmState.accountMap := by
+  unfold create at h
+  simp [hdepth, bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    have hm := congrArg State.accountMap hstate
+    simpa using hm.symm
+
+private lemma account_changes_consistent_of_create_except_owner_succ_depth
+    {n : Nat} {value offset size x : UInt256} {salt : Option ByteArray}
+    {evmState state' : State} {acc : AccountAddress}
+    (hdepth : 1024 - evmState.executionEnv.depth.val = n + 1)
+    (ihLambda : ∀ σ σ₀ A s o g p v i (e : Fin 1025) ζ H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w a σ' g' A' z o',
+        1024 - e.val = n →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
+          account_changes_consistent acc σ σ')
+    (hacc : acc ≠ evmState.executionEnv.codeOwner)
+    (h : create value offset size salt evmState = .ok (x, state')) :
+    account_changes_consistent acc evmState.accountMap state'.accountMap := by
+  let owner := (evmState.accountMap.find? evmState.executionEnv.codeOwner).getD default
+  let σStar := evmState.accountMap.insert evmState.executionEnv.codeOwner
+    {owner with nonce := owner.nonce + ⟨1⟩}
+  unfold create at h
+  by_cases hnonce : owner.nonce.toNat ≥ 2^64 - 1
+  · simp [bind, Except.bind, pure, Except.pure] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      first
+      | contradiction
+      | rcases h with ⟨_, hstate⟩
+        rw [← hstate]
+        simp
+        exact account_changes_consistent_rfl acc
+  · by_cases hCreate :
+        value ≤ (evmState.accountMap.find? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
+          evmState.executionEnv.depth < 1024 ∧
+          (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
+    · let lambdaRes := Lambda σStar evmState.σ₀ evmState.substate
+        evmState.executionEnv.codeOwner evmState.executionEnv.sender
+        (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
+        (UInt256.ofNat evmState.executionEnv.gasPrice) value
+        (evmState.machineState.memory.readWithPadding offset.toNat size.toNat)
+        ⟨evmState.executionEnv.depth.val + 1, Nat.succ_lt_succ hCreate.2.1⟩
+        salt evmState.executionEnv.header evmState.executionEnv.blobVersionedHashes
+        evmState.executionEnv.blocks evmState.executionEnv.perm
+      have hpre : account_changes_consistent acc evmState.accountMap σStar :=
+        account_changes_consistent_insert_ne acc evmState.executionEnv.codeOwner
+          evmState.accountMap {owner with nonce := owner.nonce + ⟨1⟩} hacc
+      have hmeasure :
+          1024 - (⟨evmState.executionEnv.depth.val + 1,
+            Nat.succ_lt_succ hCreate.2.1⟩ : Fin 1025).val = n := by
+        simp
+        omega
+      have hrec : account_changes_consistent acc σStar lambdaRes.2.1 :=
+        ihLambda σStar evmState.σ₀ evmState.substate
+          evmState.executionEnv.codeOwner evmState.executionEnv.sender
+          (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
+          (UInt256.ofNat evmState.executionEnv.gasPrice) value
+          (evmState.machineState.memory.readWithPadding offset.toNat size.toNat)
+          ⟨evmState.executionEnv.depth.val + 1, Nat.succ_lt_succ hCreate.2.1⟩
+          salt evmState.executionEnv.header
+          evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks
+          evmState.executionEnv.perm lambdaRes.1 lambdaRes.2.1 lambdaRes.2.2.1 lambdaRes.2.2.2.1
+          lambdaRes.2.2.2.2.1 lambdaRes.2.2.2.2.2 hmeasure rfl
+      simp [hCreate, bind, Except.bind, pure, Except.pure] at h
+      repeat' (split at h <;> try simp at h)
+      all_goals
+        first
+        | contradiction
+        | rcases h with ⟨_, hstate⟩
+          rw [← hstate]
+          simpa [lambdaRes, σStar, owner] using account_changes_consistent_trans hpre hrec
+    · simp [hCreate, bind, Except.bind, pure, Except.pure] at h
+      repeat' (split at h <;> try simp at h)
+      all_goals
+        first
+        | contradiction
+        | rcases h with ⟨_, hstate⟩
+          rw [← hstate]
+          simp
+          exact account_changes_consistent_rfl acc
 
 private lemma lambda_create_not_failed_bool
     (b : Bool) (P Q R S : Prop) [Decidable P] [Decidable Q] [Decidable R] [Decidable S] :
@@ -1129,11 +1146,14 @@ private lemma step_system_consistent_except_owner_max_depth
     (h : step gasCost (.System op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op
-  · simp [step, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
-    injection h with hstate
-    rw [← hstate]
-    exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    have hm := create_accountMap_eq_at_max_depth (by simp [hdepth]) hCreate
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step, call, hdepth, bind, Except.bind] at h
     repeat split at h <;> try contradiction
     injection h with hstate
@@ -1155,11 +1175,14 @@ private lemma step_system_consistent_except_owner_max_depth
     rw [← hstate]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
     exact account_changes_consistent_rfl acc
-  · simp [step, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
-    injection h with hstate
-    rw [← hstate]
-    exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    have hm := create_accountMap_eq_at_max_depth (by simp [hdepth]) hCreate
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step, call, hdepth, bind, Except.bind] at h
     repeat split at h <;> try contradiction
     injection h with hstate
@@ -1177,7 +1200,7 @@ private lemma step_system_consistent_except_owner_max_depth
     | some popped =>
         rcases popped with ⟨stack, targetWord⟩
         let target : AccountAddress := AccountAddress.ofUInt256 targetWord
-        by_cases hcreated : state.executionEnv.codeOwner ∈ state.createdAccounts
+        by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
         · cases howner : state.accountMap.find? state.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
@@ -1277,158 +1300,37 @@ private lemma step_system_consistent_except_owner_succ_depth
     {op : Operation.SOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State} {acc : AccountAddress}
     (hdepth : 1024 - state.executionEnv.depth.val = n + 1)
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H w
-        createdAccounts' σ' g' A' z o',
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        σ' g' A' z o',
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H w =
-            (createdAccounts', σ', g', A', z, o') →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ w =
+            (σ', g', A', z, o') →
           acc ≠ r →
           account_changes_consistent acc σ σ')
-    (ihLambda : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o g p v i ζ H w
-        a createdAccounts' σ' g' A' z o',
+    (ihLambda : ∀ σ σ₀ A s o g p v i (e : Fin 1025) ζ H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        a σ' g' A' z o',
         1024 - e.val = n →
-          Lambda blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o g p v i e ζ H w =
-            (a, createdAccounts', σ', g', A', z, o') →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ')
     (hacc : acc ≠ state.executionEnv.codeOwner)
     (h : step gasCost (.System op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op
-  · simp [step] at h
-    cases hpop : state.machineState.stack.pop3 with
-    | none =>
-        simp [hpop] at h
-    | some popped =>
-        rcases popped with ⟨stack, μ₀, μ₁, μ₂⟩
-        let owner : Account :=
-          (state.accountMap.find? state.executionEnv.codeOwner).getD default
-        let σStar : AccountMap :=
-          state.accountMap.insert state.executionEnv.codeOwner
-            {owner with nonce := owner.nonce + ⟨1⟩}
-        by_cases hnonce :
-            ((state.accountMap.find? state.executionEnv.codeOwner).getD default).nonce.toNat ≥ 2^64 - 1
-        · simp [hpop] at h
-          repeat split at h <;> try contradiction
-          all_goals
-            injection h with hstate
-            rw [← hstate]
-            simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            exact account_changes_consistent_rfl acc
-        · by_cases hDepth :
-              μ₀ ≤ (state.accountMap.find? state.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
-                state.executionEnv.depth < 1024 ∧
-                (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat).size ≤ 49152
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            all_goals
-              first
-              |
-                have hpre :
-                    account_changes_consistent acc state.accountMap σStar :=
-                  account_changes_consistent_insert_ne acc state.executionEnv.codeOwner
-                    state.accountMap {owner with nonce := owner.nonce + ⟨1⟩} hacc
-                have hmeasure :
-                    1024 -
-                        (⟨state.executionEnv.depth.val + 1,
-                          Nat.succ_lt_succ hDepth.2.1⟩ : Fin 1025).val = n := by
-                  simp
-                  omega
-                have hrec :
-                    account_changes_consistent acc σStar
-                      (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                        state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                        state.executionEnv.codeOwner state.executionEnv.sender
-                        (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                        (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                        (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                        ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                        none state.executionEnv.header state.executionEnv.perm).2.2.1 := by
-                  exact ihLambda
-                    state.executionEnv.blobVersionedHashes state.genesisBlockHeader state.blocks
-                    state.createdAccounts
-                    ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                    σStar state.σ₀ state.substate
-                    state.executionEnv.codeOwner state.executionEnv.sender
-                    (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                    (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                    (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                    none state.executionEnv.header state.executionEnv.perm
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).2.2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).2.2.2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).2.2.2.2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      none state.executionEnv.header state.executionEnv.perm).2.2.2.2.2.2
-                    hmeasure
-                    rfl
-                exact account_changes_consistent_trans hpre hrec
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-              exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_create_except_owner_succ_depth
+      (evmState := {state with machineState :=
+        {state.machineState with
+          execLength := state.machineState.execLength + 1,
+          gasAvailable := state.machineState.gasAvailable.subNat gasCost}})
+      hdepth ihLambda hacc hCreate
   · simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
     rename_i popped hpop
@@ -1491,143 +1393,18 @@ private lemma step_system_consistent_except_owner_succ_depth
       hdepth ihTheta
       (by simpa [AccountAddress.ofUInt256_ofNat] using hacc)
       hcall
-  · simp [step] at h
-    cases hpop : state.machineState.stack.pop4 with
-    | none =>
-        simp [hpop] at h
-    | some popped =>
-        rcases popped with ⟨stack, μ₀, μ₁, μ₂, μ₃⟩
-        let owner : Account :=
-          (state.accountMap.find? state.executionEnv.codeOwner).getD default
-        let σStar : AccountMap :=
-          state.accountMap.insert state.executionEnv.codeOwner
-            {owner with nonce := owner.nonce + ⟨1⟩}
-        by_cases hnonce :
-            ((state.accountMap.find? state.executionEnv.codeOwner).getD default).nonce.toNat ≥ 2^64 - 1
-        · simp [hpop] at h
-          repeat split at h <;> try contradiction
-          all_goals
-            injection h with hstate
-            rw [← hstate]
-            simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            exact account_changes_consistent_rfl acc
-        · by_cases hDepth :
-              μ₀ ≤ (state.accountMap.find? state.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
-                state.executionEnv.depth < 1024 ∧
-                (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat).size ≤ 49152
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            all_goals
-              first
-              |
-                have hpre :
-                    account_changes_consistent acc state.accountMap σStar :=
-                  account_changes_consistent_insert_ne acc state.executionEnv.codeOwner
-                    state.accountMap {owner with nonce := owner.nonce + ⟨1⟩} hacc
-                have hmeasure :
-                    1024 -
-                        (⟨state.executionEnv.depth.val + 1,
-                          Nat.succ_lt_succ hDepth.2.1⟩ : Fin 1025).val = n := by
-                  simp
-                  omega
-                have hrec :
-                    account_changes_consistent acc σStar
-                      (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                        state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                        state.executionEnv.codeOwner state.executionEnv.sender
-                        (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                        (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                        (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                        ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                        (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                        state.executionEnv.perm).2.2.1 := by
-                  exact ihLambda
-                    state.executionEnv.blobVersionedHashes state.genesisBlockHeader state.blocks
-                    state.createdAccounts
-                    ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                    σStar state.σ₀ state.substate
-                    state.executionEnv.codeOwner state.executionEnv.sender
-                    (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                    (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                    (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                    (some (UInt256.toByteArray μ₃)) state.executionEnv.header state.executionEnv.perm
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).2.2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).2.2.2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).2.2.2.2.2.1
-                    (Lambda state.executionEnv.blobVersionedHashes state.createdAccounts
-                      state.genesisBlockHeader state.blocks σStar state.σ₀ state.substate
-                      state.executionEnv.codeOwner state.executionEnv.sender
-                      (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                      (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                      (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                      ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                      (some (UInt256.toByteArray μ₃)) state.executionEnv.header
-                      state.executionEnv.perm).2.2.2.2.2.2
-                    hmeasure
-                    rfl
-                exact account_changes_consistent_trans hpre hrec
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-              exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_create_except_owner_succ_depth
+      (evmState := {state with machineState :=
+        {state.machineState with
+          execLength := state.machineState.execLength + 1,
+          gasAvailable := state.machineState.gasAvailable.subNat gasCost}})
+      hdepth ihLambda hacc hCreate
   · simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
     rename_i popped hpop
@@ -1662,7 +1439,7 @@ private lemma step_system_consistent_except_owner_succ_depth
     | some popped =>
         rcases popped with ⟨stack, targetWord⟩
         let target : AccountAddress := AccountAddress.ofUInt256 targetWord
-        by_cases hcreated : state.executionEnv.codeOwner ∈ state.createdAccounts
+        by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
         · cases howner : state.accountMap.find? state.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
@@ -1975,24 +1752,20 @@ theorem account_changes_consistent_except_owner_of_step_max_depth :
 theorem account_changes_consistent_except_owner_of_step_succ_depth :
     ∀ gasCost instr state state' acc,
     (1024 - state.executionEnv.depth.val) = n + 1 →
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H w
-        createdAccounts' σ' g' A' z o',
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        σ' g' A' z o',
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H w =
-            (createdAccounts', σ', g', A', z, o') →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ w =
+            (σ', g', A', z, o') →
           acc ≠ r →
           account_changes_consistent acc σ σ') →
-    (ihLambda : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o g p v i ζ H w
-        a createdAccounts' σ' g' A' z o',
+    (ihLambda : ∀ σ σ₀ A s o g p v i (e : Fin 1025) ζ H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        a σ' g' A' z o',
         1024 - e.val = n →
-          Lambda blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o g p v i e ζ H w =
-            (a, createdAccounts', σ', g', A', z, o') →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
     step gasCost instr state = .ok state' →
     acc ≠ state.executionEnv.codeOwner →
@@ -2104,24 +1877,20 @@ theorem account_changes_consistent_except_owner_of_Xstep_max_depth :
 theorem account_changes_consistent_except_owner_of_Xstep_succ_depth :
     ∀ state state' ret acc,
     (1024 - state.executionEnv.depth.val) = n + 1 →
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H w
-        createdAccounts' σ' g' A' z o',
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        σ' g' A' z o',
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H w =
-            (createdAccounts', σ', g', A', z, o') →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ w =
+            (σ', g', A', z, o') →
           acc ≠ r →
           account_changes_consistent acc σ σ') →
-    (ihLambda : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o g p v i ζ H w
-        a createdAccounts' σ' g' A' z o',
+    (ihLambda : ∀ σ σ₀ A s o g p v i (e : Fin 1025) ζ H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        a σ' g' A' z o',
         1024 - e.val = n →
-          Lambda blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o g p v i e ζ H w =
-            (a, createdAccounts', σ', g', A', z, o') →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
     Xstep validJumps state = .ok (state', ret) →
     acc ≠ state.executionEnv.codeOwner →
@@ -2248,24 +2017,20 @@ theorem account_changes_consistent_except_owner_of_X_max_depth :
 theorem account_changes_consistent_except_owner_of_X_succ_depth :
     ∀ state state' o acc,
     (1024 - state.executionEnv.depth.val) = n + 1 →
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H w
-        createdAccounts' σ' g' A' z o',
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        σ' g' A' z o',
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H w =
-            (createdAccounts', σ', g', A', z, o') →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ w =
+            (σ', g', A', z, o') →
           acc ≠ r →
           account_changes_consistent acc σ σ') →
-    (ihLambda : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o g p v i ζ H w
-        a createdAccounts' σ' g' A' z o',
+    (ihLambda : ∀ σ σ₀ A s o g p v i (e : Fin 1025) ζ H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        a σ' g' A' z o',
         1024 - e.val = n →
-          Lambda blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o g p v i e ζ H w =
-            (a, createdAccounts', σ', g', A', z, o') →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
     X f validJumps state = .ok (.success state' o) →
     acc ≠ state.executionEnv.codeOwner →
@@ -2327,13 +2092,13 @@ theorem account_changes_consistent_except_owner_of_X_succ_depth :
                 cases hres
 
 theorem account_changes_consistent_except_owner_of_Xi_max_depth :
-    ∀ createdAccounts' σ' g' A' o,
+    ∀ σ' g' A' o,
     I.depth = 1024 →
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok (.success (createdAccounts', σ', g', A') o) →
+    Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
     ∀ acc, acc ≠ I.codeOwner →
       account_changes_consistent acc σ σ'
     := by
-  intros createdAccounts' σ' g' A' o hdepth hXi acc hacc
+  intros σ' g' A' o hdepth hXi acc hacc
   simp [Ξ] at hXi
   set freshState : State :=
     { (default : State) with
@@ -2341,19 +2106,16 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
       σ₀ := σ₀,
       executionEnv := I,
       substate := A,
-      createdAccounts := createdAccounts,
-      machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g },
-      blocks := blocks,
-      genesisBlockHeader := genesisBlockHeader } with hfresh
+      machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g } } with hfresh
   change Except.bind (X (g.toNat + 1) (D_J I.code 0) freshState)
       (fun result =>
         match result with
         | ExecutionResult.success evmState' o =>
             Except.ok (ExecutionResult.success
-              (evmState'.createdAccounts, evmState'.accountMap,
+              (evmState'.accountMap,
                 evmState'.machineState.gasAvailable.toUInt256, evmState'.substate) o)
         | ExecutionResult.revert g' o => Except.ok (ExecutionResult.revert g' o)) =
-        Except.ok (ExecutionResult.success (createdAccounts', σ', g', A') o) at hXi
+        Except.ok (ExecutionResult.success (σ', g', A') o) at hXi
   cases hX : X (g.toNat + 1) (D_J I.code 0) freshState with
   | error err =>
       simp [hX, Except.bind] at hXi
@@ -2363,41 +2125,37 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
           simp [hX, Except.bind] at hXi
       | success evmState' out =>
           simp [hX, Except.bind] at hXi
-          rcases hXi with ⟨⟨hcreated, hσ, hg, hA⟩, ho⟩
+          rcases hXi with ⟨⟨hσ, hg, hA⟩, ho⟩
           rw [← hσ]
           have hloc := account_changes_consistent_except_owner_of_X_max_depth
             (f := g.toNat + 1) (validJumps := D_J I.code 0)
             freshState evmState' out (by simpa [hfresh] using hdepth) hX acc
             (by simpa [hfresh] using hacc)
-          simpa [hfresh, hcreated] using hloc
+          simpa [hfresh] using hloc
 
 theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
-    ∀ createdAccounts' σ' g' A' o n acc,
+    ∀ σ' g' A' o n acc,
     (1024 - I.depth.val) = n + 1 →
-    (ihTheta : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o r c g p v v' d H w
-        createdAccounts' σ' g' A' z o',
+    (ihTheta : ∀ σ σ₀ A s o r c g p v v' d (e : Fin 1025) H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        σ' g' A' z o',
         1024 - e.val = n →
-          Θ blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o r c g p v v' d e H w =
-            (createdAccounts', σ', g', A', z, o') →
+          Θ σ σ₀ A s o r c g p v v' d e H blobVersionedHashesᵢ blocksᵢ w =
+            (σ', g', A', z, o') →
           acc ≠ r →
           account_changes_consistent acc σ σ') →
-    (ihLambda : ∀ (blobVersionedHashesᵢ : List ByteArray)
-        (genesisBlockHeaderᵢ : BlockHeader) (blocksᵢ : ProcessedBlocks)
-        createdAccountsᵢ (e : Fin 1025) σ σ₀ A s o g p v i ζ H w
-        a createdAccounts' σ' g' A' z o',
+    (ihLambda : ∀ σ σ₀ A s o g p v i (e : Fin 1025) ζ H
+        (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks) w
+        a σ' g' A' z o',
         1024 - e.val = n →
-          Lambda blobVersionedHashesᵢ createdAccountsᵢ genesisBlockHeaderᵢ blocksᵢ
-              σ σ₀ A s o g p v i e ζ H w =
-            (a, createdAccounts', σ', g', A', z, o') →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A I = .ok (.success (createdAccounts', σ', g', A') o) →
+    Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
     acc ≠ I.codeOwner →
       account_changes_consistent acc σ σ'
     := by
-  intros createdAccounts' σ' g' A' o n acc hdepth ihTheta ihLambda hXi hacc
+  intros σ' g' A' o n acc hdepth ihTheta ihLambda hXi hacc
   simp [Ξ] at hXi
   set freshState : State :=
     { (default : State) with
@@ -2405,19 +2163,16 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
       σ₀ := σ₀,
       executionEnv := I,
       substate := A,
-      createdAccounts := createdAccounts,
-      machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g },
-      blocks := blocks,
-      genesisBlockHeader := genesisBlockHeader } with hfresh
+      machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g } } with hfresh
   change Except.bind (X (g.toNat + 1) (D_J I.code 0) freshState)
       (fun result =>
         match result with
         | ExecutionResult.success evmState' o =>
             Except.ok (ExecutionResult.success
-              (evmState'.createdAccounts, evmState'.accountMap,
+              (evmState'.accountMap,
                 evmState'.machineState.gasAvailable.toUInt256, evmState'.substate) o)
         | ExecutionResult.revert g' o => Except.ok (ExecutionResult.revert g' o)) =
-        Except.ok (ExecutionResult.success (createdAccounts', σ', g', A') o) at hXi
+        Except.ok (ExecutionResult.success (σ', g', A') o) at hXi
   cases hX : X (g.toNat + 1) (D_J I.code 0) freshState with
   | error err =>
       simp [hX, Except.bind] at hXi
@@ -2427,7 +2182,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
           simp [hX, Except.bind] at hXi
       | success evmState' out =>
           simp [hX, Except.bind] at hXi
-          rcases hXi with ⟨⟨hcreated, hσ, hg, hA⟩, ho⟩
+          rcases hXi with ⟨⟨hσ, hg, hA⟩, ho⟩
           rw [← hσ]
           have hloc := account_changes_consistent_except_owner_of_X_succ_depth
             (f := g.toNat + 1) (n := n) (validJumps := D_J I.code 0)
@@ -2437,7 +2192,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
             (by simpa [hfresh] using ihLambda)
             hX
             (by simpa [hfresh] using hacc)
-          simpa [hfresh, hcreated] using hloc
+          simpa [hfresh] using hloc
 
 private lemma account_changes_consistent_if_empty_or_sendEth_prelude
     (acc r s : AccountAddress) (v : UInt256) (σ τ : AccountMap)
@@ -2445,7 +2200,8 @@ private lemma account_changes_consistent_if_empty_or_sendEth_prelude
     account_changes_consistent acc σ (if τ == ∅ then σ else τ) := by
   rcases hτ with hτ | hτ
   · subst τ
-    simp [rbMap_empty_beq_empty, account_changes_consistent_rfl]
+    simpa [show ((∅ : AccountMap) == ∅) = true from rfl] using
+      (account_changes_consistent_rfl (σ := σ) acc)
   · subst τ
     by_cases hEmpty : (sendEth r s v true σ == (∅ : AccountMap)) = true
     · simp [hEmpty, account_changes_consistent_rfl]
@@ -2459,7 +2215,7 @@ private lemma account_changes_consistent_nonempty_or_sendEth_prelude
     account_changes_consistent acc σ τ := by
   rcases hτ with hτ | hτ
   · subst τ
-    exact False.elim (hnot_empty rbMap_empty_beq_empty)
+    exact False.elim (hnot_empty (show ((∅ : AccountMap) == ∅) = true from rfl))
   · subst τ
     exact account_changes_consistent_sendEth_prelude acc r s v true σ
 
@@ -2566,10 +2322,6 @@ private lemma precompile_PointEval_accountMap_empty_or_self
     · exact Or.inl rfl
 
 private lemma precompiled_Theta_accountMap_eq
-    (blobVersionedHashes : List ByteArray)
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader)
-    (blocks : ProcessedBlocks)
     (σ σ₀ : AccountMap)
     (A : Substate)
     (s o r pc : AccountAddress)
@@ -2577,62 +2329,64 @@ private lemma precompiled_Theta_accountMap_eq
     (d : ByteArray)
     (e : Fin 1025)
     (H : BlockHeader)
+    (blobVersionedHashes : List ByteArray)
+    (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w).2.1 =
+    (Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 =
       (let σ₁ := sendEth r s v true σ
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes }
-       let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+       let result : AccountMap × UInt256 × Substate × ByteArray :=
         match pc with
-        | 1 => (∅, Ξ_ECREC σ₁ g A I)
-        | 2 => (∅, Ξ_SHA256 σ₁ g A I)
-        | 3 => (∅, Ξ_RIP160 σ₁ g A I)
-        | 4 => (∅, Ξ_ID σ₁ g A I)
-        | 5 => (∅, Ξ_EXPMOD σ₁ g A I)
-        | 6 => (∅, Ξ_BN_ADD σ₁ g A I)
-        | 7 => (∅, Ξ_BN_MUL σ₁ g A I)
-        | 8 => (∅, Ξ_SNARKV σ₁ g A I)
-        | 9 => (∅, Ξ_BLAKE2_F σ₁ g A I)
-        | 10 => (∅, Ξ_PointEval σ₁ g A I)
+        | 1 => Ξ_ECREC σ₁ g A I
+        | 2 => Ξ_SHA256 σ₁ g A I
+        | 3 => Ξ_RIP160 σ₁ g A I
+        | 4 => Ξ_ID σ₁ g A I
+        | 5 => Ξ_EXPMOD σ₁ g A I
+        | 6 => Ξ_BN_ADD σ₁ g A I
+        | 7 => Ξ_BN_MUL σ₁ g A I
+        | 8 => Ξ_SNARKV σ₁ g A I
+        | 9 => Ξ_BLAKE2_F σ₁ g A I
+        | 10 => Ξ_PointEval σ₁ g A I
         | _ => default
-       if result.2.1 == ∅ then σ else result.2.1) := by
+       if result.1 == ∅ then σ else result.1) := by
   unfold Θ sendEth
   simp
   rfl
 
 private lemma precompiled_result_accountMap_empty_or_self
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+    (let result : AccountMap × UInt256 × Substate × ByteArray :=
       match pc with
-      | 1 => (∅, Ξ_ECREC σ g A I)
-      | 2 => (∅, Ξ_SHA256 σ g A I)
-      | 3 => (∅, Ξ_RIP160 σ g A I)
-      | 4 => (∅, Ξ_ID σ g A I)
-      | 5 => (∅, Ξ_EXPMOD σ g A I)
-      | 6 => (∅, Ξ_BN_ADD σ g A I)
-      | 7 => (∅, Ξ_BN_MUL σ g A I)
-      | 8 => (∅, Ξ_SNARKV σ g A I)
-      | 9 => (∅, Ξ_BLAKE2_F σ g A I)
-      | 10 => (∅, Ξ_PointEval σ g A I)
+      | 1 => Ξ_ECREC σ g A I
+      | 2 => Ξ_SHA256 σ g A I
+      | 3 => Ξ_RIP160 σ g A I
+      | 4 => Ξ_ID σ g A I
+      | 5 => Ξ_EXPMOD σ g A I
+      | 6 => Ξ_BN_ADD σ g A I
+      | 7 => Ξ_BN_MUL σ g A I
+      | 8 => Ξ_SNARKV σ g A I
+      | 9 => Ξ_BLAKE2_F σ g A I
+      | 10 => Ξ_PointEval σ g A I
       | _ => default
-     result.2.1) = ∅ ∨
-    (let result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate × ByteArray :=
+     result.1) = ∅ ∨
+    (let result : AccountMap × UInt256 × Substate × ByteArray :=
       match pc with
-      | 1 => (∅, Ξ_ECREC σ g A I)
-      | 2 => (∅, Ξ_SHA256 σ g A I)
-      | 3 => (∅, Ξ_RIP160 σ g A I)
-      | 4 => (∅, Ξ_ID σ g A I)
-      | 5 => (∅, Ξ_EXPMOD σ g A I)
-      | 6 => (∅, Ξ_BN_ADD σ g A I)
-      | 7 => (∅, Ξ_BN_MUL σ g A I)
-      | 8 => (∅, Ξ_SNARKV σ g A I)
-      | 9 => (∅, Ξ_BLAKE2_F σ g A I)
-      | 10 => (∅, Ξ_PointEval σ g A I)
+      | 1 => Ξ_ECREC σ g A I
+      | 2 => Ξ_SHA256 σ g A I
+      | 3 => Ξ_RIP160 σ g A I
+      | 4 => Ξ_ID σ g A I
+      | 5 => Ξ_EXPMOD σ g A I
+      | 6 => Ξ_BN_ADD σ g A I
+      | 7 => Ξ_BN_MUL σ g A I
+      | 8 => Ξ_SNARKV σ g A I
+      | 9 => Ξ_BLAKE2_F σ g A I
+      | 10 => Ξ_PointEval σ g A I
       | _ => default
-     result.2.1) = σ := by
+     result.1) = σ := by
   repeat split
   all_goals
     first
@@ -2656,16 +2410,14 @@ private lemma Xstep_invalid : ∀ (s : State),
   simp [Xstep, Z, δ, I_b, hinvalid]
 
 private lemma Xi_invalid_singleton_ne_success
-    (createdAccounts : Batteries.RBSet AccountAddress compare)
-    (genesisBlockHeader : BlockHeader)
-    (blocks : ProcessedBlocks)
+
     (σ σ₀ : AccountMap)
     (g : UInt256)
     (A : Substate)
     (I : ExecutionEnv)
-    (result : Batteries.RBSet AccountAddress compare × AccountMap × UInt256 × Substate)
+    (result : AccountMap × UInt256 × Substate)
     (out : ByteArray) :
-    Ξ createdAccounts genesisBlockHeader blocks σ σ₀ g A { I with code := ⟨#[0xfe]⟩ } ≠
+    Ξ σ σ₀ g A { I with code := ⟨#[0xfe]⟩ } ≠
       Except.ok (ExecutionResult.success result out) := by
   intro hXi
   let freshEvmState : State :=
@@ -2674,10 +2426,8 @@ private lemma Xi_invalid_singleton_ne_success
       σ₀ := σ₀
       executionEnv := { I with code := ⟨#[0xfe]⟩ }
       substate := A
-      createdAccounts := createdAccounts
       machineState.gasAvailable := .ofUInt256 g
-      blocks := blocks
-      genesisBlockHeader := genesisBlockHeader }
+ }
   have hstep :
       Xstep (D_J freshEvmState.executionEnv.code 0) freshEvmState =
         .error .InvalidInstruction := by
@@ -2688,18 +2438,18 @@ private lemma Xi_invalid_singleton_ne_success
   cases hXi
 
 theorem account_changes_consistent_of_precompiled_Theta :
-    ∀ createdAccounts' σ' g' A' z o',
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o') →
+    ∀ σ' g' A' z o',
+    Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o') →
     toExecute σ r = .Precompiled pc →
     ∀ acc, account_changes_consistent acc σ σ'
     := by
-  intros createdAccounts' σ' g' A' z o' hTheta hPrecomp acc
+  intros σ' g' A' z o' hTheta hPrecomp acc
   rw [hPrecomp] at hTheta
-  have hσ_proj := congrArg (fun x => x.2.1) hTheta
-  have hσ : (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-      (.Precompiled pc) g p v v' d e H w).2.1 = σ' := by
+  have hσ_proj := congrArg (fun x => x.1) hTheta
+  have hσ : (Θ σ σ₀ A s o r
+      (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ' := by
     simpa using hσ_proj
   rw [← hσ]
   rw [precompiled_Theta_accountMap_eq]
@@ -2709,20 +2459,20 @@ theorem account_changes_consistent_of_precompiled_Theta :
       let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
       simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 theorem account_changes_consistent_except_owner_of_precompiled_Theta :
-    ∀ createdAccounts' σ' g' A' z o',
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o') →
+    ∀ σ' g' A' z o',
+    Θ σ σ₀ A s o r
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o') →
     ∀ acc, acc ≠ r → account_changes_consistent acc σ σ'
     := by
-  intros createdAccounts' σ' g' A' z o' hTheta acc hacc_ne_r
-  have hσ_proj := congrArg (fun x => x.2.1) hTheta
-  have hσ : (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-      (.Precompiled pc) g p v v' d e H w).2.1 = σ' := by
+  intros σ' g' A' z o' hTheta acc hacc_ne_r
+  have hσ_proj := congrArg (fun x => x.1) hTheta
+  have hσ : (Θ σ σ₀ A s o r
+      (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ' := by
     simpa using hσ_proj
   rw [← hσ]
   rw [precompiled_Theta_accountMap_eq]
@@ -2732,26 +2482,26 @@ theorem account_changes_consistent_except_owner_of_precompiled_Theta :
       let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
       simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 
 theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
-    ∀ a c createdAccounts' σ' g' A' z o' e,
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o') →
+    ∀ a c σ' g' A' z o' e,
+    (Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o') →
       ∀ acc, acc ≠ r →
         account_changes_consistent acc σ σ') ∧
-    (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w =
-      (a, createdAccounts', σ', g', A', z, o') →
+    (Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashes blocks w =
+      (a, σ', g', A', z, o') →
       ∀ acc, account_changes_consistent acc σ σ')
     := by
-  intros a c createdAccounts' σ' g' A' z o' e
+  intros a c σ' g' A' z o' e
   generalize hn : 1024 - e.val = n
-  induction n generalizing blobVersionedHashes genesisBlockHeader blocks
-      createdAccounts e σ σ₀ A s o r c g p v v' d i ζ H w
-      createdAccounts' σ' A' g' z o' a with
+  induction n generalizing blobVersionedHashes blocks
+      e σ σ₀ A s o r c g p v v' d i ζ H w
+      σ' A' g' z o' a with
   | zero =>
       constructor
       · intro hTheta acc hacc_ne_r
@@ -2760,26 +2510,25 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
         cases hc : c with
         | Precompiled pc =>
             exact account_changes_consistent_except_owner_of_precompiled_Theta
-              (blobVersionedHashes := blobVersionedHashes) (createdAccounts := createdAccounts)
-              (genesisBlockHeader := genesisBlockHeader) (blocks := blocks)
+              (blobVersionedHashes := blobVersionedHashes) (blocks := blocks)
               (σ := σ) (σ₀ := σ₀) (A := A) (s := s) (o := o) (r := r)
               (g := g) (p := p) (v := v) (v' := v') (d := d) (e := 1024) (H := H) (w := w)
-              createdAccounts' σ' g' A' z o' (by simpa [hc] using hTheta) acc hacc_ne_r
+              σ' g' A' z o' (by simpa [hc] using hTheta) acc hacc_ne_r
         | Code code =>
             unfold Θ at hTheta
             simp [hc] at hTheta
             split at hTheta <;> rename_i hXi
             · simp at hTheta
-              rcases hTheta with ⟨hcreated, hσ, hg, hA, hz, ho⟩
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
               rw [← hσ]
               exact account_changes_consistent_rfl acc
             · simp at hTheta
-              rcases hTheta with ⟨hcreated, hσ, hg, hA, hz, ho⟩
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
               rw [← hσ]
               exact account_changes_consistent_rfl acc
-            · rename_i createdAccountsXi σStarStar gStarStar AStarStar returnedData
+            · rename_i σStarStar gStarStar AStarStar returnedData
               simp at hTheta
-              rcases hTheta with ⟨hcreated, hσ, hg, hA, hz, ho⟩
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
               split_ifs at hσ with hempty
               · rw [← hσ]
                 exact account_changes_consistent_rfl acc
@@ -2800,16 +2549,16 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           simp at hLambda
           split at hLambda <;> rename_i hXi
           · simp at hLambda
-            rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
             rw [← hσ]
             exact account_changes_consistent_rfl acc
           · simp at hLambda
-            rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
             rw [← hσ]
             exact account_changes_consistent_rfl acc
-          · rename_i _ createdAccountsXi σStarStar gStarStar AStarStar returnedData
+          · rename_i σStarStar gStarStar AStarStar returnedData
             simp at hLambda
-            rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
             split_ifs at hσ with hfinal
             · rw [← hσ]
               exact account_changes_consistent_rfl acc
@@ -2842,27 +2591,29 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
             repeat split at hLambda <;> try contradiction
             all_goals
                 simp at hLambda
-                rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+                rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
                 rw [← hσ]
                 first
                 | exact account_changes_consistent_rfl acc
                 | split_ifs with hfinal
                   · exact account_changes_consistent_rfl acc
                   · simp [ha] at hdead hfinal
-                    rename_i xResult createdAccountsXi σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Batteries.RBMap.find? σ acc with
+                    rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
+                    cases hfind : Std.ExtTreeMap.find? σ acc with
                     | none =>
                         simp [hfind] at hdead
                     | some ac =>
                         simp [hfind] at hdead hfinal
+                        have hstorage_ne_default : ac.storage ≠ (default : Storage) :=
+                          hdead hfinal.1.2 hfinal.1.1
                         have hstorage_bne : (ac.storage != ∅) = true := by
-                          have hs := hdead hfinal.1.2 hfinal.1.1
-                          simp [bne, hs]
+                          simpa [bne, show (default : Storage) = ∅ from rfl] using
+                            hstorage_ne_default
                         let σStarCollision : AccountMap :=
-                          match Batteries.RBMap.find? σ s with
+                          match Std.ExtTreeMap.find? σ s with
                           | none => σ
                           | some senderAcc =>
-                            (Batteries.RBMap.insert σ s
+                            (Std.ExtTreeMap.insert σ s
                                   { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
                                     storage := senderAcc.storage, code := senderAcc.code,
                                     tstorage := senderAcc.tstorage }).insert
@@ -2872,9 +2623,8 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                                 storage := ac.storage, code := ac.code, tstorage := ac.tstorage }
                         exact False.elim
                           (Xi_invalid_singleton_ne_success
-                            (createdAccounts := createdAccounts)
-                            (genesisBlockHeader := genesisBlockHeader)
-                            (blocks := blocks)
+
+
                             (σ := σStarCollision)
                             (σ₀ := σ₀)
                             (g := g)
@@ -2883,39 +2633,38 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                               { codeOwner := acc, sender := o, source := s, weiValue := v,
                                 calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
                                 header := H, depth := 1024, perm := w,
-                                blobVersionedHashes := blobVersionedHashes })
-                            (result := (createdAccountsXi, σStarStar, gStarStar, AStarStar))
+                                blobVersionedHashes := blobVersionedHashes, blocks := blocks })
+                            (result := (σStarStar, gStarStar, AStarStar))
                             (out := returnedData)
                             (by
                               dsimp [σStarCollision]
-                              simpa [Batteries.RBMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
-                                hstorage_bne] using hXi))
+                              simpa [Std.ExtTreeMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                                hstorage_bne, hstorage_ne_default] using hXi))
   | succ n' ih =>
       constructor
       · intro hTheta acc hacc_ne_r
         cases hc : c with
         | Precompiled pc =>
             exact account_changes_consistent_except_owner_of_precompiled_Theta
-              (blobVersionedHashes := blobVersionedHashes) (createdAccounts := createdAccounts)
-              (genesisBlockHeader := genesisBlockHeader) (blocks := blocks)
+              (blobVersionedHashes := blobVersionedHashes) (blocks := blocks)
               (σ := σ) (σ₀ := σ₀) (A := A) (s := s) (o := o) (r := r)
               (g := g) (p := p) (v := v) (v' := v') (d := d) (e := e) (H := H) (w := w)
-              createdAccounts' σ' g' A' z o' (by simpa [hc] using hTheta) acc hacc_ne_r
+              σ' g' A' z o' (by simpa [hc] using hTheta) acc hacc_ne_r
         | Code code =>
             unfold Θ at hTheta
             simp [hc] at hTheta
             split at hTheta <;> rename_i hXi
             · simp at hTheta
-              rcases hTheta with ⟨hcreated, hσ, hg, hA, hz, ho⟩
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
               rw [← hσ]
               exact account_changes_consistent_rfl acc
             · simp at hTheta
-              rcases hTheta with ⟨hcreated, hσ, hg, hA, hz, ho⟩
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
               rw [← hσ]
               exact account_changes_consistent_rfl acc
-            · rename_i createdAccountsXi σStarStar gStarStar AStarStar returnedData
+            · rename_i σStarStar gStarStar AStarStar returnedData
               simp at hTheta
-              rcases hTheta with ⟨hcreated, hσ, hg, hA, hz, ho⟩
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
               split_ifs at hσ with hempty
               · rw [← hσ]
                 exact account_changes_consistent_rfl acc
@@ -2925,27 +2674,25 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                       (n := n') (acc := acc)) at hXi
                   · exact hXi (by simpa using hacc_ne_r)
                   · simpa using hn
-                  · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
-                      createdAccountsᵢ eᵢ σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ Hᵢ wᵢ
-                      createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hThetaᵢ hacc_ne_rᵢ
-                    exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
-                      (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-                      (createdAccounts := createdAccountsᵢ) (σ := σᵢ) (σ₀ := σ₀ᵢ)
+                  · intro σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ
+                      blobVersionedHashesᵢ blocksᵢ wᵢ
+                      σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hThetaᵢ hacc_ne_rᵢ
+                    exact (ih (blobVersionedHashes := blobVersionedHashesᵢ) (blocks := blocksᵢ)
+                      (σ := σᵢ) (σ₀ := σ₀ᵢ)
                       (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := rᵢ) (g := gᵢ) (p := pᵢ)
                       (v := vᵢ) (v' := v'ᵢ) (d := dᵢ) (i := default) (ζ := none)
                       (H := Hᵢ) (w := wᵢ)
-                      default cᵢ createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).1
+                      default cᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).1
                       hThetaᵢ acc hacc_ne_rᵢ
-                  · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
-                      createdAccountsᵢ eᵢ σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ ζᵢ Hᵢ wᵢ
-                      aᵢ createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hLambdaᵢ
-                    exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
-                      (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-                      (createdAccounts := createdAccountsᵢ) (σ := σᵢ) (σ₀ := σ₀ᵢ)
+                  · intro σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ eᵢ ζᵢ Hᵢ
+                      blobVersionedHashesᵢ blocksᵢ wᵢ
+                      aᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hLambdaᵢ
+                    exact (ih (blobVersionedHashes := blobVersionedHashesᵢ) (blocks := blocksᵢ)
+                      (σ := σᵢ) (σ₀ := σ₀ᵢ)
                       (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := default) (g := gᵢ) (p := pᵢ)
                       (v := vᵢ) (v' := default) (d := default) (i := iᵢ) (ζ := ζᵢ)
                       (H := Hᵢ) (w := wᵢ)
-                      aᵢ (toExecute σᵢ default) createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).2
+                      aᵢ (toExecute σᵢ default) σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).2
                       hLambdaᵢ acc
                 apply account_changes_consistent_trans
                 · exact account_changes_consistent_sendEth_prelude acc r s v true σ
@@ -2956,16 +2703,16 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           simp at hLambda
           split at hLambda <;> rename_i hXi
           · simp at hLambda
-            rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
             rw [← hσ]
             exact account_changes_consistent_rfl acc
           · simp at hLambda
-            rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
             rw [← hσ]
             exact account_changes_consistent_rfl acc
-          · rename_i _ createdAccountsXi σStarStar gStarStar AStarStar returnedData
+          · rename_i σStarStar gStarStar AStarStar returnedData
             simp at hLambda
-            rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
             split_ifs at hσ with hfinal
             · rw [← hσ]
               exact account_changes_consistent_rfl acc
@@ -2975,27 +2722,25 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                     (n := n') (acc := acc)) at hXi
                 · exact hXi (by simpa [← ha] using hacc_ne_a)
                 · simpa using hn
-                · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
-                    createdAccountsᵢ eᵢ σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ Hᵢ wᵢ
-                    createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hThetaᵢ hacc_ne_r
-                  exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
-                    (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-                    (createdAccounts := createdAccountsᵢ) (σ := σᵢ) (σ₀ := σ₀ᵢ)
+                · intro σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ rᵢ cᵢ gᵢ pᵢ vᵢ v'ᵢ dᵢ eᵢ Hᵢ
+                    blobVersionedHashesᵢ blocksᵢ wᵢ
+                    σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hThetaᵢ hacc_ne_r
+                  exact (ih (blobVersionedHashes := blobVersionedHashesᵢ) (blocks := blocksᵢ)
+                    (σ := σᵢ) (σ₀ := σ₀ᵢ)
                     (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := rᵢ) (g := gᵢ) (p := pᵢ)
                     (v := vᵢ) (v' := v'ᵢ) (d := dᵢ) (i := default) (ζ := none)
                     (H := Hᵢ) (w := wᵢ)
-                    default cᵢ createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).1
+                    default cᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).1
                     hThetaᵢ acc hacc_ne_r
-                · intro blobVersionedHashesᵢ genesisBlockHeaderᵢ blocksᵢ
-                    createdAccountsᵢ eᵢ σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ ζᵢ Hᵢ wᵢ
-                    aᵢ createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hLambdaᵢ
-                  exact (ih (blobVersionedHashes := blobVersionedHashesᵢ)
-                    (genesisBlockHeader := genesisBlockHeaderᵢ) (blocks := blocksᵢ)
-                    (createdAccounts := createdAccountsᵢ) (σ := σᵢ) (σ₀ := σ₀ᵢ)
+                · intro σᵢ σ₀ᵢ Aᵢ sᵢ oᵢ gᵢ pᵢ vᵢ iᵢ eᵢ ζᵢ Hᵢ
+                    blobVersionedHashesᵢ blocksᵢ wᵢ
+                    aᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ heᵢ hLambdaᵢ
+                  exact (ih (blobVersionedHashes := blobVersionedHashesᵢ) (blocks := blocksᵢ)
+                    (σ := σᵢ) (σ₀ := σ₀ᵢ)
                     (A := Aᵢ) (s := sᵢ) (o := oᵢ) (r := default) (g := gᵢ) (p := pᵢ)
                     (v := vᵢ) (v' := default) (d := default) (i := iᵢ) (ζ := ζᵢ)
                     (H := Hᵢ) (w := wᵢ)
-                    aᵢ (toExecute σᵢ default) createdAccounts'ᵢ σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).2
+                    aᵢ (toExecute σᵢ default) σ'ᵢ g'ᵢ A'ᵢ zᵢ o'ᵢ eᵢ heᵢ).2
                     hLambdaᵢ acc
               apply account_changes_consistent_trans
               · exact account_changes_consistent_sendEthCreate_prelude acc a s v true σ
@@ -3019,27 +2764,29 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
             repeat split at hLambda <;> try contradiction
             all_goals
                 simp at hLambda
-                rcases hLambda with ⟨ha, hcreated, hσ, hg, hA, hz, ho⟩
+                rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
                 rw [← hσ]
                 first
                 | exact account_changes_consistent_rfl acc
                 | split_ifs with hfinal
                   · exact account_changes_consistent_rfl acc
                   · simp [ha] at hdead hfinal
-                    rename_i xResult createdAccountsXi σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Batteries.RBMap.find? σ acc with
+                    rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
+                    cases hfind : Std.ExtTreeMap.find? σ acc with
                     | none =>
                         simp [hfind] at hdead
                     | some ac =>
                         simp [hfind] at hdead hfinal
+                        have hstorage_ne_default : ac.storage ≠ (default : Storage) :=
+                          hdead hfinal.1.2 hfinal.1.1
                         have hstorage_bne : (ac.storage != ∅) = true := by
-                          have hs := hdead hfinal.1.2 hfinal.1.1
-                          simp [bne, hs]
+                          simpa [bne, show (default : Storage) = ∅ from rfl] using
+                            hstorage_ne_default
                         let σStarCollision : AccountMap :=
-                          match Batteries.RBMap.find? σ s with
+                          match Std.ExtTreeMap.find? σ s with
                           | none => σ
                           | some senderAcc =>
-                            (Batteries.RBMap.insert σ s
+                            (Std.ExtTreeMap.insert σ s
                                   { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
                                     storage := senderAcc.storage, code := senderAcc.code,
                                     tstorage := senderAcc.tstorage }).insert
@@ -3049,9 +2796,8 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                                 storage := ac.storage, code := ac.code, tstorage := ac.tstorage }
                         exact False.elim
                           (Xi_invalid_singleton_ne_success
-                            (createdAccounts := createdAccounts)
-                            (genesisBlockHeader := genesisBlockHeader)
-                            (blocks := blocks)
+
+
                             (σ := σStarCollision)
                             (σ₀ := σ₀)
                             (g := g)
@@ -3060,83 +2806,80 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                               { codeOwner := acc, sender := o, source := s, weiValue := v,
                                 calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
                                 header := H, depth := e, perm := w,
-                                blobVersionedHashes := blobVersionedHashes })
-                            (result := (createdAccountsXi, σStarStar, gStarStar, AStarStar))
+                                blobVersionedHashes := blobVersionedHashes, blocks := blocks })
+                            (result := (σStarStar, gStarStar, AStarStar))
                             (out := returnedData)
                             (by
                               dsimp [σStarCollision]
-                              simpa [Batteries.RBMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
-                                hstorage_bne] using hXi))
+                              simpa [Std.ExtTreeMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                                hstorage_bne, hstorage_ne_default] using hXi))
 
 theorem account_changes_consistent_of_Theta :
-    ∀ createdAccounts' σ' g' A' z o' e,
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o') →
+    ∀ σ' g' A' z o' e,
+    Θ σ σ₀ A s o r
+        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o') →
     ∀ acc, account_changes_consistent acc σ σ'
     := by
-  intros createdAccounts' σ' g' A' z o' e hTheta acc
+  intros σ' g' A' z o' e hTheta acc
   by_cases hacc : acc = r
   · subst acc
     simp [account_changes_consistent]
     apply Relation.ReflTransGen.single
     exact account_change_consistent.by_own_code_from_start hTheta
   · exact (account_changes_consistent_except_owner_of_Theta_and_Lambda
-      (blobVersionedHashes := blobVersionedHashes) (createdAccounts := createdAccounts)
-      (genesisBlockHeader := genesisBlockHeader) (blocks := blocks)
+      (blobVersionedHashes := blobVersionedHashes) (blocks := blocks)
       (σ := σ) (σ₀ := σ₀) (A := A) (s := s) (o := o) (r := r)
       (g := g) (p := p) (v := v) (v' := v') (d := d) (i := default) (ζ := none)
       (H := H) (w := w)
-      default (toExecute σ r) createdAccounts' σ' g' A' z o' e).1 hTheta acc hacc
+      default (toExecute σ r) σ' g' A' z o' e).1 hTheta acc hacc
 
 theorem account_changes_consistent_weak_of_Theta :
-    ∀ c createdAccounts' σ' g' A' z o' e,
-    Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o') →
+    ∀ c σ' g' A' z o' e,
+    Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o') →
     ∀ acc, acc ≠ r →
       account_changes_consistent acc σ σ'
     := by
-  intros c createdAccounts' σ' g' A' z o' e hTheta acc hacc_ne_r
+  intros c σ' g' A' z o' e hTheta acc hacc_ne_r
   exact (account_changes_consistent_except_owner_of_Theta_and_Lambda
-    (blobVersionedHashes := blobVersionedHashes) (createdAccounts := createdAccounts)
-    (genesisBlockHeader := genesisBlockHeader) (blocks := blocks)
+    (blobVersionedHashes := blobVersionedHashes) (blocks := blocks)
     (σ := σ) (σ₀ := σ₀) (A := A) (s := s) (o := o) (r := r)
     (g := g) (p := p) (v := v) (v' := v') (d := d) (i := default) (ζ := none)
     (H := H) (w := w)
-    default c createdAccounts' σ' g' A' z o' e).1 hTheta acc hacc_ne_r
+    default c σ' g' A' z o' e).1 hTheta acc hacc_ne_r
 
 theorem account_changes_consistent_weak_of_Lambda :
-    ∀ a createdAccounts' σ' g' A' z o' e,
-    Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w =
-      (a, createdAccounts', σ', g', A', z, o') →
+    ∀ a σ' g' A' z o' e,
+    Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashes blocks w =
+      (a, σ', g', A', z, o') →
     ∀ acc, account_changes_consistent acc σ σ'
     := by
-  intros a createdAccounts' σ' g' A' z o' e hLambda acc
+  intros a σ' g' A' z o' e hLambda acc
   exact (account_changes_consistent_except_owner_of_Theta_and_Lambda
-    (blobVersionedHashes := blobVersionedHashes) (createdAccounts := createdAccounts)
-    (genesisBlockHeader := genesisBlockHeader) (blocks := blocks)
+    (blobVersionedHashes := blobVersionedHashes) (blocks := blocks)
     (σ := σ) (σ₀ := σ₀) (A := A) (s := s) (o := o) (r := default)
     (g := g) (p := p) (v := v) (v' := default) (d := default) (i := i) (ζ := ζ)
     (H := H) (w := w)
-    a (toExecute σ default) createdAccounts' σ' g' A' z o' e).2 hLambda acc
+    a (toExecute σ default) σ' g' A' z o' e).2 hLambda acc
 
 theorem account_changes_consistent_weak_of_Theta_and_Lambda :
-    ∀ a c createdAccounts' σ' g' A' z o' e,
-    (Θ blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o r c
-        g p v v' d e H w =
-      (createdAccounts', σ', g', A', z, o') →
+    ∀ a c σ' g' A' z o' e,
+    (Θ σ σ₀ A s o r c
+        g p v v' d e H blobVersionedHashes blocks w =
+      (σ', g', A', z, o') →
       ∀ acc, acc ≠ r →
         account_changes_consistent acc σ σ') ∧
-    (Lambda blobVersionedHashes createdAccounts genesisBlockHeader blocks σ σ₀ A s o g p v i e ζ H w =
-      (a, createdAccounts', σ', g', A', z, o') →
+    (Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashes blocks w =
+      (a, σ', g', A', z, o') →
       ∀ acc, account_changes_consistent acc σ σ')
     := by
-  intros a c createdAccounts' σ' g' A' z o' e
+  intros a c σ' g' A' z o' e
   constructor
   · intro hTheta acc hacc_ne_r
-    exact account_changes_consistent_weak_of_Theta c createdAccounts' σ' g' A' z o' e
+    exact account_changes_consistent_weak_of_Theta c σ' g' A' z o' e
       hTheta acc hacc_ne_r
   · intro hLambda acc
-    exact account_changes_consistent_weak_of_Lambda a createdAccounts' σ' g' A' z o' e
+    exact account_changes_consistent_weak_of_Lambda a σ' g' A' z o' e
       hLambda acc
