@@ -1,6 +1,7 @@
 import Ethereum.Wheels
 import Ethereum.UInt256
 import Ethereum.State.BlockHeader
+import Ethereum.State.Block
 
 namespace Ethereum
 
@@ -29,7 +30,8 @@ structure ExecutionEnv where
   depth     : Fin 1025
   perm      : Bool
   blobVersionedHashes : List ByteArray
-  deriving BEq, Inhabited, Repr
+  blocks : ProcessedBlocks
+  deriving Inhabited
 
 def prevRandao (e : ExecutionEnv) : UInt256 :=
   e.header.prevRandao

@@ -528,10 +528,10 @@ lemma step_system_nonrecursive_gas {gasCost : Nat} {op : Operation.SOp}
     all_goals try (injection h with hs; subst s'; rfl)
 
 set_option linter.unusedSimpArgs false in
-lemma call_gas_le {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+lemma call_gas_le {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
   unfold call at h
@@ -1122,8 +1122,8 @@ def XiResultGas :
   | .success (_, g, _) _ => g.toNat
   | .revert g _ => g.toNat
 
-theorem Xi_gas_le {genesisBlockHeader blocks σ σ₀ g A I result}
-    (h : Ξ genesisBlockHeader blocks σ σ₀ g A I = .ok result) :
+theorem Xi_gas_le {σ σ₀ g A I result}
+    (h : Ξ σ σ₀ g A I = .ok result) :
     XiResultGas result ≤ g.toNat := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
@@ -1294,9 +1294,9 @@ lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
     simp
 
 set_option maxHeartbeats 800000 in
-theorem Theta_gas_le {blobVersionedHashes genesisBlockHeader blocks σ σ₀ A s o r c
+theorem Theta_gas_le {blobVersionedHashes blocks σ σ₀ A s o r c
     g p v v' d e H w} :
-    (Θ blobVersionedHashes genesisBlockHeader blocks σ σ₀ A s o r c
+    (Θ (blobVersionedHashes := blobVersionedHashes) (blocks := blocks) σ σ₀ A s o r c
       g p v v' d e H w).2.1.toNat ≤ g.toNat := by
   cases c with
   | Code code =>
@@ -1314,14 +1314,14 @@ theorem Theta_gas_le {blobVersionedHashes genesisBlockHeader blocks σ σ₀ A s
       simp
       exact precompile_dispatch_gas_le p _ g A _
 
-lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
+lemma call_gas_decreases {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
     (hgasCost : gasCost ≤ evmState.machineState.gasAvailable.toNat)
     (hcallgasLt :
       Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
         value gas evmState.accountMap evmState.machineState evmState.substate < gasCost)
-    (h : call gasCost blobVersionedHashes gas source recipient t value value'
+    (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat + 1 ≤ evmState.machineState.gasAvailable.toNat := by
   unfold call at h
@@ -1332,9 +1332,9 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
-        (blobVersionedHashes := blobVersionedHashes)
-                (genesisBlockHeader := evmState.genesisBlockHeader)
-        (blocks := evmState.blocks)
+        (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
+
+        (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
         (A := evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
@@ -1353,7 +1353,7 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ blobVersionedHashes evmState.genesisBlockHeader evmState.blocks
+          ((Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
               (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
@@ -1376,9 +1376,9 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
-        (blobVersionedHashes := blobVersionedHashes)
-                (genesisBlockHeader := evmState.genesisBlockHeader)
-        (blocks := evmState.blocks)
+        (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
+
+        (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
         (A := evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
@@ -1397,7 +1397,7 @@ lemma call_gas_decreases {gasCost : Nat} {blobVersionedHashes : List ByteArray}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ blobVersionedHashes evmState.genesisBlockHeader evmState.blocks
+          ((Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
               (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender

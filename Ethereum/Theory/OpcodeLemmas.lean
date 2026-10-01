@@ -2115,7 +2115,7 @@ theorem step_blockhash : ∀ (s : State),
                     (if s.executionEnv.header.number ≤ a.toNat || a.toNat + 256 < s.executionEnv.header.number then
                       ⟨0⟩
                     else
-                      s.blocks.map ProcessedBlock.hash |>.getD a.toNat ⟨0⟩) :: t,
+                      s.executionEnv.blocks.map ProcessedBlock.hash |>.getD a.toNat ⟨0⟩) :: t,
                   machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Gblockhash
                   machineState.pc := s.machineState.pc + ⟨1⟩
                   machineState.execLength := s.machineState.execLength + 1
@@ -2146,7 +2146,7 @@ theorem step_blockhash : ∀ (s : State),
           apply And.intro
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
-            simp [Ethereum.State.blockHash, Ethereum.State.blockHashes]
+            simp [Ethereum.State.blockHash]
 
 theorem step_blobhash : ∀ (s : State),
   let I_b := s.executionEnv.code
@@ -3958,9 +3958,8 @@ theorem step_call : ∀ (s : State),
             let Astar := s.addAccessedAccount tAddr |>.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
@@ -4107,9 +4106,8 @@ theorem step_call' : ∀ (s : State),
             let Astar := s.addAccessedAccount tAddr |>.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
@@ -4168,9 +4166,8 @@ theorem step_callcode : ∀ (s : State),
             let Astar := s.addAccessedAccount tAddr |>.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
@@ -4311,9 +4308,8 @@ theorem step_delegatecall : ∀ (s : State),
             let Astar := s.addAccessedAccount tAddr |>.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value') (d := i) (e := Iₑ + 1)
@@ -4450,9 +4446,8 @@ theorem step_staticcall : ∀ (s : State),
             let Astar := s.addAccessedAccount tAddr |>.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ s.executionEnv.blobVersionedHashes
-                  (genesisBlockHeader := s.genesisBlockHeader)
-                  (blocks := s.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
+                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                  (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
                   (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
@@ -4592,8 +4587,7 @@ theorem step_create : ∀ (s : State),
           else
             if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
               let (a, σ', g', A', z, o) :=
-                Lambda createState.executionEnv.blobVersionedHashes
-                  createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+                Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
@@ -4727,8 +4721,7 @@ theorem step_create : ∀ (s : State),
                     if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
                       let (a, σ', g', A', z, o) :=
-                        Lambda createState.executionEnv.blobVersionedHashes
-                          createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+                        Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
@@ -4907,8 +4900,7 @@ theorem step_create2 : ∀ (s : State),
           else
             if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
               let (a, σ', g', A', z, o) :=
-                Lambda createState.executionEnv.blobVersionedHashes
-                  createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+                Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
@@ -5045,8 +5037,7 @@ theorem step_create2 : ∀ (s : State),
                     if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
                       let (a, σ', g', A', z, o) :=
-                        Lambda createState.executionEnv.blobVersionedHashes
-                          createState.genesisBlockHeader createState.blocks σStar createState.σ₀ createState.substate
+                        Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ

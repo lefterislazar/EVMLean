@@ -138,12 +138,11 @@ lemma Z_no_OutOfFuel {w s} validJumps :
 
 @[simp] private lemma call_ne_error
     (gasCost : Nat)
-    (blobVersionedHashes : List ByteArray)
     (gas source recipient t value value' inOffset inSize outOffset outSize : UInt256)
     (permission : Bool)
     (evmState : State)
     (e : ExecutionException) :
-    call gasCost blobVersionedHashes gas source recipient t value value' inOffset inSize
+    call gasCost gas source recipient t value value' inOffset inSize
         outOffset outSize permission evmState ≠ .error e := by
   unfold call
   simp
