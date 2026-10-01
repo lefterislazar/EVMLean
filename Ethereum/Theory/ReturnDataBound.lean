@@ -1743,6 +1743,22 @@ lemma step_staticcall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (
     (step_staticcall_returnData_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
+lemma create_returnData_size_le_maxReturnDataSizeByGas
+    {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState state' : State} {x : UInt256}
+    (h : create value offset size salt evmState = .ok (x, state')) :
+    state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
+  unfold create at h
+  simp [bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    rw [← hstate]
+    simp
+    try simpa using
+      (lambda_projection_output_size_le_maxReturnDataSizeByGas _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+
 set_option linter.unusedSimpArgs false in
 lemma step_create_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -1752,14 +1768,12 @@ lemma step_create_returnData_size_le_maxReturnDataSizeByGas
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    rw [← h]
-    simp
-    try
-      simpa using
-        (lambda_projection_output_size_le_maxReturnDataSizeByGas _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_returnData_size_le_maxReturnDataSizeByGas hCreate
+  rw [← h]
+  simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_create_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -1779,14 +1793,12 @@ lemma step_create2_returnData_size_le_maxReturnDataSizeByGas
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    rw [← h]
-    simp
-    try
-      simpa using
-        (lambda_projection_output_size_le_maxReturnDataSizeByGas _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_returnData_size_le_maxReturnDataSizeByGas hCreate
+  rw [← h]
+  simpa using hout
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}

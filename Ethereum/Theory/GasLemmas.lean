@@ -545,6 +545,20 @@ lemma call_gas_le {gasCost : Nat}
     rw [← hstate]
     simp
 
+lemma create_gas_le
+    {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState state' : State} {x : UInt256}
+    (h : create value offset size salt evmState = .ok (x, state')) :
+    state'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
+  unfold create at h
+  simp [bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    rw [← hstate]
+    simp
+
 set_option linter.unusedSimpArgs false in
 lemma step_create_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
@@ -553,11 +567,13 @@ lemma step_create_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | simp [← h]
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -569,14 +585,13 @@ lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | rw [← h]
-      simp
-      omega
-    | simp [← h]
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -586,14 +601,13 @@ lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | rw [← h]
-      simp
-      omega
-    | simp [← h]
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
@@ -605,17 +619,13 @@ lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
     Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    first
-    | rw [← h]
-      simp
-      omega
-    | injection h with hs
-      rw [← hs]
-      simp
-      omega
+  repeat (first | simp at h | split at h)
+  rename_i _ _ _ _ vCreate hCreate
+  rcases vCreate with ⟨_, _⟩
+  have hout := create_gas_le hCreate
+  rw [← h]
+  simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at hout ⊢
+  omega
 
 set_option linter.unusedSimpArgs false in
 lemma step_call_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}

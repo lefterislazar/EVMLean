@@ -527,6 +527,97 @@ private lemma account_changes_consistent_of_call_recipient_own_code_succ_depth
     simp
     exact account_changes_consistent_rfl (AccountAddress.ofUInt256 recipient)
 
+private lemma create_accountMap_eq_at_max_depth
+    {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState result : State} {x : UInt256}
+    (hdepth : evmState.executionEnv.depth = 1024)
+    (h : create value offset size salt evmState = .ok (x, result)) :
+    result.accountMap = evmState.accountMap := by
+  unfold create at h
+  simp [hdepth, bind, Except.bind, pure, Except.pure] at h
+  repeat' (split at h <;> try simp at h)
+  all_goals
+    try contradiction
+    rcases h with ⟨_, hstate⟩
+    have hm := congrArg State.accountMap hstate
+    simpa using hm.symm
+
+private lemma account_changes_consistent_of_create_except_owner_succ_depth
+    {n : Nat} {value offset size x : UInt256} {salt : Option ByteArray}
+    {evmState state' : State} {acc : AccountAddress}
+    (hdepth : 1024 - evmState.executionEnv.depth.val = n + 1)
+    (ihLambda : ∀ (blobVersionedHashesᵢ : List ByteArray) (blocksᵢ : ProcessedBlocks)
+        (e : Fin 1025) σ σ₀ A s o g p v i ζ H w a σ' g' A' z o',
+        1024 - e.val = n →
+          Lambda σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
+            (a, σ', g', A', z, o') →
+          account_changes_consistent acc σ σ')
+    (hacc : acc ≠ evmState.executionEnv.codeOwner)
+    (h : create value offset size salt evmState = .ok (x, state')) :
+    account_changes_consistent acc evmState.accountMap state'.accountMap := by
+  let owner := (evmState.accountMap.find? evmState.executionEnv.codeOwner).getD default
+  let σStar := evmState.accountMap.insert evmState.executionEnv.codeOwner
+    {owner with nonce := owner.nonce + ⟨1⟩}
+  unfold create at h
+  by_cases hnonce : owner.nonce.toNat ≥ 2^64 - 1
+  · simp [bind, Except.bind, pure, Except.pure] at h
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      first
+      | contradiction
+      | rcases h with ⟨_, hstate⟩
+        rw [← hstate]
+        simp
+        exact account_changes_consistent_rfl acc
+  · by_cases hCreate :
+        value ≤ (evmState.accountMap.find? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
+          evmState.executionEnv.depth < 1024 ∧
+          (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
+    · let lambdaRes := Lambda σStar evmState.σ₀ evmState.substate
+        evmState.executionEnv.codeOwner evmState.executionEnv.sender
+        (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
+        (UInt256.ofNat evmState.executionEnv.gasPrice) value
+        (evmState.machineState.memory.readWithPadding offset.toNat size.toNat)
+        ⟨evmState.executionEnv.depth.val + 1, Nat.succ_lt_succ hCreate.2.1⟩
+        salt evmState.executionEnv.header evmState.executionEnv.blobVersionedHashes
+        evmState.executionEnv.blocks evmState.executionEnv.perm
+      have hpre : account_changes_consistent acc evmState.accountMap σStar :=
+        account_changes_consistent_insert_ne acc evmState.executionEnv.codeOwner
+          evmState.accountMap {owner with nonce := owner.nonce + ⟨1⟩} hacc
+      have hmeasure :
+          1024 - (⟨evmState.executionEnv.depth.val + 1,
+            Nat.succ_lt_succ hCreate.2.1⟩ : Fin 1025).val = n := by
+        simp
+        omega
+      have hrec : account_changes_consistent acc σStar lambdaRes.2.1 :=
+        ihLambda evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks
+          ⟨evmState.executionEnv.depth.val + 1, Nat.succ_lt_succ hCreate.2.1⟩
+          σStar evmState.σ₀ evmState.substate
+          evmState.executionEnv.codeOwner evmState.executionEnv.sender
+          (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
+          (UInt256.ofNat evmState.executionEnv.gasPrice) value
+          (evmState.machineState.memory.readWithPadding offset.toNat size.toNat)
+          salt evmState.executionEnv.header evmState.executionEnv.perm
+          lambdaRes.1 lambdaRes.2.1 lambdaRes.2.2.1 lambdaRes.2.2.2.1
+          lambdaRes.2.2.2.2.1 lambdaRes.2.2.2.2.2 hmeasure rfl
+      simp [hCreate, bind, Except.bind, pure, Except.pure] at h
+      repeat' (split at h <;> try simp at h)
+      all_goals
+        first
+        | contradiction
+        | rcases h with ⟨_, hstate⟩
+          rw [← hstate]
+          simpa [lambdaRes, σStar, owner] using account_changes_consistent_trans hpre hrec
+    · simp [hCreate, bind, Except.bind, pure, Except.pure] at h
+      repeat' (split at h <;> try simp at h)
+      all_goals
+        first
+        | contradiction
+        | rcases h with ⟨_, hstate⟩
+          rw [← hstate]
+          simp
+          exact account_changes_consistent_rfl acc
+
 private lemma lambda_create_not_failed_bool
     (b : Bool) (P Q R S : Prop) [Decidable P] [Decidable Q] [Decidable R] [Decidable S] :
     (!b && (!decide P && (!decide Q && (!decide R || !decide S)))) =
@@ -1060,11 +1151,14 @@ private lemma step_system_consistent_except_owner_max_depth
     (h : step gasCost (.System op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op
-  · simp [step, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
-    injection h with hstate
-    rw [← hstate]
-    exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    have hm := create_accountMap_eq_at_max_depth (by simp [hdepth]) hCreate
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step, call, hdepth, bind, Except.bind] at h
     repeat split at h <;> try contradiction
     injection h with hstate
@@ -1086,11 +1180,14 @@ private lemma step_system_consistent_except_owner_max_depth
     rw [← hstate]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
     exact account_changes_consistent_rfl acc
-  · simp [step, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
-    injection h with hstate
-    rw [← hstate]
-    exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    have hm := create_accountMap_eq_at_max_depth (by simp [hdepth]) hCreate
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step, call, hdepth, bind, Except.bind] at h
     repeat split at h <;> try contradiction
     injection h with hstate
@@ -1231,77 +1328,18 @@ private lemma step_system_consistent_except_owner_succ_depth
     (h : step gasCost (.System op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op
-  · simp [step] at h
-    cases hpop : state.machineState.stack.pop3 with
-    | none =>
-        simp [hpop] at h
-    | some popped =>
-        rcases popped with ⟨stack, μ₀, μ₁, μ₂⟩
-        let owner : Account :=
-          (state.accountMap.find? state.executionEnv.codeOwner).getD default
-        let σStar : AccountMap :=
-          state.accountMap.insert state.executionEnv.codeOwner
-            {owner with nonce := owner.nonce + ⟨1⟩}
-        by_cases hnonce :
-            ((state.accountMap.find? state.executionEnv.codeOwner).getD default).nonce.toNat ≥ 2^64 - 1
-        · simp [hpop] at h
-          repeat split at h <;> try contradiction
-          all_goals
-            injection h with hstate
-            rw [← hstate]
-            simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            exact account_changes_consistent_rfl acc
-        · by_cases hDepth :
-              μ₀ ≤ (state.accountMap.find? state.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
-                state.executionEnv.depth < 1024 ∧
-                (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat).size ≤ 49152
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            all_goals
-              first
-              |
-                have hpre :
-                    account_changes_consistent acc state.accountMap σStar :=
-                  account_changes_consistent_insert_ne acc state.executionEnv.codeOwner
-                    state.accountMap {owner with nonce := owner.nonce + ⟨1⟩} hacc
-                have hmeasure :
-                    1024 -
-                        (⟨state.executionEnv.depth.val + 1,
-                          Nat.succ_lt_succ hDepth.2.1⟩ : Fin 1025).val = n := by
-                  simp
-                  omega
-                let lambdaRes := Lambda (blobVersionedHashes := state.executionEnv.blobVersionedHashes) (blocks := state.executionEnv.blocks) σStar state.σ₀ state.substate
-                        state.executionEnv.codeOwner state.executionEnv.sender
-                        (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                        (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                        (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                        ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                        none state.executionEnv.header state.executionEnv.perm
-                have hrec :
-                    account_changes_consistent acc σStar lambdaRes.2.1 := by
-                  exact ihLambda
-                    state.executionEnv.blobVersionedHashes state.executionEnv.blocks
-                    ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                    σStar state.σ₀ state.substate
-                    state.executionEnv.codeOwner state.executionEnv.sender
-                    (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                    (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                    (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                    none state.executionEnv.header state.executionEnv.perm
-                    lambdaRes.1 lambdaRes.2.1 lambdaRes.2.2.1 lambdaRes.2.2.2.1 lambdaRes.2.2.2.2.1 lambdaRes.2.2.2.2.2
-                    hmeasure rfl
-                exact account_changes_consistent_trans hpre hrec
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-              exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_create_except_owner_succ_depth
+      (evmState := {state with machineState :=
+        {state.machineState with
+          execLength := state.machineState.execLength + 1,
+          gasAvailable := state.machineState.gasAvailable.subNat gasCost}})
+      hdepth ihLambda hacc hCreate
   · simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
     rename_i popped hpop
@@ -1364,77 +1402,18 @@ private lemma step_system_consistent_except_owner_succ_depth
       hdepth ihTheta
       (by simpa [AccountAddress.ofUInt256_ofNat] using hacc)
       hcall
-  · simp [step] at h
-    cases hpop : state.machineState.stack.pop4 with
-    | none =>
-        simp [hpop] at h
-    | some popped =>
-        rcases popped with ⟨stack, μ₀, μ₁, μ₂, μ₃⟩
-        let owner : Account :=
-          (state.accountMap.find? state.executionEnv.codeOwner).getD default
-        let σStar : AccountMap :=
-          state.accountMap.insert state.executionEnv.codeOwner
-            {owner with nonce := owner.nonce + ⟨1⟩}
-        by_cases hnonce :
-            ((state.accountMap.find? state.executionEnv.codeOwner).getD default).nonce.toNat ≥ 2^64 - 1
-        · simp [hpop] at h
-          repeat split at h <;> try contradiction
-          all_goals
-            injection h with hstate
-            rw [← hstate]
-            simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            exact account_changes_consistent_rfl acc
-        · by_cases hDepth :
-              μ₀ ≤ (state.accountMap.find? state.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
-                state.executionEnv.depth < 1024 ∧
-                (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat).size ≤ 49152
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-            all_goals
-              first
-              |
-                have hpre :
-                    account_changes_consistent acc state.accountMap σStar :=
-                  account_changes_consistent_insert_ne acc state.executionEnv.codeOwner
-                    state.accountMap {owner with nonce := owner.nonce + ⟨1⟩} hacc
-                have hmeasure :
-                    1024 -
-                        (⟨state.executionEnv.depth.val + 1,
-                          Nat.succ_lt_succ hDepth.2.1⟩ : Fin 1025).val = n := by
-                  simp
-                  omega
-                let lambdaRes := Lambda (blobVersionedHashes := state.executionEnv.blobVersionedHashes) (blocks := state.executionEnv.blocks) σStar state.σ₀ state.substate
-                        state.executionEnv.codeOwner state.executionEnv.sender
-                        (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                        (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                        (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                        ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                        (some μ₃.toByteArray) state.executionEnv.header state.executionEnv.perm
-                have hrec :
-                    account_changes_consistent acc σStar lambdaRes.2.1 := by
-                  exact ihLambda
-                    state.executionEnv.blobVersionedHashes state.executionEnv.blocks
-                    ⟨state.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩
-                    σStar state.σ₀ state.substate
-                    state.executionEnv.codeOwner state.executionEnv.sender
-                    (UInt256.ofNat (L (state.machineState.gasAvailable.toNat - gasCost)))
-                    (UInt256.ofNat state.executionEnv.gasPrice) μ₀
-                    (state.machineState.memory.readWithPadding μ₁.toNat μ₂.toNat)
-                    (some μ₃.toByteArray) state.executionEnv.header state.executionEnv.perm
-                    lambdaRes.1 lambdaRes.2.1 lambdaRes.2.2.1 lambdaRes.2.2.2.1 lambdaRes.2.2.2.2.1 lambdaRes.2.2.2.2.2
-                    hmeasure rfl
-                exact account_changes_consistent_trans hpre hrec
-          · simp [hpop, hDepth] at h
-            repeat split at h <;> try contradiction
-            all_goals
-              injection h with hstate
-              rw [← hstate]
-              simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-              exact account_changes_consistent_rfl acc
+  · simp [step, bind, Except.bind] at h
+    repeat (first | simp at h | split at h)
+    rename_i _ _ _ _ vCreate hCreate
+    rcases vCreate with ⟨_, createdState⟩
+    rw [← h]
+    simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
+    exact account_changes_consistent_of_create_except_owner_succ_depth
+      (evmState := {state with machineState :=
+        {state.machineState with
+          execLength := state.machineState.execLength + 1,
+          gasAvailable := state.machineState.gasAvailable.subNat gasCost}})
+      hdepth ihLambda hacc hCreate
   · simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
     rename_i popped hpop

@@ -4707,7 +4707,7 @@ theorem step_create : ∀ (s : State),
                 simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
                   hmem', hgas', hgas'', hoverflow, hoverflow', hperm, hperm_true, hsize, C', hstack,
                   hnot_underflow, Operation.isCreate, bind, Except.bind, α]
-                unfold step
+                unfold step create
                 let initCode := createState.machineState.memory.readWithPadding offset.toNat size.toNat
                 let Iₐ := createState.executionEnv.codeOwner
                 let Iₒ := createState.executionEnv.sender
@@ -4745,11 +4745,10 @@ theorem step_create : ∀ (s : State),
                       createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded]
-                    rfl
                   ·
                     have hrefund_expanded := hrefund
                     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
@@ -4757,7 +4756,7 @@ theorem step_create : ∀ (s : State),
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                     simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded,
@@ -4788,7 +4787,7 @@ theorem step_create : ∀ (s : State),
                         createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4805,7 +4804,7 @@ theorem step_create : ∀ (s : State),
                         createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4844,7 +4843,7 @@ theorem step_create : ∀ (s : State),
                         createState, initCode, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -4859,7 +4858,7 @@ theorem step_create : ∀ (s : State),
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                       simp [Id.run, Stack.pop3, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5022,7 +5021,7 @@ theorem step_create2 : ∀ (s : State),
                 simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
                   hmem', hgas', hgas'', hoverflow, hoverflow', hperm, hperm_true, hsize, C', hstack,
                   hnot_underflow, Operation.isCreate, bind, Except.bind, α]
-                unfold step
+                unfold step create
                 let initCode := createState.machineState.memory.readWithPadding offset.toNat size.toNat
                 let ζ := Ethereum.UInt256.toByteArray salt
                 let Iₐ := createState.executionEnv.codeOwner
@@ -5061,11 +5060,10 @@ theorem step_create2 : ∀ (s : State),
                       createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded]
-                    rfl
                   ·
                     have hrefund_expanded := hrefund
                     simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
@@ -5073,7 +5071,7 @@ theorem step_create2 : ∀ (s : State),
                       hnonce, hnonce_expanded, hperm_true] at hrefund_expanded
                     have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                     simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      Except.bind,
+                      bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                       memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                       createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                       σStar, createResult, g', hnonce, hnonce_expanded, hrefund, hrefund_expanded,
@@ -5104,7 +5102,7 @@ theorem step_create2 : ∀ (s : State),
                         createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5121,7 +5119,7 @@ theorem step_create2 : ∀ (s : State),
                         createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hdepth_eq, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5160,7 +5158,7 @@ theorem step_create2 : ∀ (s : State),
                         createState, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ, σStar, createResult, g',
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
@@ -5175,7 +5173,7 @@ theorem step_create2 : ∀ (s : State),
                         hnonce, hnonce_expanded, hDepth, hDepth_expanded, hDepth_expanded_nat, hperm_true] at hrefund_expanded
                       have hrefund_expanded_not := not_lt.mpr hrefund_expanded
                       simp [Id.run, Stack.pop4, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                        Except.bind,
+                        bind, Bind.bind, Except.bind, Except.pure, Pure.pure,
                         memoryExpansionCost, memoryExpansionCost.μᵢ', hstack, gasAvailable', gasCost,
                         createState, UInt256_ofNat_1, hdepth_eq, hperm_true, initCode, ζ, Iₐ, Iₒ, σ, σ_Iₐ,
                         σStar, createResult, g', hnonce, hnonce_expanded, hDepth, hDepth_expanded, hrefund,
