@@ -4,26 +4,28 @@ import Ethereum.Semantics
 namespace Ethereum
 namespace EVM
 
+attribute [-simp] Std.ExtTreeMap.get?_eq_getElem?
+
 def accountStorageState (σ : AccountMap) : AccountAddress → Storage × Storage :=
-  fun addr => ((σ.findD addr default).storage, (σ.findD addr default).tstorage)
+  fun addr => ((σ.getD addr default).storage, (σ.getD addr default).tstorage)
 
 def stateStorageState (state : State) : AccountAddress → Storage × Storage :=
   accountStorageState state.accountMap
 
 def accountStorageStateEq (σ τ : AccountMap) : Prop :=
   ∀ addr,
-    (σ.findD addr default).storage = (τ.findD addr default).storage ∧
-      (σ.findD addr default).tstorage = (τ.findD addr default).tstorage
+    (σ.getD addr default).storage = (τ.getD addr default).storage ∧
+      (σ.getD addr default).tstorage = (τ.getD addr default).tstorage
 
 def accountCodeStateEq (σ τ : AccountMap) : Prop :=
   ∀ addr : AccountAddress,
-    (σ.findD addr default).code = (τ.findD addr default).code
+    (σ.getD addr default).code = (τ.getD addr default).code
 
 def accountStaticStateEq (σ τ : AccountMap) : Prop :=
   ∀ addr : AccountAddress,
-    (σ.findD addr default).storage = (τ.findD addr default).storage ∧
-      (σ.findD addr default).tstorage = (τ.findD addr default).tstorage ∧
-        (σ.findD addr default).code = (τ.findD addr default).code
+    (σ.getD addr default).storage = (τ.getD addr default).storage ∧
+      (σ.getD addr default).tstorage = (τ.getD addr default).tstorage ∧
+        (σ.getD addr default).code = (τ.getD addr default).code
 
 def stateStaticStateEq (state₁ state₂ : State) : Prop :=
   accountStaticStateEq state₁.accountMap state₂.accountMap
@@ -82,79 +84,95 @@ theorem accountStaticStateEq_trans {σ τ υ : AccountMap}
 
 theorem accountStorageStateEq_insert_preserve
     (σ : AccountMap) (addr : AccountAddress) (acc : Account)
-    (hstorage : acc.storage = (σ.findD addr default).storage)
-    (htstorage : acc.tstorage = (σ.findD addr default).tstorage) :
+    (hstorage : acc.storage = (σ.getD addr default).storage)
+    (htstorage : acc.tstorage = (σ.getD addr default).tstorage) :
     accountStorageStateEq σ (σ.insert addr acc) := by
   intro query
   by_cases hcmp : compare query addr = .eq
-  · have hfind : (σ.insert addr acc).find? query = some acc := by
-      exact Std.ExtTreeMap.find?_insert_of_eq σ hcmp
+  · have hfind : (σ.insert addr acc).get? query = some acc := by
+      have hqa : query = addr := Std.LawfulEqCmp.eq_of_compare hcmp
+      subst query
+      simp [Std.ExtTreeMap.get?_eq_getElem?]
     have hcmp' : compare addr query = .eq := by
       have hswap :=
         (Std.OrientedCmp.eq_swap (cmp := compare) (a := query) (b := addr))
       rw [hcmp] at hswap
       simpa using hswap.symm
-    have hquery : σ.find? addr = σ.find? query := by
-      exact Std.ExtTreeMap.find?_congr σ hcmp'
-    have hstorage' : acc.storage = (σ.findD query default).storage := by
-      simpa [Std.ExtTreeMap.findD, hquery] using hstorage
-    have htstorage' : acc.tstorage = (σ.findD query default).tstorage := by
-      simpa [Std.ExtTreeMap.findD, hquery] using htstorage
-    simp [Std.ExtTreeMap.findD, hfind, hstorage', htstorage']
-  · have hfind : (σ.insert addr acc).find? query = σ.find? query := by
-      exact Std.ExtTreeMap.find?_insert_of_ne σ hcmp
-    simp [Std.ExtTreeMap.findD, hfind]
+    have hquery : σ.get? addr = σ.get? query := by
+      simpa only [Std.ExtTreeMap.get?_eq_getElem?] using
+        (Std.ExtTreeMap.getElem?_congr (t := σ) hcmp')
+    have hstorage' : acc.storage = (σ.getD query default).storage := by
+      simpa [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hquery] using hstorage
+    have htstorage' : acc.tstorage = (σ.getD query default).tstorage := by
+      simpa [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hquery] using htstorage
+    simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind, hstorage', htstorage']
+  · have hfind : (σ.insert addr acc).get? query = σ.get? query := by
+      have hcmp' : compare addr query ≠ .eq := by
+        intro heq
+        have hqa : addr = query := Std.LawfulEqCmp.eq_of_compare heq
+        subst addr
+        exact hcmp Std.ReflCmp.compare_self
+      simp [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert, hcmp']
+    simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind]
 
 theorem accountStorageStateEq_debit_if_present
     (σ : AccountMap) (addr : AccountAddress) (value : UInt256) :
     accountStorageStateEq σ
-      (match σ.find? addr with
+      (match σ.get? addr with
       | none => σ
       | some acc => σ.insert addr { acc with balance := acc.balance - value }) := by
-  cases hfind : σ.find? addr with
+  cases hfind : σ.get? addr with
   | none =>
       simp
   | some acc =>
       simp
       exact accountStorageStateEq_insert_preserve σ addr { acc with balance := acc.balance - value }
-        (by simp [Std.ExtTreeMap.findD, hfind])
-        (by simp [Std.ExtTreeMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind])
+        (by simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind])
 
 theorem accountCodeStateEq_insert_preserve
     (σ : AccountMap) (addr : AccountAddress) (acc : Account)
-    (hcode : acc.code = (σ.findD addr default).code) :
+    (hcode : acc.code = (σ.getD addr default).code) :
     accountCodeStateEq σ (σ.insert addr acc) := by
   intro query
   by_cases hcmp : compare query addr = .eq
-  · have hfind : (σ.insert addr acc).find? query = some acc := by
-      exact Std.ExtTreeMap.find?_insert_of_eq σ hcmp
+  · have hfind : (σ.insert addr acc).get? query = some acc := by
+      have hqa : query = addr := Std.LawfulEqCmp.eq_of_compare hcmp
+      subst query
+      simp [Std.ExtTreeMap.get?_eq_getElem?]
     have hcmp' : compare addr query = .eq := by
       have hswap :=
         (Std.OrientedCmp.eq_swap (cmp := compare) (a := query) (b := addr))
       rw [hcmp] at hswap
       simpa using hswap.symm
-    have hquery : σ.find? addr = σ.find? query := by
-      exact Std.ExtTreeMap.find?_congr σ hcmp'
-    have hcode' : acc.code = (σ.findD query default).code := by
-      simpa [Std.ExtTreeMap.findD, hquery] using hcode
-    simp [Std.ExtTreeMap.findD, hfind, hcode']
-  · have hfind : (σ.insert addr acc).find? query = σ.find? query := by
-      exact Std.ExtTreeMap.find?_insert_of_ne σ hcmp
-    simp [Std.ExtTreeMap.findD, hfind]
+    have hquery : σ.get? addr = σ.get? query := by
+      simpa only [Std.ExtTreeMap.get?_eq_getElem?] using
+        (Std.ExtTreeMap.getElem?_congr (t := σ) hcmp')
+    have hcode' : acc.code = (σ.getD query default).code := by
+      simpa [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hquery] using hcode
+    simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind, hcode']
+  · have hfind : (σ.insert addr acc).get? query = σ.get? query := by
+      have hcmp' : compare addr query ≠ .eq := by
+        intro heq
+        have hqa : addr = query := Std.LawfulEqCmp.eq_of_compare heq
+        subst addr
+        exact hcmp Std.ReflCmp.compare_self
+      simp [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert, hcmp']
+    simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind]
 
 theorem accountCodeStateEq_debit_if_present
     (σ : AccountMap) (addr : AccountAddress) (value : UInt256) :
     accountCodeStateEq σ
-      (match σ.find? addr with
+      (match σ.get? addr with
       | none => σ
       | some acc => σ.insert addr { acc with balance := acc.balance - value }) := by
-  cases hfind : σ.find? addr with
+  cases hfind : σ.get? addr with
   | none =>
       simp
   | some acc =>
       simp
       exact accountCodeStateEq_insert_preserve σ addr { acc with balance := acc.balance - value }
-        (by simp [Std.ExtTreeMap.findD, hfind])
+        (by simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind])
 
 theorem sendEth_accountStorageStateEq
     (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) :
@@ -163,7 +181,7 @@ theorem sendEth_accountStorageStateEq
   by_cases hz : z
   · simp [hz]
     let σ₁ : AccountMap :=
-      match σ.find? r with
+      match σ.get? r with
       | none =>
           if (v != UInt256.ofNat 0) = true then
             σ.insert r
@@ -177,19 +195,19 @@ theorem sendEth_accountStorageStateEq
               tstorage := acc.tstorage }
     have hσ₁ : accountStorageStateEq σ σ₁ := by
       dsimp [σ₁]
-      cases hr : σ.find? r with
+      cases hr : σ.get? r with
       | none =>
           by_cases hv : (v != UInt256.ofNat 0) = true
           · simp [hv]
             apply accountStorageStateEq_insert_preserve
-            · simp [Std.ExtTreeMap.findD, hr]
-            · simp [Std.ExtTreeMap.findD, hr]
+            · simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hr]
+            · simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hr]
           · simp [hv]
       | some acc =>
           simp
           apply accountStorageStateEq_insert_preserve
-          · simp [Std.ExtTreeMap.findD, hr]
-          · simp [Std.ExtTreeMap.findD, hr]
+          · simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hr]
+          · simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hr]
     simpa [σ₁] using accountStorageStateEq_trans hσ₁
       (accountStorageStateEq_debit_if_present σ₁ s v)
   · simp [hz]
@@ -201,7 +219,7 @@ theorem sendEth_accountCodeStateEq
   by_cases hz : z
   · simp [hz]
     let σ₁ : AccountMap :=
-      match σ.find? r with
+      match σ.get? r with
       | none =>
           if (v != UInt256.ofNat 0) = true then
             σ.insert r
@@ -215,17 +233,17 @@ theorem sendEth_accountCodeStateEq
               tstorage := acc.tstorage }
     have hσ₁ : accountCodeStateEq σ σ₁ := by
       dsimp [σ₁]
-      cases hr : σ.find? r with
+      cases hr : σ.get? r with
       | none =>
           by_cases hv : (v != UInt256.ofNat 0) = true
           · simp [hv]
             apply accountCodeStateEq_insert_preserve
-            simp [Std.ExtTreeMap.findD, hr]
+            simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hr]
           · simp [hv]
       | some acc =>
           simp
           apply accountCodeStateEq_insert_preserve
-          simp [Std.ExtTreeMap.findD, hr]
+          simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hr]
     simpa [σ₁] using accountCodeStateEq_trans hσ₁
       (accountCodeStateEq_debit_if_present σ₁ s v)
   · simp [hz]

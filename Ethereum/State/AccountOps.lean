@@ -9,7 +9,7 @@ namespace Ethereum
 namespace Account
 
 def lookupStorage (self : Account) (k : UInt256) : UInt256 :=
-  self.storage.findD k ⟨0⟩
+  self.storage.getD k ⟨0⟩
 
 def updateStorage (self : Account) (k v : UInt256) : Account :=
   if v == default then
@@ -18,7 +18,7 @@ def updateStorage (self : Account) (k v : UInt256) : Account :=
     { self with storage := self.storage.insert k v }
 
 def lookupTransientStorage (self : Account) (k : UInt256) : UInt256 :=
-  self.tstorage.findD k ⟨0⟩
+  self.tstorage.getD k ⟨0⟩
 
 def updateTransientStorage (self : Account) (k v : UInt256) : Account :=
   if v == default then

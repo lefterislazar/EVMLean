@@ -24,12 +24,12 @@ def addAccessedStorageKey (self : State) (sk : AccountAddress × UInt256) : Stat
 DEAD(σ, a). Section 4.1., equation 15.
 -/
 def dead (σ : AccountMap) (addr : AccountAddress) : Bool :=
-  σ.find? addr |>.option True Account.emptyAccount
+  σ.get? addr |>.option True Account.emptyAccount
 
-def accountExists (self : State) (addr : AccountAddress) : Bool := self.accountMap.find? addr |>.isSome
+def accountExists (self : State) (addr : AccountAddress) : Bool := self.accountMap.get? addr |>.isSome
 
 def lookupAccount (self : State) (addr : AccountAddress) : Option Account :=
-  self.accountMap.find? addr
+  self.accountMap.get? addr
 
 def updateAccount (addr : AccountAddress) (act : Account) (self : State) : State :=
   { self with accountMap := self.accountMap.insert addr act }
@@ -49,7 +49,7 @@ def updateSelfAccount! (self : State) : (Account → Account) → State :=
 
 def balance (self : State) (k : UInt256) : State × UInt256 :=
   let addr := AccountAddress.ofUInt256 k
-  (self.addAccessedAccount addr, self.accountMap.find? addr |>.elim ⟨0⟩ (·.balance))
+  (self.addAccessedAccount addr, self.accountMap.get? addr |>.elim ⟨0⟩ (·.balance))
 
 def initialiseAccount (addr : AccountAddress) (self : State) : State :=
   if self.accountExists addr then self else self.updateAccount addr default
@@ -109,7 +109,7 @@ def gasLimit (self : State) : UInt256 :=
 def chainId (_ : State) : UInt256 := .ofNat Ethereum.chainId
 
 def selfbalance (self : State) : UInt256 :=
-  self.accountMap.find? self.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)
+  self.accountMap.get? self.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)
 
 def setCode (self : State) (code : ByteArray) : State :=
   { self with executionEnv.code := code }
@@ -132,12 +132,12 @@ def sload (self : State) (spos : UInt256) : State × UInt256 :=
 
 def sstore (self : State) (spos sval : UInt256) : State :=
   let Iₐ := self.executionEnv.codeOwner
-  let { storage := σ_Iₐ, .. } := self.accountMap.find! Iₐ
+  let { storage := σ_Iₐ, .. } := self.accountMap.get! Iₐ
   let v₀ :=
-    match self.σ₀.find? Iₐ with
+    match self.σ₀.get? Iₐ with
       | none => ⟨0⟩
-      | some acc => acc.storage.findD spos ⟨0⟩
-  let v := σ_Iₐ.findD spos ⟨0⟩
+      | some acc => acc.storage.getD spos ⟨0⟩
+  let v := σ_Iₐ.getD spos ⟨0⟩
   let v' := sval
 
   let r_dirtyclear : ℤ :=

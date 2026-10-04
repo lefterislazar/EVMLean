@@ -523,7 +523,7 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
           let c := GasConstants.Gcodedeposit * returnedData.size
           let F : Bool := Id.run do
             let F₀ : Bool :=
-              match σ.find? a with
+              match σ.get? a with
               | .some ac => ac.code ≠ ByteArray.empty ∨ ac.nonce ≠ (⟨0⟩ : UInt256)
               | .none => false
             let F₂ : Bool := gStarStar.toNat < c
@@ -533,7 +533,7 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
             pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
           let σ' : AccountMap :=
             if F then σ else
-              let newAccount' := σStarStar.findD a default
+              let newAccount' := σStarStar.getD a default
               σStarStar.insert a {newAccount' with code := returnedData}
           let g' := if F then 0 else gStarStar.toNat - c
           let A' := if F then AStar else AStarStar
@@ -561,7 +561,7 @@ lemma Lambda_Xi_tuple_match_output_size_lt_uint256
           let c := GasConstants.Gcodedeposit * returnedData.size
           let F : Bool := Id.run do
             let F₀ : Bool :=
-              match σ.find? a with
+              match σ.get? a with
               | .some ac => ac.code ≠ ByteArray.empty ∨ ac.nonce ≠ (⟨0⟩ : UInt256)
               | .none => false
             let F₂ : Bool := gStarStar.toNat < c
@@ -571,7 +571,7 @@ lemma Lambda_Xi_tuple_match_output_size_lt_uint256
             pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
           let σ' : AccountMap :=
             if F then σ else
-              let newAccount' := σStarStar.findD a default
+              let newAccount' := σStarStar.getD a default
               σStarStar.insert a {newAccount' with code := returnedData}
           let g' := if F then 0 else gStarStar.toNat - c
           let A' := if F then AStar else AStarStar
@@ -591,11 +591,11 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
     (w : Bool) :
     (Lambda σ σ₀ A
       s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
-  let n : UInt256 := (σ.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
+  let n : UInt256 := (σ.get? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
   let lₐ := Lambda.L_A s n ζ i
   let a : AccountAddress := (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
   let AStar := A.addAccessedAccount a
-  let existentAccount := σ.findD a default
+  let existentAccount := σ.getD a default
   let collision : ByteArray × Batteries.RBSet AccountAddress compare :=
     if existentAccount.nonce ≠ ⟨0⟩ || existentAccount.code.size ≠ 0 ||
         existentAccount.storage != default then
@@ -610,7 +610,7 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
       nonce := existentAccount.nonce + ⟨1⟩
       balance := v + existentAccount.balance }
   let σStar :=
-    match σ.find? s with
+    match σ.get? s with
     | none => σ
     | some ac => σ.insert s {ac with balance := ac.balance - v} |>.insert a newAccount
   let exEnv : ExecutionEnv :=
@@ -757,7 +757,7 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
   let σ'₁ :=
-    match σ.find? r with
+    match σ.get? r with
       | none =>
         if v != UInt256.ofNat 0 then
           σ.insert r { (default : Account) with balance := v}
@@ -766,7 +766,7 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
       | some acc =>
         σ.insert r { acc with balance := acc.balance + v}
   let σ₁ :=
-    match σ'₁.find? s with
+    match σ'₁.get? s with
       | none => σ'₁
       | some acc =>
         σ'₁.insert s { acc with balance := acc.balance - v}
@@ -847,12 +847,14 @@ lemma theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas
         (σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold toExecute at h
-  simp [hnot] at h
-  cases hfind : σ.find? r with
+  simp only [hnot, ↓reduceIte] at h
+  cases hfind : σ.get? r with
   | none =>
+      change σ[r]? = none at hfind
       simp [hfind] at h
       exact theta_code_output_size_le_maxReturnDataSizeByGas h
   | some acc =>
+      change σ[r]? = some acc at hfind
       simp [hfind] at h
       exact theta_code_output_size_le_maxReturnDataSizeByGas h
 
@@ -1102,7 +1104,7 @@ lemma precompile_EXPMOD_output_size_le_modulus_length
 private def thetaValueTransferAccountMap
     (σ : AccountMap) (s r : AccountAddress) (v : UInt256) : AccountMap :=
   let σ'₁ :=
-    match σ.find? r with
+    match σ.get? r with
     | none =>
         if v != UInt256.ofNat 0 then
           σ.insert r { (default : Account) with balance := v}
@@ -1110,7 +1112,7 @@ private def thetaValueTransferAccountMap
           σ
     | some acc =>
         σ.insert r { acc with balance := acc.balance + v}
-  match σ'₁.find? s with
+  match σ'₁.get? s with
   | none => σ'₁
   | some acc =>
       σ'₁.insert s { acc with balance := acc.balance - v}

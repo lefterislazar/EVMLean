@@ -173,7 +173,7 @@ def call
       let i := evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
       let A' := evmState.addAccessedAccount t |>.substate
       let (σ', g', A', z, o) :=
-        if value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
+        if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
             Θ (σ  := σ)                                     -- σ in  Θ(σ, ..)
               (σ₀ := evmState.σ₀)
               (A  := A')                                    -- A* in Θ(.., A*, ..)
@@ -202,7 +202,7 @@ def call
       -- let μ'_g := evmState.subtractGas (gasCost - g')
 
       let codeExecutionFailed   : Bool := !z
-      let notEnoughFunds        : Bool := value > (σ.find? evmState.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) -- TODO - Unify condition with CREATE.
+      let notEnoughFunds        : Bool := value > (σ.get? evmState.executionEnv.codeOwner |>.elim ⟨0⟩ (·.balance)) -- TODO - Unify condition with CREATE.
       let callDepthLimitReached : Bool := evmState.executionEnv.depth == 1024
       let x : UInt256 := if codeExecutionFailed || notEnoughFunds || callDepthLimitReached then ⟨0⟩ else ⟨1⟩ -- where x = 0 if the code execution for this operation failed, or if μs[2] > σ[Ia]b (not enough funds) or Ie = 1024 (call depth limit reached); x = 1 otherwise.
 
@@ -238,13 +238,13 @@ def create
   let Iₒ := I.sender
   let Iₑ := I.depth
   let σ := evmState.accountMap
-  let σ_Iₐ : Account := σ.find? Iₐ |>.getD default
+  let σ_Iₐ : Account := σ.get? Iₐ |>.getD default
   let σStar := σ.insert Iₐ {σ_Iₐ with nonce := σ_Iₐ.nonce + ⟨1⟩}
 
   let (a, evmState', g', z, o) : (AccountAddress × State × UInt256 × Bool × ByteArray) :=
     if σ_Iₐ.nonce.toNat ≥ 2^64-1 then
       (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), false, .empty)
-    else if hDepth : value ≤ (σ.find? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
+    else if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
       let Λ :=
         Lambda
           σStar
@@ -269,7 +269,7 @@ def create
       (0, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), false, .empty)
 
   let x : UInt256 :=
-    let balance := σ.find? Iₐ |>.option ⟨0⟩ (·.balance)
+    let balance := σ.get? Iₐ |>.option ⟨0⟩ (·.balance)
     if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ i.size > 49152 then ⟨0⟩ else .ofNat a
   let newReturnData : ByteArray := if z then .empty else o
   if evmState.machineState.gasAvailable.toNat + g'.toNat < L evmState.machineState.gasAvailable.toNat then
@@ -833,7 +833,7 @@ def Lambda
   -- EIP-3860 (includes EIP-170)
   -- https://eips.ethereum.org/EIPS/eip-3860
 
-  let n : UInt256 := (σ.find? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
+  let n : UInt256 := (σ.get? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
   let lₐ := L_A s n ζ i
   let a : AccountAddress := -- (94) (95)
     (KEC lₐ).extract 12 32 /- 160 bits = 20 bytes -/
@@ -842,7 +842,7 @@ def Lambda
   -- A* (97)
   let AStar := A.addAccessedAccount a
   -- σ*
-  let existentAccount := σ.findD a default
+  let existentAccount := σ.getD a default
 
   /-
     https://eips.ethereum.org/EIPS/eip-7610
@@ -870,7 +870,7 @@ def Lambda
 
   -- If `v` ≠ 0 then the sender must have passed the `INSUFFICIENT_ACCOUNT_FUNDS` check
   let σStar :=
-    match σ.find? s with
+    match σ.get? s with
       | none =>  σ
       | some ac =>
         σ.insert s {ac with balance := ac.balance - v}
@@ -902,7 +902,7 @@ def Lambda
 
       let F : Bool := Id.run do -- (118)
         let F₀ : Bool :=
-          match σ.find? a with
+          match σ.get? a with
           | .some ac => ac.code ≠ .empty ∨ ac.nonce ≠ ⟨0⟩
           | .none => false
         let F₂ : Bool := gStarStar.toNat < c
@@ -913,7 +913,7 @@ def Lambda
 
       let σ' : AccountMap := -- (115)
         if F then σ else
-          let newAccount' := σStarStar.findD a default
+          let newAccount' := σStarStar.getD a default
           σStarStar.insert a {newAccount' with code := returnedData}
 
       -- (114)
@@ -996,7 +996,7 @@ def Θ (σ  : AccountMap)
 
   -- (124) (125) (126)
   let σ'₁ :=
-    match σ.find? r with
+    match σ.get? r with
       | none =>
         if v != UInt256.ofNat 0 then
           σ.insert r { (default : Account) with balance := v}
@@ -1007,7 +1007,7 @@ def Θ (σ  : AccountMap)
 
   -- If `v` ≠ 0 then the sender must have passed the `INSUFFICIENT_ACCOUNT_FUNDS` check
   let σ₁ :=
-    match σ'₁.find? s with
+    match σ'₁.get? s with
       | none => σ'₁
       | some acc =>
         σ'₁.insert s { acc with balance := acc.balance - v}
@@ -1094,7 +1094,7 @@ def Υ
 := do
   let g₀ : ℕ := EVM.intrinsicGas T
   -- "here can be no invalid transactions from this point"
-  let senderAccount := (σ.find? S_T).get!
+  let senderAccount := (σ.get? S_T).get!
   -- The priority fee (67)
   let f :=
     match T with

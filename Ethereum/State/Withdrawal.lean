@@ -58,7 +58,7 @@ def applyWithdrawals
  where
   applyWithdrawal (σ : AccountMap) (w : Withdrawal) : AccountMap :=
     if w.amount <= 0 then σ else
-      match σ.find? w.address with
+      match σ.get? w.address with
         | none =>
           σ.insert w.address {(default : Account) with balance := .ofNat <| w.amount.toFin.val * 10^9}
         | some ac =>

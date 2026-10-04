@@ -17,6 +17,8 @@ not yet be treated as a definitive formulation of that property.
 namespace Ethereum
 namespace EVM
 
+attribute [-simp] Std.ExtTreeMap.get?_eq_getElem?
+
 variable {σ σ₀ σ' : AccountMap}
 variable {A A' : Substate}
 variable {s o r acc pc : AccountAddress}
@@ -36,18 +38,18 @@ variable {I : ExecutionEnv}
 -- This accepts changes to previously nonexisting accounts
 inductive unchanged (l : AccountAddress) (s s' : AccountMap) : Prop where
   | null :
-    s.find? l = .none →
-    -- s'.find? l = .none →
+    s.get? l = .none →
+    -- s'.get? l = .none →
     unchanged l s s'
   | empty : ∀ acc,
-    s.find? l = .some acc →
+    s.get? l = .some acc →
     acc.nonce = ⟨0⟩ → acc.code.size = 0 → acc.storage = default →
     unchanged l s s'
   | present : ∀ acc acc',
     -- Should I know that if the account exists at σ then
     -- it also exists at σ'?
-    s.find? l  = .some acc →
-    s'.find? l = .some acc' →
+    s.get? l  = .some acc →
+    s'.get? l = .some acc' →
     acc.nonce  = acc'.nonce →
     acc.code  = acc'.code →
     acc.storage  = acc'.storage →
@@ -58,7 +60,7 @@ inductive unchanged (l : AccountAddress) (s s' : AccountMap) : Prop where
 theorem unchanged_rfl : ∀ l s,
   unchanged l s s := by
   intros l s
-  match hacc : (s.find? l) with
+  match hacc : (s.get? l) with
   | some v => apply unchanged.present v v hacc hacc <;> rfl
   | none => apply unchanged.null hacc
 
@@ -71,25 +73,36 @@ theorem accountAddress_compare_ne_eq_of_ne {a b : AccountAddress}
 
 theorem unchanged_insert_of_same_core
     (l k : AccountAddress) (s : AccountMap) (new : Account)
-    (hnew : ∀ old, s.find? k = some old →
+    (hnew : ∀ old, s.get? k = some old →
       old.nonce = new.nonce ∧ old.code = new.code ∧
       old.storage = new.storage ∧ old.tstorage = new.tstorage ∧ old.balance ≤ new.balance) :
     unchanged l s (s.insert k new) := by
-  match hacc : s.find? l with
+  match hacc : s.get? l with
   | none =>
       exact unchanged.null hacc
   | some acc =>
       by_cases hcmp : compare l k = .eq
-      · have hfind : s.find? k = some acc := by
-          have hcongr := Std.ExtTreeMap.find?_congr s hcmp
+      · have hfind : s.get? k = some acc := by
+          have hcongr : s.get? l = s.get? k := by
+            simpa only [Std.ExtTreeMap.get?_eq_getElem?] using
+              (Std.ExtTreeMap.getElem?_congr (t := s) hcmp)
           rw [hacc] at hcongr
           exact hcongr.symm
         have hfields := hnew acc hfind
         exact unchanged.present acc new hacc
-          (Std.ExtTreeMap.find?_insert_of_eq s hcmp)
+          (by
+            have hlk : l = k := Std.LawfulEqCmp.eq_of_compare hcmp
+            subst l
+            simp [Std.ExtTreeMap.get?_eq_getElem?])
           hfields.1 hfields.2.1 hfields.2.2.1 hfields.2.2.2.1 hfields.2.2.2.2
       · apply unchanged.present acc acc hacc
-          (by simp [Std.ExtTreeMap.find?_insert_of_ne s hcmp]; exact hacc)
+          (by
+            have hkl : k ≠ l := by
+              intro heq
+              subst k
+              exact hcmp Std.ReflCmp.compare_self
+            simpa [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert,
+              Std.LawfulEqCmp.compare_eq_iff_eq, hkl] using hacc)
         repeat rfl
 
 theorem unchanged_insert_of_different_core
@@ -97,15 +110,13 @@ theorem unchanged_insert_of_different_core
     (h_diff_acc : l ≠ k)
       :
     unchanged l s (s.insert k new) := by
-  match hacc : s.find? l with
+  match hacc : s.get? l with
   | none =>
       exact unchanged.null hacc
   | some acc =>
         apply unchanged.present acc acc hacc
-        · rw [Std.ExtTreeMap.find?_insert_of_ne]
-          · exact hacc
-          · simp [compare, compareOfLessAndEq]
-            repeat (split; simp; grind)
+        · simpa [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert,
+            Std.LawfulEqCmp.compare_eq_iff_eq, Ne.symm h_diff_acc] using hacc
         repeat rfl
 
 theorem unchanged_trans : ∀ l s s' s'',
@@ -141,10 +152,10 @@ theorem unchanged_trans : ∀ l s s' s'',
 theorem unchanged_insert_insert_of_same_core
     (l k₁ k₂ : AccountAddress) (s : AccountMap)
     (new₁ new₂ : Account)
-    (hnew₁ : ∀ old, s.find? k₁ = some old →
+    (hnew₁ : ∀ old, s.get? k₁ = some old →
       old.nonce = new₁.nonce ∧ old.code = new₁.code ∧
       old.storage = new₁.storage ∧ old.tstorage = new₁.tstorage ∧ old.balance ≤ new₁.balance)
-    (hnew₂ : ∀ old, (s.insert k₁ new₁).find? k₂ = some old →
+    (hnew₂ : ∀ old, (s.insert k₁ new₁).get? k₂ = some old →
       old.nonce = new₂.nonce ∧ old.code = new₂.code ∧
       old.storage = new₂.storage ∧ old.tstorage = new₂.tstorage ∧ old.balance ≤ new₂.balance) :
     unchanged l s ((s.insert k₁ new₁).insert k₂ new₂) :=
@@ -154,7 +165,7 @@ theorem unchanged_insert_insert_of_same_core
 
 def sendEth (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) : AccountMap :=
   if z then
-    let σ'₁ := match Std.ExtTreeMap.find? σ r with
+    let σ'₁ := match Std.ExtTreeMap.get? σ r with
       | none =>
         if (v != UInt256.ofNat 0) = true then
           Std.ExtTreeMap.insert σ r
@@ -166,7 +177,7 @@ def sendEth (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) : 
         Std.ExtTreeMap.insert σ r
           { nonce := acc.nonce, balance := acc.balance + v, storage := acc.storage, code := acc.code,
             tstorage := acc.tstorage };
-    match σ'₁.find? s with
+    match σ'₁.get? s with
     | none => σ'₁
     | some acc =>
       σ'₁.insert s
@@ -176,14 +187,14 @@ def sendEth (r s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) : 
 
 def sendEthCreate (a s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountMap) : AccountMap :=
   if z then
-    let existentAccount := σ.findD a default
+    let existentAccount := σ.getD a default
 
     let newAccount : Account :=
       { existentAccount with
           nonce := existentAccount.nonce + ⟨1⟩
           balance := v + existentAccount.balance
       }
-    match σ.find? s with
+    match σ.get? s with
       | none =>  σ
       | some ac =>
         σ.insert s {ac with balance := ac.balance - v}
@@ -194,24 +205,24 @@ def sendEthCreate (a s : AccountAddress) (v : UInt256) (z : Bool) (σ : AccountM
     sendEthCreate a s v false σ = σ := by
   simp [sendEthCreate]
 
-@[simp] lemma sendEthCreate_true_find?_none
+@[simp] lemma sendEthCreate_true_get?_none
     (a s : AccountAddress) (v : UInt256) (σ : AccountMap)
-    (h : σ.find? s = none) :
+    (h : σ.get? s = none) :
     sendEthCreate a s v true σ = σ := by
   simp [sendEthCreate, h]
 
-@[simp] lemma sendEthCreate_true_find?_some
+@[simp] lemma sendEthCreate_true_get?_some
     (a s : AccountAddress) (v : UInt256) (σ : AccountMap) (ac : Account)
-    (h : σ.find? s = some ac) :
+    (h : σ.get? s = some ac) :
     sendEthCreate a s v true σ =
       (σ.insert s {ac with balance := ac.balance - v}).insert a
-        { (σ.findD a default) with
-          nonce := (σ.findD a default).nonce + ⟨1⟩
-          balance := v + (σ.findD a default).balance } := by
+        { (σ.getD a default) with
+          nonce := (σ.getD a default).nonce + ⟨1⟩
+          balance := v + (σ.getD a default).balance } := by
   simp [sendEthCreate, h]
 
 def account_dead (σ : AccountMap) (a : AccountAddress) : Prop :=
-  match σ.find? a with
+  match σ.get? a with
   | none => True
   | some acc => acc.nonce = ⟨0⟩ ∧ acc.code.size = 0 ∧ (acc.storage == default) = true
 
@@ -354,7 +365,7 @@ lemma account_changes_consistent_of_accountMap_eq
 
 lemma account_changes_consistent_insert_same_core
     (acc k : AccountAddress) (σ : AccountMap) (new : Account)
-    (hnew : ∀ old, σ.find? k = some old →
+    (hnew : ∀ old, σ.get? k = some old →
       old.nonce = new.nonce ∧ old.code = new.code ∧
       old.storage = new.storage ∧ old.tstorage = new.tstorage ∧ old.balance ≤ new.balance) :
     account_changes_consistent acc σ (σ.insert k new) := by
@@ -366,10 +377,10 @@ lemma account_changes_consistent_insert_same_core
 lemma account_changes_consistent_insert_insert_same_core
     (acc k₁ k₂ : AccountAddress) (σ : AccountMap)
     (new₁ new₂ : Account)
-    (hnew₁ : ∀ old, σ.find? k₁ = some old →
+    (hnew₁ : ∀ old, σ.get? k₁ = some old →
       old.nonce = new₁.nonce ∧ old.code = new₁.code ∧
       old.storage = new₁.storage ∧ old.tstorage = new₁.tstorage ∧ old.balance ≤ new₁.balance)
-    (hnew₂ : ∀ old, (σ.insert k₁ new₁).find? k₂ = some old →
+    (hnew₂ : ∀ old, (σ.insert k₁ new₁).get? k₂ = some old →
       old.nonce = new₂.nonce ∧ old.code = new₂.code ∧
       old.storage = new₂.storage ∧ old.tstorage = new₂.tstorage ∧ old.balance ≤ new₂.balance) :
     account_changes_consistent acc σ ((σ.insert k₁ new₁).insert k₂ new₂) := by
@@ -407,7 +418,7 @@ lemma account_changes_consistent_trans
 
 private lemma account_changes_consistent_insert_fresh_then_insert_ne
     (acc k owner : AccountAddress) (σ : AccountMap) (new newOwner : Account)
-    (hk : σ.find? k = none) (hacc : acc ≠ owner) :
+    (hk : σ.get? k = none) (hacc : acc ≠ owner) :
     account_changes_consistent acc σ ((σ.insert k new).insert owner newOwner) :=
   account_changes_consistent_trans
     (account_changes_consistent_insert_same_core acc k σ new
@@ -417,9 +428,9 @@ private lemma account_changes_consistent_insert_fresh_then_insert_ne
         contradiction))
     (account_changes_consistent_insert_ne acc owner (σ.insert k new) newOwner hacc)
 
-private lemma sendEth_true_find?_some_find?_some_ne
+private lemma sendEth_true_get?_some_get?_some_ne
     (r s : AccountAddress) (v : UInt256) (σ : AccountMap) (racc sacc : Account)
-    (hr : σ.find? r = some racc) (hs : σ.find? s = some sacc) (hne : r ≠ s) :
+    (hr : σ.get? r = some racc) (hs : σ.get? s = some sacc) (hne : r ≠ s) :
     sendEth r s v true σ =
       (σ.insert r
           { nonce := racc.nonce, balance := racc.balance + v, storage := racc.storage,
@@ -429,7 +440,12 @@ private lemma sendEth_true_find?_some_find?_some_ne
   have hcmp : compare s r ≠ .eq := accountAddress_compare_ne_eq_of_ne (by
     intro hsr
     exact hne hsr.symm)
-  simp [sendEth, hr, Std.ExtTreeMap.find?_insert_of_ne, hcmp, hs]
+  have hr' : σ[r]? = some racc := by
+    simpa only [Std.ExtTreeMap.get?_eq_getElem?] using hr
+  have hs' : σ[s]? = some sacc := by
+    simpa only [Std.ExtTreeMap.get?_eq_getElem?] using hs
+  simp [sendEth, hr', hs', Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert,
+    Std.LawfulEqCmp.compare_eq_iff_eq, hne]
 
 private lemma depth_succ_measure {e : Fin 1025} {n : Nat}
     (hdepth : 1024 - e.val = n + 1) (hlt : e < 1024) :
@@ -550,7 +566,7 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
     (hacc : acc ≠ evmState.executionEnv.codeOwner)
     (h : create value offset size salt evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
-  let owner := (evmState.accountMap.find? evmState.executionEnv.codeOwner).getD default
+  let owner := (evmState.accountMap.get? evmState.executionEnv.codeOwner).getD default
   let σStar := evmState.accountMap.insert evmState.executionEnv.codeOwner
     {owner with nonce := owner.nonce + ⟨1⟩}
   unfold create at h
@@ -565,7 +581,7 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
         simp
         exact account_changes_consistent_rfl acc
   · by_cases hCreate :
-        value ≤ (evmState.accountMap.find? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
+        value ≤ (evmState.accountMap.get? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
           evmState.executionEnv.depth < 1024 ∧
           (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
     · let lambdaRes := Lambda σStar evmState.σ₀ evmState.substate
@@ -780,7 +796,7 @@ private lemma sstore_account_changes_consistent_ne
     (hacc : acc ≠ state.executionEnv.codeOwner) :
     account_changes_consistent acc state.accountMap
       (Ethereum.State.sstore state key value).accountMap := by
-  cases hfind : state.accountMap.find? state.executionEnv.codeOwner with
+  cases hfind : state.accountMap.get? state.executionEnv.codeOwner with
   | none =>
       simp [Ethereum.State.sstore, Ethereum.State.lookupAccount, hfind]
       exact account_changes_consistent_rfl acc
@@ -796,7 +812,7 @@ private lemma tstore_account_changes_consistent_ne
     (hacc : acc ≠ state.executionEnv.codeOwner) :
     account_changes_consistent acc state.accountMap
       (Ethereum.State.tstore state key value).accountMap := by
-  cases hfind : state.accountMap.find? state.executionEnv.codeOwner with
+  cases hfind : state.accountMap.get? state.executionEnv.codeOwner with
   | none =>
       simp [Ethereum.State.tstore, Ethereum.State.lookupAccount, hfind]
       exact account_changes_consistent_rfl acc
@@ -1201,14 +1217,14 @@ private lemma step_system_consistent_except_owner_max_depth
         rcases popped with ⟨stack, targetWord⟩
         let target : AccountAddress := AccountAddress.ofUInt256 targetWord
         by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
-        · cases howner : state.accountMap.find? state.executionEnv.codeOwner with
+        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.find? target with
+              cases htarget : state.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1249,18 +1265,18 @@ private lemma step_system_consistent_except_owner_max_depth
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
                       acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
-                    rw [sendEth_true_find?_some_find?_some_ne
+                    rw [sendEth_true_get?_some_get?_some_ne
                       target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
-        · cases howner : state.accountMap.find? state.executionEnv.codeOwner with
+        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.find? target with
+              cases htarget : state.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1290,7 +1306,7 @@ private lemma step_system_consistent_except_owner_max_depth
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
                       acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
-                    rw [sendEth_true_find?_some_find?_some_ne
+                    rw [sendEth_true_get?_some_get?_some_ne
                       target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
@@ -1440,14 +1456,14 @@ private lemma step_system_consistent_except_owner_succ_depth
         rcases popped with ⟨stack, targetWord⟩
         let target : AccountAddress := AccountAddress.ofUInt256 targetWord
         by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
-        · cases howner : state.accountMap.find? state.executionEnv.codeOwner with
+        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.find? target with
+              cases htarget : state.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1488,18 +1504,18 @@ private lemma step_system_consistent_except_owner_succ_depth
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
                       acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
-                    rw [sendEth_true_find?_some_find?_some_ne
+                    rw [sendEth_true_get?_some_get?_some_ne
                       target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
-        · cases howner : state.accountMap.find? state.executionEnv.codeOwner with
+        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.find? target with
+              cases htarget : state.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1529,7 +1545,7 @@ private lemma step_system_consistent_except_owner_succ_depth
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
                       acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
-                    rw [sendEth_true_find?_some_find?_some_ne
+                    rw [sendEth_true_get?_some_get?_some_ne
                       target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
@@ -2599,7 +2615,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                   · exact account_changes_consistent_rfl acc
                   · simp [ha] at hdead hfinal
                     rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Std.ExtTreeMap.find? σ acc with
+                    cases hfind : Std.ExtTreeMap.get? σ acc with
                     | none =>
                         simp [hfind] at hdead
                     | some ac =>
@@ -2610,7 +2626,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                           simpa [bne, show (default : Storage) = ∅ from rfl] using
                             hstorage_ne_default
                         let σStarCollision : AccountMap :=
-                          match Std.ExtTreeMap.find? σ s with
+                          match Std.ExtTreeMap.get? σ s with
                           | none => σ
                           | some senderAcc =>
                             (Std.ExtTreeMap.insert σ s
@@ -2638,7 +2654,8 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                             (out := returnedData)
                             (by
                               dsimp [σStarCollision]
-                              simpa [Std.ExtTreeMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                              simpa [Std.ExtTreeMap.getD_eq_getD_getElem?,
+                                ← Std.ExtTreeMap.get?_eq_getElem?, ha, hfind, hfinal.1.1, hfinal.1.2,
                                 hstorage_bne, hstorage_ne_default] using hXi))
   | succ n' ih =>
       constructor
@@ -2772,7 +2789,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                   · exact account_changes_consistent_rfl acc
                   · simp [ha] at hdead hfinal
                     rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Std.ExtTreeMap.find? σ acc with
+                    cases hfind : Std.ExtTreeMap.get? σ acc with
                     | none =>
                         simp [hfind] at hdead
                     | some ac =>
@@ -2783,7 +2800,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                           simpa [bne, show (default : Storage) = ∅ from rfl] using
                             hstorage_ne_default
                         let σStarCollision : AccountMap :=
-                          match Std.ExtTreeMap.find? σ s with
+                          match Std.ExtTreeMap.get? σ s with
                           | none => σ
                           | some senderAcc =>
                             (Std.ExtTreeMap.insert σ s
@@ -2811,7 +2828,8 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                             (out := returnedData)
                             (by
                               dsimp [σStarCollision]
-                              simpa [Std.ExtTreeMap.findD, ha, hfind, hfinal.1.1, hfinal.1.2,
+                              simpa [Std.ExtTreeMap.getD_eq_getD_getElem?,
+                                ← Std.ExtTreeMap.get?_eq_getElem?, ha, hfind, hfinal.1.1, hfinal.1.2,
                                 hstorage_bne, hstorage_ne_default] using hXi))
 
 theorem account_changes_consistent_of_Theta :

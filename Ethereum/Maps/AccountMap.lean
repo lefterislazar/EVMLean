@@ -24,7 +24,7 @@ def AccountMap.toPersistentAccountMap  (a : AccountMap) : PersistentAccountMap :
 def AccountMap.increaseBalance  (σ : AccountMap) (addr : AccountAddress) (amount : UInt256)
   : AccountMap
 :=
-  match σ.find? addr with
+  match σ.get? addr with
     | none => σ.insert addr {(default : Account) with balance := amount}
     | some acc => σ.insert addr {acc with balance := acc.balance + amount}
 
@@ -34,7 +34,7 @@ def AccountMap.increaseBalance  (σ : AccountMap) (addr : AccountAddress) (amoun
 def AccountMap.decreaseBalance  (σ : AccountMap) (addr : AccountAddress) (amount : UInt256)
   : Option (AccountMap)
 :=
-  match σ.find? addr with
+  match σ.get? addr with
     | none => .none
     | some acc =>
       if acc.balance < amount then .none else .some (σ.insert addr {acc with balance := acc.balance - amount})
@@ -54,7 +54,7 @@ def toExecute  (σ : AccountMap) (t : AccountAddress) : ToExecute :=
     ToExecute.Precompiled t
   else Id.run do
     -- We use the code directly without an indirection a'la `codeMap[t]`.
-    let .some tDirect := σ.find? t | ToExecute.Code default
+    let .some tDirect := σ.get? t | ToExecute.Code default
     ToExecute.Code tDirect.code
 
 def L_S (σ : PersistentAccountMap) : Array (ByteArray × ByteArray) :=
