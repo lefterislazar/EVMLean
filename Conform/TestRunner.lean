@@ -728,9 +728,6 @@ def processTests (tests : Array TestId) (isTimed : Option Nat := .none) :
       | .ok test =>
           if test.network.startsWith "Cancun" then
             let res ← processTest test <| isTimed <&> (·, testId)
-            if res.isSome then
-              IO.FS.withFile "failures_live.txt" .append fun h =>
-                h.putStrLn s!"{path.fileName.get!}[{testName}] {res.getD ""}"
             results := results.push (testId, res)
   return (discarded, results)
 

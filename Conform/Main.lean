@@ -15,6 +15,8 @@ private def success (result : Batteries.RBMap String Ethereum.Conform.TestResult
 
 def logFile (phase : ℕ) : System.FilePath := s!"tests_{phase}.txt"
 
+def liveFailureLog : System.FilePath := "failures_live.txt"
+
 open Ethereum.Conform in
 instance : ToString TestResult where
   toString tr := tr.elim "Success." id
@@ -34,7 +36,8 @@ def testFiles (root               : System.FilePath)
               (testWhitelist      : Array String := #[])
               (phase              : ℕ)
               (threads            : ℕ := 1)
-              (timed              : Bool := false) : IO (Nat × Array String) := do
+              (timed              : Bool := false)
+              (clearLog           : Bool := true) : IO (Nat × Array String) := do
   let isToBeTested (testname : String) : Bool :=
     let whitelist := testWhitelist
     let blacklist := testBlacklist ++ Ethereum.Conform.GlobalBlacklist
@@ -63,7 +66,8 @@ def testFiles (root               : System.FilePath)
   let mut discardedFiles : Array Ethereum.Conform.TestId := #[]
   let mut numSuccess := 0
 
-  if ←System.FilePath.pathExists (logFile phase) then IO.FS.removeFile (logFile phase)
+  if clearLog then
+    if ←System.FilePath.pathExists (logFile phase) then IO.FS.removeFile (logFile phase)
 
   let mut tasks : Array (Task _) := .empty
   let mut thread := 0
@@ -89,9 +93,12 @@ def testFiles (root               : System.FilePath)
     discardedFiles := discardedFiles.append discarded
     for ((file, test), res) in batch do
       log file test res phase
-      if res.isNone
-      then numSuccess := numSuccess + 1
-      else failedTests := failedTests.push s!"{file.fileName.get!}[{test}]"
+      match res with
+      | none => numSuccess := numSuccess + 1
+      | some err =>
+        failedTests := failedTests.push s!"{file.fileName.get!}[{test}]"
+        IO.FS.withFile liveFailureLog .append fun h =>
+          h.putStrLn s!"{file.fileName.get!}[{test}] {err}"
   return (numSuccess, failedTests)
 
 def nproc : IO Nat := do
@@ -128,6 +135,8 @@ def main (args : List String) : IO UInt32 := do
   let perfDir : System.FilePath :=
     "EthereumTests/LegacyTests/Cancun/BlockchainTests/GeneralStateTests/VMTests/vmPerformance"
 
+  if ←System.FilePath.pathExists liveFailureLog then IO.FS.removeFile liveFailureLog
+
   IO.println s!"Phase 1/3 - No performance tests."
   (← IO.getStdout).flush
   let failed₁a ← testFiles (root := "EthereumTests/BlockchainTests/")
@@ -138,7 +147,8 @@ def main (args : List String) : IO UInt32 := do
                           (directoryBlacklist := #[perfDir])
                           (testBlacklist := DelayFiles)
                           (phase := 1)
-                          (threads := NumThreads) >>= printResults
+                          (threads := NumThreads)
+                          (clearLog := false) >>= printResults
   let failed₁ := failed₁a ++ failed₁b
 
   IO.println s!"Phase 2/3 - Performance tests only."
@@ -154,7 +164,8 @@ def main (args : List String) : IO UInt32 := do
   let failed₃b ← testFiles (root := legacyRoot)
                           (testWhitelist := DelayFiles)
                           (phase := 3)
-                          (threads := NumThreads) >>= printResults
+                          (threads := NumThreads)
+                          (clearLog := false) >>= printResults
   let failed₃ := failed₃a ++ failed₃b
 
   return if (failed₁ ++ failed₂ ++ failed₃).isEmpty then 0 else 1
