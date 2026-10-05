@@ -45,19 +45,25 @@ def testFiles (root               : System.FilePath)
       System.FilePath.walkDir root (pure <| · ∉ directoryBlacklist)
 
   let testFiles := testFiles.filter (· ∉ fileBlacklist)
+  let testFiles := testFiles.filter fun p => p.components.all (· != ".meta")
+
+  let mut testNames : Array (System.FilePath × Array String) := #[]
+  for path in testFiles do
+    let json ← Lean.Json.fromFile path
+    match json.getObj? with
+    | .error _ => panic! "Malformed test json."
+    | .ok x =>
+        let names := x.toArray.filterMap fun (name, val) =>
+          let isCancun := match val.getObjVal? "network" >>= Lean.Json.getStr? with
+            | .ok network => network.startsWith "Cancun"
+            | .error _ => false
+          if isCancun && isToBeTested name then some name else none
+        testNames := testNames.push (path, names)
 
   let mut discardedFiles : Array Ethereum.Conform.TestId := #[]
   let mut numSuccess := 0
 
   if ←System.FilePath.pathExists (logFile phase) then IO.FS.removeFile (logFile phase)
-
-  let testJsons ← testFiles.mapM Lean.Json.fromFile
-  let testNames : Array (System.FilePath × Array String) :=
-    testJsons.zip testFiles |>.map
-      λ (json, filepath) ↦
-        match json.getObj? with
-        | .error _ => panic! "Malformed test json."
-        | .ok x => (filepath, x.toArray.map Prod.fst |>.filter isToBeTested)
 
   let mut tasks : Array (Task _) := .empty
   let mut thread := 0
@@ -75,14 +81,17 @@ def testFiles (root               : System.FilePath)
 
   IO.println s!"Scheduled {tests.foldl (· + ·.size) 0} tests on {threads} thread{if threads == 1 then "" else "s"}."
   IO.println s!"Running..."
-  let testResults ← tasks.mapM (IO.wait · >>= IO.ofExcept)
+  (← IO.getStdout).flush
+  let mut testResults := #[]
+  for task in tasks do
+    testResults := testResults.push (← IO.wait task >>= IO.ofExcept)
   for (discarded, batch) in testResults do
     discardedFiles := discardedFiles.append discarded
     for ((file, test), res) in batch do
       log file test res phase
       if res.isNone
       then numSuccess := numSuccess + 1
-      else failedTests := failedTests.push test
+      else failedTests := failedTests.push s!"{file.fileName.get!}[{test}]"
   return (numSuccess, failedTests)
 
 def nproc : IO Nat := do
@@ -92,11 +101,6 @@ def nproc : IO Nat := do
 def main (args : List String) : IO UInt32 := do
 
   let NumThreads : ℕ := args.head? <&> String.toNat! |>.getD (←nproc)
-
-  let ExpectedToFail : Std.HashSet String := {
-    "invalid_block_blob_count.json[src/GeneralStateTestsFiller/Pyspecs/cancun/eip4844_blobs/test_blob_txs.py::test_invalid_block_blob_count[fork_Cancun-blockchain_test--blobs_per_tx_(7,)]]",
-    "GasUsedHigherThanBlockGasLimitButNotWithRefundsSuicideLast.json[GasUsedHigherThanBlockGasLimitButNotWithRefundsSuicideLast_Cancun]"
-  }
 
   let DelayFiles : Array String :=
     #["static_Call50000bytesContract50_2_d1g0v0_Cancun",
@@ -112,27 +116,45 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"Total tests: {success + failure.size}"
     IO.println s!"The post was NOT equal to the resulting state: {failure.size}"
     IO.println s!"Succeeded: {success}"
-    IO.println s!"Success rate of: {(success.toFloat / (failure.size + success).toFloat) * 100.0}"
+    let total := failure.size + success
+    IO.println s!"Success rate of: {if total = 0 then 100.0 else (success.toFloat / total.toFloat) * 100.0}"
     IO.println s!"Failed tests:\n{failure}"
     return failure
 
+  -- v17.2 keeps the refilled block tests in `BlockchainTests` and the
+  -- Cancun general-state corpus in the `legacytests` submodule.
+  let legacyRoot : System.FilePath :=
+    "EthereumTests/LegacyTests/Cancun/BlockchainTests/"
+  let perfDir : System.FilePath :=
+    "EthereumTests/LegacyTests/Cancun/BlockchainTests/GeneralStateTests/VMTests/vmPerformance"
+
   IO.println s!"Phase 1/3 - No performance tests."
-  let failed₁ ← testFiles (root := "EthereumTests/BlockchainTests/")
-                          (directoryBlacklist := #["EthereumTests/BlockchainTests//GeneralStateTests/VMTests/vmPerformance"])
+  (← IO.getStdout).flush
+  let failed₁a ← testFiles (root := "EthereumTests/BlockchainTests/")
                           (testBlacklist := DelayFiles)
                           (phase := 1)
                           (threads := NumThreads) >>= printResults
-  
+  let failed₁b ← testFiles (root := legacyRoot)
+                          (directoryBlacklist := #[perfDir])
+                          (testBlacklist := DelayFiles)
+                          (phase := 1)
+                          (threads := NumThreads) >>= printResults
+  let failed₁ := failed₁a ++ failed₁b
+
   IO.println s!"Phase 2/3 - Performance tests only."
-  let failed₂ ← testFiles (root := "EthereumTests/BlockchainTests/GeneralStateTests/VMTests/vmPerformance/")
+  let failed₂ ← testFiles (root := perfDir)
                           (phase := 2)
                           (threads := NumThreads) >>= printResults
 
-
   IO.println s!"Phase 3/3 - Individually scheduled tests."
-  let failed₃ ← testFiles (root := "EthereumTests/BlockchainTests/")
+  let failed₃a ← testFiles (root := "EthereumTests/BlockchainTests/")
                           (testWhitelist := DelayFiles)
                           (phase := 3)
                           (threads := NumThreads) >>= printResults
+  let failed₃b ← testFiles (root := legacyRoot)
+                          (testWhitelist := DelayFiles)
+                          (phase := 3)
+                          (threads := NumThreads) >>= printResults
+  let failed₃ := failed₃a ++ failed₃b
 
-  return if (Std.HashSet.ofArray (failed₁ ++ failed₂ ++ failed₃) |>.diff ExpectedToFail).isEmpty then 0 else 1
+  return if (failed₁ ++ failed₂ ++ failed₃).isEmpty then 0 else 1
