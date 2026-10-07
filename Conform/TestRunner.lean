@@ -186,6 +186,17 @@ def validateHeaderBeforeTransactions
     throw <| .BlockException .INVALID_BASEFEE_PER_GAS
   if calcExcessBlobGas parent.blockHeader != header.excessBlobGas then
     throw <| .BlockException .INCORRECT_EXCESS_BLOB_GAS
+  /-
+    Cancun `validate_header` rejects a block before applying its transactions
+    when the header's gas used exceeds its gas limit (`GAS_USED_OVERFLOW`).
+    This is distinct from `GAS_ALLOWANCE_EXCEEDED`, which is raised later when
+    an individual transaction's gas limit does not fit in the gas still
+    available in the block.
+    Keep this after the gas-limit bounds check: `GasLimitIsZero` also has
+    gas used above the limit, and that block is `INVALID_GASLIMIT`.
+  -/
+  if header.gasUsed > header.gasLimit then
+    throw <| .BlockException .GAS_USED_OVERFLOW
   pure parent
 
 def validateTransaction
@@ -288,19 +299,20 @@ def validateTransaction
     throw <| .TransactionException .NONCE_MISMATCH_TOO_LOW
   if T.base.nonce > senderNonce then
     throw <| .TransactionException .NONCE_MISMATCH_TOO_HIGH
-  let v₀ ← do
+  -- Upfront cost is unbounded. A product that does not fit in 256 bits is
+  -- still more than any balance, and Cancun clients report that as
+  -- insufficient funds (`HighGasPriceParis` expects `TR_NoFundsX`).
+  let v₀ : ℕ :=
     match T with
       | .legacy t | .access t =>
-        if t.gasLimit.toNat * t.gasPrice.toNat > 2^256 then
-          throw <| .TransactionException .GASLIMIT_PRICE_PRODUCT_OVERFLOW
-        pure <| t.gasLimit * t.gasPrice + t.value
-      | .dynamic t => pure <|  t.gasLimit * t.maxFeePerGas + t.value
+        t.gasLimit.toNat * t.gasPrice.toNat + t.value.toNat
+      | .dynamic t =>
+        t.gasLimit.toNat * t.maxFeePerGas.toNat + t.value.toNat
       | .blob t =>
-        pure <|
-          t.gasLimit * t.maxFeePerGas
-          + t.value
-          + (UInt256.ofNat (getTotalBlobGas T)) * t.maxFeePerBlobGas
-  if v₀ > senderBalance then
+        t.gasLimit.toNat * t.maxFeePerGas.toNat
+          + t.value.toNat
+          + getTotalBlobGas T * t.maxFeePerBlobGas.toNat
+  if v₀ > senderBalance.toNat then
     throw <| .TransactionException .INSUFFICIENT_ACCOUNT_FUNDS
 
   pure S_T
@@ -446,6 +458,74 @@ def validateBlock
 
   pure ()
 
+/--
+Older fillers in `ethereum/tests` v17.2 use `TR_*` and short labels for the
+same condition as the `TransactionException.*` / `BlockException.*` names.
+A reported exception is accepted when the fixture lists either form.
+-/
+def legacyExceptionNames (reported : String) : List String :=
+  match reported with
+  | "TransactionException.INTRINSIC_GAS_TOO_LOW" =>
+      ["TR_IntrinsicGas", "IntrinsicGas", "TR_NoFundsOrGas"]
+  | "TransactionException.INSUFFICIENT_ACCOUNT_FUNDS" =>
+      ["TR_NoFunds", "TR_NoFundsX", "TR_NoFundsOrGas", "SenderNotEOAorNoCASH",
+        "TR_FeeCapLessThanBlocksORNoFunds"]
+  | "TransactionException.INSUFFICIENT_MAX_FEE_PER_GAS" =>
+      ["TR_FeeCapLessThanBlocks", "TR_FeeCapLessThanBlocksORGasLimitReached",
+        "TR_FeeCapLessThanBlocksORNoFunds"]
+  | "TransactionException.GAS_ALLOWANCE_EXCEEDED" =>
+      ["TR_GasLimitReached", "TR_FeeCapLessThanBlocksORGasLimitReached"]
+  | "TransactionException.NONCE_IS_MAX" => ["TR_NonceHasMaxValue"]
+  | "TransactionException.NONCE_MISMATCH_TOO_HIGH" => ["TR_NonceTooHigh"]
+  | "TransactionException.NONCE_MISMATCH_TOO_LOW" => ["TR_NonceTooLow"]
+  | "TransactionException.PRIORITY_GREATER_THAN_MAX_FEE_PER_GAS" => ["TR_TipGtFeeCap"]
+  | "TransactionException.INITCODE_SIZE_EXCEEDED" => ["TR_InitCodeLimitExceeded"]
+  | "TransactionException.TYPE_3_TX_ZERO_BLOBS" => ["TR_EMPTYBLOB"]
+  | "TransactionException.TYPE_3_TX_CONTRACT_CREATION" => ["TR_BLOBCREATE"]
+  | "TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH" => ["TR_BLOBVERSION_INVALID"]
+  | "TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED" => ["TR_BLOBLIST_OVERSIZE"]
+  | "TransactionException.SENDER_NOT_EOA" => ["SenderNotEOA", "SenderNotEOAorNoCASH"]
+  | "TransactionException.RLP_INVALID_VALUE" => ["TR_RLP_WRONGVALUE"]
+  | "BlockException.IMPORT_IMPOSSIBLE_UNCLES_OVER_PARIS" => ["PostParisUncleHashIsNotEmpty"]
+  | "BlockException.INVALID_GASLIMIT" => ["InvalidGasLimit", "InvalidGasLimit2"]
+  | "BlockException.GASLIMIT_TOO_BIG" => ["InvalidGasLimit"]
+  | "BlockException.INVALID_BLOCK_TIMESTAMP_OLDER_THAN_PARENT" => ["InvalidTimestampOlderParent"]
+  | "BlockException.EXTRA_DATA_TOO_BIG" => ["ExtraDataTooBig"]
+  | "BlockException.INVALID_WITHDRAWALS_ROOT" => ["InvalidWithdrawals"]
+  | "BlockException.INVALID_BLOCK_NUMBER" => ["InvalidNumber"]
+  | "BlockException.INVALID_STATE_ROOT" => ["InvalidStateRoot"]
+  | "BlockException.INVALID_BASEFEE_PER_GAS" => ["1559BlockImportImpossible_BaseFeeWrong"]
+  | "BlockException.GAS_USED_OVERFLOW" => ["TooMuchGasUsed"]
+  | "BlockException.INVALID_RECEIPTS_ROOT" => ["InvalidReceiptsStateRoot"]
+  | "BlockException.INVALID_TRANSACTIONS_ROOT" => ["InvalidTransactionsRoot"]
+  | "BlockException.UNKNOWN_PARENT" => ["UnknownParent"]
+  | "BlockException.UNKNOWN_PARENT_ZERO" => ["UnknownParent2"]
+  | "BlockException.INVALID_LOG_BLOOM" => ["InvalidLogBloom"]
+  | "BlockException.IMPORT_IMPOSSIBLE_DIFFICULTY_OVER_PARIS" => ["PostParisDifficultyIsNot0"]
+  | "BlockException.INVALID_GAS_USED" => ["InvalidGasUsed"]
+  | "BlockException.RLP_STRUCTURES_ENCODING" => ["RLP_ExpectedAsList"]
+  | _ => []
+
+/--
+A transaction with more than six blobs breaks both Cancun caps: the per-transaction
+blob count and the block blob-gas allowance. Validation reports the count error
+first. When the fixture instead names the block allowance, report that name.
+The two errors stay distinct for every other case, including several transactions
+whose blob counts are each at most six but sum past the block cap.
+-/
+def selectReportedException (expected : List String) (e : EVM.Exception) : EVM.Exception :=
+  match e with
+  | .TransactionException .TYPE_3_TX_BLOB_COUNT_EXCEEDED =>
+    if expected.contains "TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED" then
+      .TransactionException .TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
+    else
+      e
+  | _ => e
+
+def acceptsExpectedException (expected : List String) (e : EVM.Exception) : Bool :=
+  let reported := (repr e).pretty
+  expected.contains reported || (legacyExceptionNames reported).any expected.contains
+
 def deserializeRawBlock (rawBlock : RawBlock)
   : Except EVM.Exception DeserializedBlock
 := do
@@ -493,7 +573,8 @@ def processBlocks
           match e with
             | .MissedExpectedException _  => throw e
             | _ =>
-              if rawBlock.exception.contains (repr e).pretty then
+              let e := selectReportedException rawBlock.exception e
+              if acceptsExpectedException rawBlock.exception e then
                 -- dbg_trace
                 --   s!"Expected exception: {String.intercalate "|" rawBlock.exception}; got exception: {repr e}"
                 pure accState
@@ -625,16 +706,29 @@ def processTest (entry : TestEntry) (isTimed : Option (Nat × TestId) := .none) 
 
 def processTests (tests : Array TestId) (isTimed : Option Nat := .none) :
                  IO (Array TestId × Array (TestId × TestResult)) := do
+  let mut groups : Array (System.FilePath × Array String) := #[]
+  let mut idx : Std.HashMap System.FilePath Nat := ∅
+  for (path, name) in tests do
+    match idx.get? path with
+    | some i =>
+        groups := groups.modify i fun (p, names) => (p, names.push name)
+    | none =>
+        idx := idx.insert path groups.size
+        groups := groups.push (path, #[name])
   let mut discarded : Array TestId := .empty
   let mut results : Array (TestId × TestResult) := .empty
-  for testId@(path, testName) in tests do
+  for (path, names) in groups do
     let file ← Lean.Json.fromFile path
-    let test := Except.mapError Conform.Exception.CannotParse <| file.getObjValAs? TestEntry testName
-    match test with
-    | .error _ => IO.eprintln s!"Cannot parse: {testId}"
-                  discarded := discarded.push testId
-    | .ok test => if test.network.startsWith "Cancun"
-                  then results := results.push (testId, ←processTest test <| isTimed <&> (·, testId))
+    for testName in names do
+      let testId := (path, testName)
+      let test := Except.mapError Conform.Exception.CannotParse <| file.getObjValAs? TestEntry testName
+      match test with
+      | .error _ => IO.eprintln s!"Cannot parse: {testId}"
+                    discarded := discarded.push testId
+      | .ok test =>
+          if test.network.startsWith "Cancun" then
+            let res ← processTest test <| isTimed <&> (·, testId)
+            results := results.push (testId, res)
   return (discarded, results)
 
 end Conform
