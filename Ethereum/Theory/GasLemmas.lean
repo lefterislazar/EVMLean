@@ -1275,6 +1275,31 @@ lemma precompile_PointEval_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
         simp [hgas, hres, dbgTrace]
 
 set_option maxRecDepth 65536 in
+lemma precompile_dispatch_match_eq_if {α : Type} (p : AccountAddress)
+    (a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 d : α) :
+    (match p with
+      | 1 => a1 | 2 => a2 | 3 => a3 | 4 => a4 | 5 => a5
+      | 6 => a6 | 7 => a7 | 8 => a8 | 9 => a9 | 10 => a10
+      | _ => d) =
+    (if p = 1 then a1 else if p = 2 then a2 else if p = 3 then a3
+     else if p = 4 then a4 else if p = 5 then a5 else if p = 6 then a6
+     else if p = 7 then a7 else if p = 8 then a8 else if p = 9 then a9
+     else if p = 10 then a10 else d) := by
+  split <;> try simp_all
+  all_goals
+    have h1 : p ≠ 1 := by assumption
+    have h2 : p ≠ 2 := by assumption
+    have h3 : p ≠ 3 := by assumption
+    have h4 : p ≠ 4 := by assumption
+    have h5 : p ≠ 5 := by assumption
+    have h6 : p ≠ 6 := by assumption
+    have h7 : p ≠ 7 := by assumption
+    have h8 : p ≠ 8 := by assumption
+    have h9 : p ≠ 9 := by assumption
+    have h10 : p ≠ 10 := by assumption
+    simp [h1, h2, h3, h4, h5, h6, h7, h8, h9, h10]
+
+set_option maxRecDepth 65536 in
 lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
     (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (match p with
@@ -1289,7 +1314,8 @@ lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
       | 9 => Ξ_BLAKE2_F σ g A I
       | 10 => Ξ_PointEval σ g A I
       | _ => default).2.1.toNat ≤ g.toNat := by
-  split
+  rw [precompile_dispatch_match_eq_if]
+  split_ifs
   · exact precompile_ECREC_gas_le _ _ _ _
   · exact precompile_SHA256_gas_le _ _ _ _
   · exact precompile_RIP160_gas_le _ _ _ _
