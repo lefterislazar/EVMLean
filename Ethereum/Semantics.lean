@@ -90,7 +90,7 @@ def decode (arr : ByteArray) (pc : UInt256) :
     instr,
     if argWidth == 0
     then .none
-    else .some (Ethereum.uInt256OfByteArray (arr.extract' pc.toNat.succ (pc.toNat.succ + argWidth)), argWidth)
+    else .some (Ethereum.uInt256OfByteArray (arr.readWithPadding pc.toNat.succ argWidth), argWidth)
   )
 
 def fetchInstr (I : Ethereum.ExecutionEnv) (pc : UInt256) :
