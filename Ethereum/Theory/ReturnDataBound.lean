@@ -2890,11 +2890,15 @@ private lemma EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_required
   have h64 := pow_two_64_le_maxReturnDataSizeByGas
   unfold expmodRequiredGas at hreq
   dsimp only at hreq
-  by_cases hosaka : fork ≥ .osaka
+  by_cases h7823 : fork.spec.eip7823 = true
   · by_cases hbig : nat_of_slice data 64 32 > 1024
-    · simp [hosaka, hbig] at hreq
+    · simp [h7823, hbig] at hreq
     · omega
-  · simp only [hosaka, false_and, if_false, Option.some.injEq] at hreq
+  · have h7883 : fork.spec.eip7883 = false := by
+      cases h : fork.spec.eip7883
+      · rfl
+      · exact absurd (Fork.eip7823_of_eip7883 h) h7823
+    simp only [h7823, h7883, Bool.false_eq_true, false_and, if_false, Option.some.injEq] at hreq
     apply EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_cost_lt
       (nat_of_slice data 0 32) (nat_of_slice data 64 32)
       (max (expmodAdjustedExponentLength fork data (nat_of_slice data 0 32)

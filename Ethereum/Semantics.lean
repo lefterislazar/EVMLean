@@ -157,7 +157,7 @@ so is the target of a delegation designator held by `t` (EIP-7702).
 -/
 def callSubstate (fork : Fork) (σ : AccountMap) (t : AccountAddress) (A : Substate) : Substate :=
   let A := A.addAccessedAccount t
-  if fork ≥ .prague then
+  if fork.spec.eip7702 then
     match delegationTarget? (σ.get? t |>.option .empty (·.code)) with
     | some target => A.addAccessedAccount target
     | none => A
@@ -441,7 +441,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
         /- EIP-7939 (Osaka). Before Osaka `0x1e` is an invalid instruction.
            Rejecting it here rather than in `Z` is observationally the same:
            every exceptional halt reverts the frame and consumes its gas. -/
-        if evmStateCharged.executionEnv.fork ≥ .osaka then
+        if evmStateCharged.executionEnv.fork.spec.eip7939 then
           execUnOp UInt256.clz evmStateCharged
         else
           .error .InvalidInstruction
@@ -1186,7 +1186,7 @@ def Υ
   -- EIP-7702 (Prague): authorizations are applied after the sender's nonce
   -- increment and persist even when execution fails.
   let (σ₀, authorities, authRefund) :=
-    if fork ≥ .prague then applyAuthorizations chainId T.authorizationList σ₀
+    if fork.spec.eip7702 then applyAuthorizations chainId T.authorizationList σ₀
     else (σ₀, ∅, 0)
   let accessList := T.getAccessList
   let AStar_K : List (AccountAddress × UInt256) := do -- (78)
@@ -1205,7 +1205,7 @@ def Υ
       | some t =>
         -- EIP-7702 (Prague): the delegation target of the recipient is warm.
         let delegate :=
-          if fork ≥ .prague then delegationTarget? (σ₀.get? t |>.option .empty (·.code)) else none
+          if fork.spec.eip7702 then delegationTarget? (σ₀.get? t |>.option .empty (·.code)) else none
         match delegate with
         | some d => (a.insert t).insert d
         | none => a.insert t

@@ -194,7 +194,7 @@ def parseChainConfig (json : Json) (networkName : String) : Except String ChainC
         maxBlobs := ← entry.getObjValAs? ℕ "max"
         baseFeeUpdateFraction := ← entry.getObjValAs? ℕ "baseFeeUpdateFraction"
       }
-      if schedule ≠ fork.blobSchedule then
+      if schedule ≠ fork.spec.blobSchedule then
         throw s!"blob schedule of {fork.name} differs from the model"
   pure { network, chainId }
 

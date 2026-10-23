@@ -15,9 +15,9 @@ namespace Ethereum
   - Osaka: adds the EIP-7951 secp256r1 verifier at `0x100`.
 -/
 def π (fork : Fork) : Batteries.RBSet AccountAddress compare :=
-  let highest := if fork ≥ .prague then 17 else 10
+  let highest := if fork.spec.eip2537 then 17 else 10
   let base := Batteries.RBSet.ofList ((List.range (highest + 1)).tail.map (Fin.ofNat _)) compare
-  if fork ≥ .osaka then base.insert (Fin.ofNat _ 0x100) else base
+  if fork.spec.eip7951 then base.insert (Fin.ofNat _ 0x100) else base
 
 /-- The EIP-7702 delegation designator prefix. -/
 def DELEGATION_PREFIX : ByteArray := ⟨#[0xef, 0x01, 0x00]⟩

@@ -193,7 +193,7 @@ def validateHeaderBeforeTransactions
   if calcExcessBlobGas fork parent.blockHeader != header.excessBlobGas then
     throw <| .BlockException .INCORRECT_EXCESS_BLOB_GAS
   -- EIP-7685: Prague headers, and only those, commit to the requests.
-  if (fork ≥ .prague) != header.requestsHash.isSome then
+  if fork.spec.eip7685 != header.requestsHash.isSome then
     throw <| .BlockException .INVALID_REQUESTS
   /-
     Cancun `validate_header` rejects a block before applying its transactions
@@ -226,8 +226,8 @@ def validateTransaction
   -- transaction over it alone breaks both caps; that is reported as the count
   -- error (see `selectReportedException`). From Osaka on the block allowance
   -- takes precedence.
-  if blobGasUsedInBlock + getTotalBlobGas T > fork.blobSchedule.maxBlobGas then
-    if ¬fork ≥ .osaka ∧ T.blobVersionedHashes.length > fork.blobSchedule.maxBlobs then
+  if blobGasUsedInBlock + getTotalBlobGas T > fork.spec.blobSchedule.maxBlobGas then
+    if ¬fork.spec.eip7594 ∧ T.blobVersionedHashes.length > fork.spec.blobSchedule.maxBlobs then
       throw <| .TransactionException .TYPE_3_TX_BLOB_COUNT_EXCEEDED
     throw <| .TransactionException .TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
   if T.base.nonce.toNat ≥ 2^64-1 then
@@ -257,7 +257,7 @@ def validateTransaction
         throw <| .TransactionException .INVALID_CHAINID
 
   -- EIP-7825 (Osaka): transaction gas limit cap.
-  if fork ≥ .osaka ∧ T.base.gasLimit.toNat > 2 ^ 24 then
+  if fork.spec.eip7825 ∧ T.base.gasLimit.toNat > 2 ^ 24 then
     throw <| .TransactionException .GAS_LIMIT_EXCEEDS_MAXIMUM
 
   let g₀ : ℕ := EVM.intrinsicGas fork T
@@ -279,7 +279,7 @@ def validateTransaction
         .error (.TransactionException .INSUFFICIENT_MAX_FEE_PER_BLOB_GAS)
       -- Per-transaction blob limit: the block maximum until Osaka, where
       -- EIP-7594 caps it at 6.
-      let blobLimit := if fork ≥ .osaka then 6 else fork.blobSchedule.maxBlobs
+      let blobLimit := if fork.spec.eip7594 then 6 else fork.spec.blobSchedule.maxBlobs
       if bt.blobVersionedHashes.length > blobLimit then
         throw <| .TransactionException .TYPE_3_TX_BLOB_COUNT_EXCEEDED
       if bt.blobVersionedHashes.length = 0 then
@@ -316,7 +316,7 @@ def validateTransaction
 
   match T with
     | .setCode t =>
-      if ¬fork ≥ .prague then
+      if ¬fork.spec.eip7702 then
         throw <| .TransactionException .TYPE_4_TX_PRE_FORK
       if t.authorizationList.isEmpty then
         throw <| .TransactionException .TYPE_4_EMPTY_AUTHORIZATION_LIST
@@ -348,7 +348,7 @@ def validateTransaction
         (.empty, ⟨0⟩, ⟨0⟩)
 
   -- EIP-7702 (Prague): a delegated account still originates transactions.
-  if senderCode ≠ .empty ∧ ¬(fork ≥ .prague ∧ isDelegationDesignation senderCode) then
+  if senderCode ≠ .empty ∧ ¬(fork.spec.eip7702 ∧ isDelegationDesignation senderCode) then
     throw <| .TransactionException .SENDER_NOT_EOA
   if T.base.nonce < senderNonce then
     throw <| .TransactionException .NONCE_MISMATCH_TOO_LOW
@@ -479,7 +479,7 @@ def validateBlock
   : Except EVM.Exception Unit
 := do
 
-  let MAX_BLOB_GAS_PER_BLOCK := fork.blobSchedule.maxBlobGas
+  let MAX_BLOB_GAS_PER_BLOCK := fork.spec.blobSchedule.maxBlobGas
   let blobGasUsed ← block.transactions.array.foldlM (init := 0) λ blobSum t ↦ do
     let blobSum := blobSum + getTotalBlobGas t
     if blobSum > MAX_BLOB_GAS_PER_BLOCK then
@@ -685,7 +685,7 @@ def processBlocks
         try
           let block ← deserializeRawBlock rawBlock
           let fork := config.activeFork block.blockHeader.timestamp
-          if fork ≥ .osaka ∧ rawBlock.rlp.size > MAX_RLP_BLOCK_SIZE then
+          if fork.spec.eip7934 ∧ rawBlock.rlp.size > MAX_RLP_BLOCK_SIZE then
             throw <| .BlockException .RLP_BLOCK_LIMIT_EXCEEDED
           let parent ←
             validateHeaderBeforeTransactions fork accState.executionEnv.blocks block.blockHeader
@@ -724,7 +724,7 @@ def processBlocks
       executeSystemCall fork s₀ header BEACON_ROOTS_ADDRESS header.parentBeaconBlockRoot false
     -- EIP-2935 (Prague): parent block hash
     let (s, _) ←
-      if fork ≥ .prague then
+      if fork.spec.eip2935 then
         executeSystemCall fork s header HISTORY_STORAGE_ADDRESS header.parentHash.toByteArray false
       else pure (s, .empty)
 
@@ -750,7 +750,7 @@ def processBlocks
     let s := { s with accountMap := σ }
 
     -- EIP-7685 (Prague): requests
-    if fork ≥ .prague then
+    if fork.spec.eip7685 then
       let deposits ←
         (depositRequests s.substate.logSeries).mapError λ _ ↦
           .BlockException .INVALID_DEPOSIT_EVENT_LAYOUT

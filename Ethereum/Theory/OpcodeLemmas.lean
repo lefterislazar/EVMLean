@@ -1389,7 +1389,7 @@ theorem step_clz : ∀ (s : State),
         else
         if s.machineState.stack.length - 1 + 1 > 1024 then .error .StackOverflow
         else
-        if s.executionEnv.fork ≥ .osaka then
+        if s.executionEnv.fork.spec.eip7939 then
           .ok ({s with
                     machineState.stack := UInt256.clz a :: t,
                     machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Glow
@@ -1423,7 +1423,7 @@ theorem step_clz : ∀ (s : State),
           simp [hoverflow]
           simp [bind, Except.bind]
           unfold step
-          by_cases hfork : s.executionEnv.fork ≥ .osaka
+          by_cases hfork : s.executionEnv.fork.spec.eip7939 = true
           · simp [hfork, Id.run, EVM.execUnOp, Stack.pop, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
             simp

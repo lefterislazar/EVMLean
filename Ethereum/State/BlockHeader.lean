@@ -100,7 +100,7 @@ def BlockHeader.getBlobGasprice (fork : Fork) (h : BlockHeader) : ℕ :=
   fakeExponential
     MIN_BASE_FEE_PER_BLOB_GAS
     h.excessBlobGas.toNat
-    fork.blobSchedule.baseFeeUpdateFraction
+    fork.spec.blobSchedule.baseFeeUpdateFraction
 
 /-- EIP-7918 (Osaka): the cost of execution gas that bounds blob gas pricing. -/
 def BLOB_BASE_COST : ℕ := 2 ^ 13
@@ -113,11 +113,11 @@ EIP-7918 stops the excess from decreasing while blob gas is priced below the
 reserve price `BLOB_BASE_COST * baseFee`.
 -/
 def calcExcessBlobGas (fork : Fork) (parent : BlockHeader) : UInt64 :=
-  let schedule := fork.blobSchedule
+  let schedule := fork.spec.blobSchedule
   let accumulated := parent.excessBlobGas.toNat + parent.blobGasUsed.toNat
   if accumulated < schedule.targetBlobGas then
     ⟨0⟩
-  else if fork ≥ .osaka ∧
+  else if fork.spec.eip7918 ∧
       BLOB_BASE_COST * parent.baseFeePerGas >
         GAS_PER_BLOB * parent.getBlobGasprice fork then
     .ofNat <|

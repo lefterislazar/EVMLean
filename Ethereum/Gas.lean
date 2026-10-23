@@ -173,7 +173,7 @@ EIP-7702 (Prague): the access cost of the delegation target when the callee
 self-delegation finds its target warm.
 -/
 def Cdelegation (fork : Fork) (t : AccountAddress) (σ : AccountMap) (A : Substate) : ℕ :=
-  if fork ≥ .prague then
+  if fork.spec.eip7702 then
     match delegationTarget? (σ.get? t |>.option .empty (·.code)) with
     | some target => if target = t then Gwarmaccess else Caccess target A
     | none => 0
@@ -227,7 +227,7 @@ def intrinsicGas (fork : Fork) (T : Transaction) : ℕ :=
       0
   -- EIP-7702 (Prague): each authorization is charged as a new account.
   let g₀_authorizations : ℕ :=
-    if fork ≥ .prague then GasConstants.Gnewaccount * T.authorizationList.length else 0
+    if fork.spec.eip7702 then GasConstants.Gnewaccount * T.authorizationList.length else 0
   g₀_data + g₀_create + GasConstants.Gtransaction + g₀_accessList + g₀_authorizations
 
 /--
@@ -235,7 +235,7 @@ EIP-7623 (Prague): the minimum gas a transaction is charged, from its calldata
 tokens. Zero before Prague, where there is no floor.
 -/
 def calldataFloorGas (fork : Fork) (T : Transaction) : ℕ :=
-  if fork ≥ .prague then
+  if fork.spec.eip7623 then
     let tokens := T.base.data.foldl (λ acc b ↦ acc + if b == 0 then 1 else 4) 0
     GasConstants.Gtransaction + GasConstants.Gfloorpertoken * tokens
   else 0

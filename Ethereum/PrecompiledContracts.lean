@@ -152,7 +152,7 @@ def expmodAdjustedExponentLength
   if exponentLength ≤ 32 then
     headBits
   else
-    let bytesFactor := if fork ≥ .osaka then 16 else 8
+    let bytesFactor := if fork.spec.eip7883 then 16 else 8
     bytesFactor * (exponentLength - 32) + headBits
 
 /--
@@ -164,13 +164,13 @@ def expmodRequiredGas (fork : Fork) (data : ByteArray) : Option ℕ :=
   let baseLength := nat_of_slice data 0 32
   let exponentLength := nat_of_slice data 32 32
   let modulusLength := nat_of_slice data 64 32
-  if fork ≥ .osaka ∧ (baseLength > 1024 ∨ exponentLength > 1024 ∨ modulusLength > 1024) then
+  if fork.spec.eip7823 ∧ (baseLength > 1024 ∨ exponentLength > 1024 ∨ modulusLength > 1024) then
     none
   else
     let maxLength := max baseLength modulusLength
     let words := (maxLength + 7) / 8
     let iterations := max (expmodAdjustedExponentLength fork data baseLength exponentLength) 1
-    if fork ≥ .osaka then
+    if fork.spec.eip7883 then
       let complexity := if maxLength > 32 then 2 * words ^ 2 else 16
       some <| max 500 (complexity * iterations)
     else

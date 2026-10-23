@@ -56,7 +56,7 @@ target that is itself a designator, or a precompile, is not followed further:
 its code is executed as stored.
 -/
 def delegatedCode (fork : Fork) (σ : AccountMap) (code : ByteArray) : ByteArray :=
-  if fork ≥ .prague then
+  if fork.spec.eip7702 then
     match delegationTarget? code with
     | some target => σ.get? target |>.option .empty (·.code)
     | none => code
