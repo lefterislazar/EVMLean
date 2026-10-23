@@ -46,6 +46,12 @@ suffix, multi-block absorption, and a proof that every digest contains exactly
 by the executable EVM semantics. Keccak calls reachable from the semantics
 therefore do not cross an FFI boundary.
 
+`hash` computes on `Nat` lanes so that the kernel evaluates concrete hashes
+quickly, as `decide +kernel` proofs about function selectors and storage slots
+require. `referenceHash` computes the same function on `UInt64` lanes;
+`hash_eq_referenceHash` proves them equal and, as a `csimp` lemma, makes
+compiled code run `referenceHash`.
+
 Several cryptographic precompiles still use external implementations. Their
 Lean wrappers pass successful results through
 [`Ethereum.checkedPrecompileOutput`](Ethereum/PrecompileOutput.lean), which
