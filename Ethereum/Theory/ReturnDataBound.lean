@@ -2984,11 +2984,9 @@ lemma precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
         omega
       · simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-lemma ffi_SHA256_ok_output_size {d s : ByteArray} :
-    ffi.SHA256 d = .ok s → s.size = 32 := by
-  intro h
-  unfold ffi.SHA256 at h
-  exact checkedPrecompileOutput_ok_size h
+lemma SHA256_ok_output_size {d s : ByteArray} :
+    SHA256 d = .ok s → s.size = 32 := by
+  exact SHA256_ok_size
 
 lemma precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -2996,18 +2994,16 @@ lemma precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
   by_cases hgas : g.toNat < 60 + 12 * ((I.calldata.size + 31) / 32)
   · simp [Ξ_SHA256, hgas, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
   · simp [Ξ_SHA256, hgas]
-    cases hres : ffi.SHA256 I.calldata with
+    cases hres : SHA256 I.calldata with
     | ok s =>
-        have hs := ffi_SHA256_ok_output_size hres
+        have hs := SHA256_ok_output_size hres
         simp [hs, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
 lemma RIP160_ok_output_size {d s : ByteArray} :
     RIP160 d = .ok s → s.size = 32 := by
-  intro h
-  unfold RIP160 at h
-  exact checkedPrecompileOutput_ok_size h
+  exact RIP160_ok_size
 
 lemma precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3048,9 +3044,7 @@ lemma precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
 
 lemma BN_ADD_ok_output_size {x₀ y₀ x₁ y₁ s : ByteArray} :
     BN_ADD x₀ y₀ x₁ y₁ = .ok s → s.size = 64 := by
-  intro h
-  unfold BN_ADD at h
-  exact checkedPrecompileOutput_ok_size h
+  exact BN_ADD_ok_size
 
 lemma precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3068,9 +3062,7 @@ lemma precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
 
 lemma BN_MUL_ok_output_size {x₀ y₀ n s : ByteArray} :
     BN_MUL x₀ y₀ n = .ok s → s.size = 64 := by
-  intro h
-  unfold BN_MUL at h
-  exact checkedPrecompileOutput_ok_size h
+  exact BN_MUL_ok_size
 
 lemma precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3088,9 +3080,7 @@ lemma precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
 
 lemma SNARKV_ok_output_size {d s : ByteArray} :
     SNARKV d = .ok s → s.size = 32 := by
-  intro h
-  unfold SNARKV at h
-  exact checkedPrecompileOutput_ok_size h
+  exact SNARKV_ok_size
 
 lemma precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3105,16 +3095,9 @@ lemma precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-lemma ffi_BLAKE2_ok_output_size {d s : ByteArray} :
-    ffi.BLAKE2 d = .ok s → s.size = 64 := by
-  intro h
-  unfold ffi.BLAKE2 at h
-  by_cases hsize : d.size != 213
-  · simp [hsize, bind, Except.bind] at h
-  · by_cases hflag : ¬d[212]! = 0 ∧ ¬d[212]! = 1
-    · simp [hsize, hflag, pure, Except.pure, bind, Except.bind] at h
-    · simp [hsize, hflag, pure, Except.pure, bind, Except.bind] at h
-      exact checkedPrecompileOutput_ok_size h
+lemma BLAKE2_F_ok_output_size {d s : ByteArray} :
+    BLAKE2_F d = .ok s → s.size = 64 := by
+  exact BLAKE2_F_ok_size
 
 lemma precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3122,18 +3105,16 @@ lemma precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
   by_cases hgas : g.toNat < fromByteArrayBigEndian (I.calldata.extract 0 4)
   · simp [Ξ_BLAKE2_F, hgas, dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
   · simp [Ξ_BLAKE2_F, hgas]
-    cases hres : ffi.BLAKE2 I.calldata with
+    cases hres : BLAKE2_F I.calldata with
     | ok s =>
-        have hs := ffi_BLAKE2_ok_output_size hres
+        have hs := BLAKE2_F_ok_output_size hres
         simp [hs, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
 lemma PointEval_ok_output_size {d s : ByteArray} :
     PointEval d = .ok s → s.size = 64 := by
-  intro h
-  unfold PointEval at h
-  exact checkedPrecompileOutput_ok_size h
+  exact PointEval_ok_size
 
 lemma precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3156,11 +3137,11 @@ lemma precompile_BLS12_381_output_size_le_maxReturnDataSizeByGas_or_calldata
   by_cases hgas : g.toNat < blsRequiredGas op I.calldata.size
   · simp [hgas]
   · simp only [hgas, if_false]
-    cases hres : BLS12_381 op (blsOutputSize op) I.calldata with
+    cases hres : BLS12_381 op I.calldata with
     | ok out =>
       have hs := BLS12_381_ok_size hres
       have hle : blsOutputSize op ≤ 256 := by
-        unfold blsOutputSize; split <;> omega
+        unfold blsOutputSize Ethereum.Crypto.BLS12_381.outputSize; split <;> omega
       exact le_max_of_le_left (by simp only; omega)
     | error e => simp
 

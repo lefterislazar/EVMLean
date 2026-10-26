@@ -63,7 +63,7 @@ the C FFI. It is now defined transparently in Lean using `Array.replicate`.
 
 This is slower during execution, but it lets proofs inspect the definition
 directly and removes one foreign primitive from the trusted surface. The change
-is contained primarily in `Ethereum/Wheels.lean` and `Ethereum/FFI/ffi.lean`.
+is contained primarily in `Ethereum/Wheels.lean`.
 
 ## Pure Lean Ethereum Keccak-256
 
@@ -86,23 +86,24 @@ It is not yet a mathematical proof that the implementation refines an
 independent Keccak specification. We trust that the implementation is valid
 by conformance to the EEST.
 
-The third-party C Keccak source remains in the build configuration for now,
-but no Keccak call reachable from the production EVM semantics uses it.
+## Pure Lean Cryptography
 
-## Checked External Precompile Outputs
+The remaining cryptographic primitives, formerly C functions linked through
+the FFI (SHA-256 and BLAKE2 `F`) or Python scripts run as helper processes
+(signature recovery, RIPEMD-160, alt_bn128, BLS12-381, KZG point evaluation,
+secp256r1 and trie roots), are implemented in Lean in `Ethereum/Crypto` and
+`Ethereum/State/TrieRoot.lean`. The build no longer compiles C code and the
+semantics no longer starts processes; `totallySafePerformIO` is gone.
 
-The other externally implemented cryptographic precompiles remain opaque. A
-transparent Lean boundary in `Ethereum/PrecompileOutput.lean` now accepts a
-successful external result only when it has the prescribed size. The checks
-cover SHA-256 and SNARKV outputs at 32 bytes, RIPEMD-160's EVM result at 32
-bytes, and BN addition, BN multiplication, BLAKE2 F, and point evaluation at 64
-bytes. An external implementation that returns a malformed length is treated
-as an error rather than allowing that value into the EVM semantics.
+## Proved Precompile Output Sizes
 
-These checks let `Ethereum/Theory/ReturnDataBound.lean` prove its precompile
-return-size bounds without custom axioms about the outputs of C or
-process-backed implementations. The checks constrain output shape only; the
-cryptographic correctness of those external implementations remains outside
+Each cryptographic primitive comes with a theorem bounding the size of its
+successful results: 32 bytes for SHA-256, SNARKV and RIPEMD-160's EVM result,
+64 bytes for BN addition, BN multiplication, BLAKE2 F and point evaluation,
+and the EIP-2537 size of each BLS12-381 operation. With these,
+`Ethereum/Theory/ReturnDataBound.lean` proves its precompile return-size bounds
+without axioms or runtime size checks. The theorems constrain output shape
+only; the cryptographic correctness of the implementations remains outside
 the Lean proof.
 
 ## Added `Xstep`

@@ -1,4 +1,4 @@
-import Ethereum.FFI.ffi
+import Ethereum.SHA256
 import Ethereum.State.Substate
 
 /-!
@@ -66,7 +66,7 @@ def depositRequests (logs : LogSeries) : Except String ByteArray :=
 /-- EIP-7685: `sha256(sha256(type₀ ++ data₀) ++ …)` over the non-empty requests. -/
 def computeRequestsHash (requests : List (UInt8 × ByteArray)) : Except String ByteArray := do
   let requests := requests.filter (¬·.2.isEmpty)
-  let hashes ← requests.mapM λ (type, data) ↦ ffi.SHA256 (⟨#[type]⟩ ++ data)
-  ffi.SHA256 (hashes.foldl (· ++ ·) .empty)
+  let hashes ← requests.mapM λ (type, data) ↦ SHA256 (⟨#[type]⟩ ++ data)
+  SHA256 (hashes.foldl (· ++ ·) .empty)
 
 end Ethereum

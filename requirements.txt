@@ -1,6 +1,6 @@
+# For scripts/gen-crypto-vectors.py, which generates the reference vectors of
+# the cryptography tests.
 coincurve
-typing-extensions
-pycryptodome
-eth-typing
-py-ecc
 cryptography
+py-ecc
+pycryptodome

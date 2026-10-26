@@ -1,11 +1,4 @@
-import Ethereum.PerformIO
-import Ethereum.PrecompileOutput
-import Ethereum.Wheels
-import Conform.Wheels
-
-def blobBLS12_381 (operation : Nat) (data : String) : String :=
-  totallySafePerformIO <|
-    Ethereum.PythonHelper.run "bls12_381.py" #[toString operation] data
+import Ethereum.Crypto.BLS12_381
 
 /--
 Whether `size` is a valid input length for the EIP-2537 precompile at address
@@ -26,22 +19,26 @@ def blsInputLengthValid (operation size : Nat) : Bool :=
 
 /--
 The EIP-2537 BLS12-381 precompile at address `operation` (`0x0b`–`0x11`).
-The input length is checked here, in Lean, before the external
-implementation runs; the external implementation checks it again.
+The input length is checked here, before the curve operations, which check
+it again.
 -/
-def BLS12_381 (operation expectedSize : Nat) (data : ByteArray) : Except String ByteArray :=
+def BLS12_381 (operation : Nat) (data : ByteArray) : Except String ByteArray :=
   if !blsInputLengthValid operation data.size then
     .error "BLS12-381: invalid input length"
   else
-  Ethereum.checkedPrecompileOutput s!"BLS12_381_{operation}" expectedSize <|
-    match blobBLS12_381 operation (toHex data) with
-    | "error" => .error "BLS12-381 operation failed"
-    | output => ByteArray.ofBlob output
+    match Ethereum.Crypto.BLS12_381.precompile operation data with
+    | some output => .ok output
+    | none => .error "BLS12-381 operation failed"
 
-/-- A successful BLS12-381 result has the expected size. -/
-theorem BLS12_381_ok_size {operation expectedSize : Nat} {data out : ByteArray}
-    (h : BLS12_381 operation expectedSize data = .ok out) : out.size = expectedSize := by
+/-- Output size of the EIP-2537 precompile at address `operation`. -/
+abbrev blsOutputSize : Nat → Nat := Ethereum.Crypto.BLS12_381.outputSize
+
+/-- A successful BLS12-381 result has the size prescribed for its operation. -/
+theorem BLS12_381_ok_size {operation : Nat} {data out : ByteArray}
+    (h : BLS12_381 operation data = .ok out) : out.size = blsOutputSize operation := by
   unfold BLS12_381 at h
   split at h
   · cases h
-  · exact Ethereum.checkedPrecompileOutput_ok_size h
+  · split at h
+    · cases h; exact Ethereum.Crypto.BLS12_381.precompile_size ‹_›
+    · cases h

@@ -1,14 +1,13 @@
-import Ethereum.Wheels
-import Ethereum.PerformIO
-import Ethereum.PrecompileOutput
-import Conform.Wheels
-
-def blobBN_MUL (x₀ y₀ n : String) : String :=
-  totallySafePerformIO <|
-    Ethereum.PythonHelper.run "bn_mul.py" #[x₀, y₀, n]
+import Ethereum.Crypto.BN254
 
 def BN_MUL (x₀ y₀ n : ByteArray) : Except String ByteArray :=
-  Ethereum.checkedPrecompileOutput "BN_MUL" 64 <| match
-      blobBN_MUL (toHex x₀) (toHex y₀) (toHex n) with
-    | "error" => .error "BN_MUL failed"
-    | s => ByteArray.ofBlob s
+  match Ethereum.Crypto.BN254.mul x₀ y₀ n with
+  | some o => .ok o
+  | none => .error "BN_MUL failed"
+
+theorem BN_MUL_ok_size {x₀ y₀ n out : ByteArray}
+    (h : BN_MUL x₀ y₀ n = .ok out) : out.size = 64 := by
+  unfold BN_MUL at h
+  split at h
+  · cases h; exact Ethereum.Crypto.BN254.mul_size ‹_›
+  · cases h

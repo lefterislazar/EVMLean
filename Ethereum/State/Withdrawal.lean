@@ -1,7 +1,7 @@
 -- Requires the following python packages: pycryptodome
 
 import Ethereum.Wheels
-import Ethereum.PerformIO
+import Ethereum.State.TrieRoot
 import Ethereum.Maps.AccountMap
 import Conform.Wheels
 import Ethereum.Exception
@@ -37,16 +37,13 @@ def to𝕋 : Withdrawal → 𝕋
 
 end Withdrawal
 
-def Withdrawal.toBlobs (w : ℕ × ByteArray) : Option (String × String) := do
+def Withdrawal.toTriePair (w : ℕ × ByteArray) : Option (ByteArray × ByteArray) := do
   let rlpᵢ ← RLP (.𝔹 (BE w.1))
-  let rlp ← w.2
-  pure (Ethereum.toHex rlpᵢ, Ethereum.toHex rlp)
+  pure (rlpᵢ, w.2)
 
 -- EIP-4895
 def Withdrawal.computeTrieRoot (ws : Array ByteArray) : Option ByteArray := do
-  match Array.mapM Withdrawal.toBlobs ((Array.range ws.size).zip ws) with
-    | none => .none
-    | some ws => (ByteArray.ofBlob (blobComputeTrieRoot ws)).toOption
+  Trie.root <$> Array.mapM Withdrawal.toTriePair ((Array.range ws.size).zip ws)
 
 def applyWithdrawals
   (σ : AccountMap)
