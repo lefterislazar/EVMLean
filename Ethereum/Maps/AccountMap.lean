@@ -90,13 +90,7 @@ def L_S (σ : PersistentAccountMap) : Array (ByteArray × ByteArray) :=
           ]
 
 def stateTrieRoot (σ : PersistentAccountMap) : Option ByteArray :=
-  let a := Array.map toBlobPair (L_S σ)
-  (ByteArray.ofBlob (blobComputeTrieRoot a)).toOption
- where
-  toBlobPair entry : String × String :=
-    let b₁ := Ethereum.toHex entry.1
-    let b₂ := Ethereum.toHex entry.2
-    (b₁, b₂)
+  some (Trie.root (L_S σ))
 
 end RemoveLater
 

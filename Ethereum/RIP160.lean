@@ -1,12 +1,10 @@
-import Ethereum.PerformIO
-import Ethereum.PrecompileOutput
+import Ethereum.Crypto.RIPEMD160
 import Ethereum.Wheels
-import Conform.Wheels
 
-def blobRIP160 (d : String) : String :=
-  totallySafePerformIO <|
-    Ethereum.PythonHelper.run "rip160.py" #[] d
-
+/-- The RIPEMD-160 digest of `d`, left-padded to 32 bytes. -/
 def RIP160 (d : ByteArray) : Except String ByteArray :=
-  Ethereum.checkedPrecompileOutput "RIP160" 32 <|
-    ByteArray.ofBlob <| blobRIP160 (toHex d)
+  .ok (ByteArray.zeroes 12 ++ Ethereum.Crypto.RIPEMD160.hash d)
+
+theorem RIP160_ok_size {d out : ByteArray} (h : RIP160 d = .ok out) : out.size = 32 := by
+  rw [← Except.ok.inj h]
+  simp only [ByteArray.size_append, ByteArray_zeroes_size, Ethereum.Crypto.RIPEMD160.hash_size]

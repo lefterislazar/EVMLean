@@ -8,7 +8,6 @@ import Ethereum.StateOps
 import Ethereum.UInt256
 import Ethereum.Wheels
 import Ethereum.EllipticCurves
-import Ethereum.PerformIO
 
 import Ethereum.Theory.PrecompileLemmas
 import Ethereum.Theory.ProgressLemmas

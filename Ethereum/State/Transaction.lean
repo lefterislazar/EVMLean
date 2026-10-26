@@ -161,15 +161,12 @@ def Transaction.authorizationList : Transaction → List Authorization
   | .setCode t => t.authorizationList
   | _ => []
 
-def Transaction.toBlobs (t : ℕ × ByteArray) : Option (String × String) := do
+def Transaction.toTriePair (t : ℕ × ByteArray) : Option (ByteArray × ByteArray) := do
   let rlpᵢ ← RLP (.𝔹 (BE t.1))
-  let rlp := t.2
-  pure (Ethereum.toHex rlpᵢ, Ethereum.toHex rlp)
+  pure (rlpᵢ, t.2)
 
 def Transaction.computeTrieRoot (ts : Array ByteArray) : Option ByteArray := do
-  match Array.mapM Transaction.toBlobs ((Array.range ts.size).zip ts) with
-    | none => .none
-    | some ws => (ByteArray.ofBlob (blobComputeTrieRoot ws)).toOption
+  Trie.root <$> Array.mapM Transaction.toTriePair ((Array.range ts.size).zip ts)
 
 structure TransactionReceipt where
   type                     : UInt8     /- R_x -/
@@ -188,16 +185,13 @@ def L_R : TransactionReceipt → 𝕋
     , logSeries.to𝕋
     ]
 
-def TransactionReceipt.toBlobs (w : ℕ × ByteArray) : Option (String × String) := do
+def TransactionReceipt.toTriePair (w : ℕ × ByteArray) : Option (ByteArray × ByteArray) := do
   let rlpᵢ ← RLP (.𝔹 (BE w.1))
-  let rlp ← w.2
-  pure (Ethereum.toHex rlpᵢ, Ethereum.toHex rlp)
+  pure (rlpᵢ, w.2)
 
 -- EIP-4895
 def TransactionReceipt.computeTrieRoot (ws : Array ByteArray) : Option ByteArray := do
-  match Array.mapM TransactionReceipt.toBlobs ((Array.range ws.size).zip ws) with
-    | none => .none
-    | some ws => (ByteArray.ofBlob (blobComputeTrieRoot ws)).toOption
+  Trie.root <$> Array.mapM TransactionReceipt.toTriePair ((Array.range ws.size).zip ws)
 
 def TransactionReceipt.toTrieValue (r : TransactionReceipt) : ByteArray :=
   let rlp := Option.get! ∘ RLP ∘ L_R <| r
