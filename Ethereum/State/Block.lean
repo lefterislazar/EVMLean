@@ -30,7 +30,6 @@ structure DeserializedBlock where
   blockHeader  : BlockHeader
   transactions : Transactions
   withdrawals  : Withdrawals
-  exception    : List String
 deriving BEq, Inhabited, Repr
 
 abbrev DeserializedBlocks := Array DeserializedBlock

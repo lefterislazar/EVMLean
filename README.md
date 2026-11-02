@@ -54,8 +54,9 @@ changes beyond Cancun are:
 
 Transaction validity, sender recovery and the application of a transaction to
 the state (`validateTransaction`, `applyTransaction`) are in
-`Ethereum/Transaction.lean`. Block processing (system calls, requests, header
-and block validity) is in `Conform/TestRunner.lean`.
+`Ethereum/Transaction.lean`. The block-level transition (header validity,
+system calls, withdrawals, requests and block validity, with `applyBlock` as
+the entry point) is in `Ethereum/Block.lean`.
 
 ## EVM
 The model of the EVM state `EVM.State`:
