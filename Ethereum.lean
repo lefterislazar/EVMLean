@@ -3,6 +3,7 @@ import Ethereum.MachineStateOps
 import Ethereum.Operations
 import Ethereum.Pretty
 import Ethereum.Semantics
+import Ethereum.Transaction
 import Ethereum.State
 import Ethereum.StateOps
 import Ethereum.UInt256

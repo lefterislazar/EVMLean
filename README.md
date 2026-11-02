@@ -52,8 +52,10 @@ changes beyond Cancun are:
   (EIP-7594).
 - BPO1 to BPO4: blob schedules only (EIP-7892).
 
-Block-level rules (system calls, requests, header and transaction validity)
-live in the conformance driver, `Conform/TestRunner.lean`.
+Transaction validity, sender recovery and the application of a transaction to
+the state (`validateTransaction`, `applyTransaction`) are in
+`Ethereum/Transaction.lean`. Block processing (system calls, requests, header
+and block validity) is in `Conform/TestRunner.lean`.
 
 ## EVM
 The model of the EVM state `EVM.State`:
