@@ -8,10 +8,13 @@ Everything here is work in progress and is subject to change therefore.
 
 The changes in this repository are intended to ease proof development over the
 EVM model, with some tradeoffs against executable performance. They do not
-relax the behavioral compatibility target: the model continues to pass the same
-pinned Ethereum conformance suite and test driver used by the EVMYulLean
-baseline. For a summary of the main differences from Nethermind's
-upstream project, see
+relax the behavioral compatibility target. The conformance suite has changed:
+the model is now tested against the
+[execution-spec-tests](https://github.com/ethereum/execution-specs) fixtures,
+which cover every fork it supports from Cancun to Osaka, instead of the
+EthereumTests Cancun suite used by the EVMYulLean baseline. That suite remains
+available (see [Conformance testing](#conformance-testing)). For a summary of
+the main differences from Nethermind's upstream project, see
 [nethermind-changes.md](nethermind-changes.md).
 
 # Requirements
@@ -128,9 +131,12 @@ following environment variables adjust a run:
 - `CONFORM_TIMED=1` writes the running time of every test, slowest first, to
   `timings_1.txt`, and `CONFORM_PROGRESS=<file>` logs each test as it starts
   and finishes.
-- `CONFORM_SUITE=legacy` runs the Cancun suite of the `EthereumTests` git
-  submodule instead of the fixtures. Fetch it with
-  `git submodule update --init --recursive EthereumTests`. It includes
+- `CONFORM_SUITE=legacy` runs the legacy Cancun suite of
+  [ethereum/tests](https://github.com/ethereum/tests) and
+  [ethereum/legacytests](https://github.com/ethereum/legacytests) instead of
+  the fixtures. Fetch it once with `scripts/fetch-legacy-tests.sh`, which
+  downloads the test directories at
+  pinned commits; `LEGACY_FIXTURES` points to another copy. It includes
   performance tests (`vmPerformance` and a few others), which take up to an
   hour each; `CONFORM_SKIP_PERF=1` leaves them out.
 
@@ -140,4 +146,4 @@ This repository is based on Nethermind's [EVMYulLean](https://github.com/Netherm
 
 Notable modifications include porting the project to a newer Lean version, stripping the Yul portions, and adapting the remaining EVM model and project structure for proof development. See [NOTICE](NOTICE) for attribution and modification notes.
 
-Some included third-party components carry their own licenses, including `EthereumTests/LICENSE`, `sha2/LICENSE.md`, and `keccak256/LICENSE`.
+Some included third-party components carry their own licenses, including `sha2/LICENSE.md` and `keccak256/LICENSE`.

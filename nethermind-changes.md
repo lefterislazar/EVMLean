@@ -7,8 +7,10 @@ focus: supporting proof development over the EVM semantics.
 The changes favor definitions that are easier to inspect and reason about in
 Lean. Some of them trade executable performance for simpler proof obligations
 or a smaller trusted surface. They do not relax the behavioral compatibility
-target: the EVM model continues to pass the Ethereum conformance tests used by
-the original project.
+target. The conformance suite has changed: the EVM model is tested against the
+execution-spec-tests fixtures for every fork it supports, from Cancun to Osaka,
+instead of the EthereumTests Cancun suite used by the original project, which
+remains available as a secondary suite.
 
 This document summarizes the main conceptual differences. It is not intended to
 be an exhaustive file-by-file changelog.

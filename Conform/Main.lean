@@ -182,6 +182,10 @@ def defaultFixturesVersion : String := "20.0.2"
 def defaultFixtures : System.FilePath :=
   s!".cache/eest/tests-v{defaultFixturesVersion}/fixtures/blockchain_tests"
 
+/-- Where `scripts/fetch-legacy-tests.sh` places the legacy EthereumTests suite. -/
+def defaultLegacyFixtures : System.FilePath :=
+  ".cache/legacy-tests/c67e485ff8b5-1f581b8ccdc4"
+
 def nproc : IO Nat := do
   let out ← IO.Process.output {cmd := "nproc", stdin := .null}
   return out.stdout.trimAscii.toString.toNat? |>.getD 1
@@ -199,13 +203,6 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"Success rate of: {if total = 0 then 100.0 else (success.toFloat / total.toFloat) * 100.0}"
     IO.println s!"Failed tests:\n{failure}"
     return failure
-
-  -- v17.2 keeps the refilled block tests in `BlockchainTests` and the
-  -- Cancun general-state corpus in the `legacytests` submodule.
-  let legacyRoot : System.FilePath :=
-    "EthereumTests/LegacyTests/Cancun/BlockchainTests/"
-  let perfDir : System.FilePath :=
-    "EthereumTests/LegacyTests/Cancun/BlockchainTests/GeneralStateTests/VMTests/vmPerformance"
 
   if ←System.FilePath.pathExists liveFailureLog then IO.FS.removeFile liveFailureLog
 
@@ -226,15 +223,15 @@ def main (args : List String) : IO UInt32 := do
   /-
     By default, run the `execution-spec-tests` blockchain fixtures fetched by
     `scripts/fetch-eest.sh` (or found at `EEST_FIXTURES`): every network from
-    Cancun on. `CONFORM_SUITE=legacy` runs the Cancun suite of the
-    `EthereumTests` submodule instead.
+    Cancun on. `CONFORM_SUITE=legacy` runs the legacy Cancun suite fetched by
+    `scripts/fetch-legacy-tests.sh` (or found at `LEGACY_FIXTURES`) instead.
   -/
   if (← IO.getEnv "CONFORM_SUITE") != some "legacy" then
     let fixtures : System.FilePath :=
       ((← IO.getEnv "EEST_FIXTURES").map System.FilePath.mk).getD defaultFixtures
     unless ← fixtures.pathExists do
       IO.eprintln s!"No fixtures at {fixtures}. Fetch them with `scripts/fetch-eest.sh {defaultFixturesVersion}`,"
-      IO.eprintln "set EEST_FIXTURES, or set CONFORM_SUITE=legacy to run the EthereumTests suite."
+      IO.eprintln "set EEST_FIXTURES, or set CONFORM_SUITE=legacy to run the legacy EthereumTests suite."
       return 1
     let directories : Array System.FilePath :=
       #["for_cancun", "for_cancuntopragueattime15k", "for_prague", "for_praguetoosakaattime15k",
@@ -255,11 +252,25 @@ def main (args : List String) : IO UInt32 := do
                            (phase := 1) (threads := NumThreads) >>= printResults
     return if failed.isEmpty then 0 else 1
 
+  /-
+    The legacy suite: the refilled block tests of ethereum/tests in
+    `BlockchainTests` and the Cancun general-state corpus of
+    ethereum/legacytests in `LegacyTests/Cancun/BlockchainTests`.
+  -/
+  let legacyFixtures : System.FilePath :=
+    ((← IO.getEnv "LEGACY_FIXTURES").map System.FilePath.mk).getD defaultLegacyFixtures
+  unless ← legacyFixtures.pathExists do
+    IO.eprintln s!"No legacy tests at {legacyFixtures}. Fetch them with `scripts/fetch-legacy-tests.sh`,"
+    IO.eprintln "or set LEGACY_FIXTURES."
+    return 1
+  let legacyRoot := legacyFixtures / "LegacyTests" / "Cancun" / "BlockchainTests"
+  let perfDir := legacyRoot / "GeneralStateTests" / "VMTests" / "vmPerformance"
+
   IO.println <|
     if skipPerf then "Conformance tests, without the performance tests."
     else "Conformance tests, including the performance tests."
   (← IO.getStdout).flush
-  let failed ← testFiles (roots := #["EthereumTests/BlockchainTests/", legacyRoot])
+  let failed ← testFiles (roots := #[legacyFixtures / "BlockchainTests", legacyRoot])
                          (slowDirectories := #[perfDir])
                          (slowTests := perfTests)
                          (skipSlow := skipPerf)

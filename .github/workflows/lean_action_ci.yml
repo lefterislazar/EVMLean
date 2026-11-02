@@ -11,8 +11,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: actions/setup-python@v5
         with:
@@ -43,12 +41,6 @@ jobs:
 
       - name: Run the fixture conformance tests
         run: lake test -- "$(nproc)" 2> conformance-stderr.txt
-
-      - name: Run the legacy conformance tests (without the performance tests)
-        env:
-          CONFORM_SUITE: legacy
-          CONFORM_SKIP_PERF: "1"
-        run: lake test -- "$(nproc)" 2> legacy-conformance-stderr.txt
 
       - name: Show failing conformance tests
         if: failure()
