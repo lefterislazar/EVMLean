@@ -121,13 +121,14 @@ def validateHeader
 /--
 Block validity after executing the block: the remaining header checks and
 the header's commitments to the resulting state, logs, transactions,
-withdrawals and receipts.
+withdrawals, receipts and, from Prague, the `requests` of the block.
 -/
 def validateBlock
   (fork : Fork)
   (state : State)
   (parentHeader : BlockHeader)
   (block : DeserializedBlock)
+  (requests : List (UInt8 × ByteArray))
   : Except Exception Unit
 := do
 
@@ -186,19 +187,27 @@ def validateBlock
   if receiptsRoot ≠ some block.blockHeader.receiptRoot then
     throw <| .BlockException .INVALID_RECEIPTS_ROOT
 
+  -- EIP-7685 (Prague)
+  if fork.spec.eip7685 then
+    let requestsHash ←
+      (computeRequestsHash requests).mapError λ _ ↦ .BlockException .INVALID_REQUESTS
+    if block.blockHeader.requestsHash ≠ some requestsHash then
+      throw <| .BlockException .INVALID_REQUESTS
+
   pure ()
 
 /--
 The state effects of a block's body on `s₀`, the state after its parent:
 the EIP-4788 and EIP-2935 system calls, the transactions, the withdrawals
-and, from Prague, the EIP-7685 requests, which must match the header's
-`requestsHash`.
+and, from Prague, the system calls that collect the EIP-7685 requests.
+Returns the state and the requests, by type, which `validateBlock` checks
+against the header.
 -/
 def applyBody
   (fork : Fork)
   (s₀ : State)
   (block : DeserializedBlock)
-  : Except Exception State
+  : Except Exception (State × List (UInt8 × ByteArray))
 := do
   let header := block.blockHeader
   -- Receipts and logs are per block.
@@ -236,14 +245,9 @@ def applyBody
       executeSystemCall fork s header WITHDRAWAL_REQUEST_ADDRESS .empty true
     let (s, consolidationRequests) ←
       executeSystemCall fork s header CONSOLIDATION_REQUEST_ADDRESS .empty true
-    let requestsHash ←
-      (computeRequestsHash [(0, deposits), (1, withdrawalRequests), (2, consolidationRequests)]).mapError
-        λ _ ↦ .BlockException .INVALID_REQUESTS
-    if header.requestsHash ≠ some requestsHash then
-      throw <| .BlockException .INVALID_REQUESTS
-    pure s
+    pure (s, [(0, deposits), (1, withdrawalRequests), (2, consolidationRequests)])
   else
-    pure s
+    pure (s, [])
 
 /--
 Applies the RLP-encoded block `rlp` to `s`, whose `executionEnv.blocks` is the
@@ -258,8 +262,8 @@ def applyBlock (config : ChainConfig) (s : State) (rlp : ByteArray) : Except Exc
   if fork.spec.eip7934 ∧ rlp.size > MAX_RLP_BLOCK_SIZE then
     throw <| .BlockException .RLP_BLOCK_LIMIT_EXCEEDED
   let parent ← validateHeader fork s.executionEnv.blocks blockHeader
-  let s ← applyBody fork { s with accountMap := parent.σ } block
-  validateBlock fork s parent.blockHeader block
+  let (s, requests) ← applyBody fork { s with accountMap := parent.σ } block
+  validateBlock fork s parent.blockHeader block requests
   pure
     { s with
         executionEnv.blocks :=
