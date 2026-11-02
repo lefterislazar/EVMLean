@@ -1,17 +1,6 @@
 import Conform.TestRunner
 
-def TestsSubdir : System.FilePath := "BlockchainTests"
 def isTestFile (file : System.FilePath) : Bool := file.extension.option false (· == "json")
-
-private def basicSuccess (name : System.FilePath)
-                         (result : Batteries.RBMap String Ethereum.Conform.TestResult compare) : IO Bool := do
-  if result.all (λ _ v ↦ v.isNone)
-  then IO.println s!"SUCCESS! - {name}"; pure true
-  else pure false
-
-private def success (result : Batteries.RBMap String Ethereum.Conform.TestResult compare) : Array String × Array String :=
-  let (succeeded, failed) := result.partition (λ _ v ↦ v.isNone)
-  (succeeded.keys, failed.keys)
 
 def logFile (phase : ℕ) : System.FilePath := s!"tests_{phase}.txt"
 
@@ -24,10 +13,6 @@ instance : ToString TestResult where
 open Ethereum.Conform in
 def log (testFile : System.FilePath) (testName : String) (result : TestResult) (phase : ℕ := 0) : IO Unit :=
   IO.FS.withFile (logFile phase) .append λ h ↦ h.putStrLn s!"{testFile.fileName.get!}[{testName}] - {result}\n"
-
-def directoryBlacklist : List System.FilePath := []
-
-def fileBlacklist : List System.FilePath := []
 
 /--
 A unit of work: tests of one fixture file, run by one thread, which parses the
@@ -79,34 +64,24 @@ next unit from a shared queue, most expensive first, so that threads finish
 together.
 -/
 def runWorkUnits (units : Array WorkUnit) (threads : ℕ) :
-    IO (Array Ethereum.Conform.TestId × Array (Ethereum.Conform.TestId × Ethereum.Conform.TestResult × ℕ)) := do
+    IO (Array (Ethereum.Conform.TestId × Ethereum.Conform.TestResult × ℕ)) := do
   let next ← IO.mkRef 0
-  let worker : IO (Array Ethereum.Conform.TestId × Array (Ethereum.Conform.TestId × Ethereum.Conform.TestResult × ℕ)) := do
-    let mut discarded := #[]
+  let worker : IO (Array (Ethereum.Conform.TestId × Ethereum.Conform.TestResult × ℕ)) := do
     let mut results := #[]
     repeat
       let i ← next.modifyGet fun i => (i, i + 1)
       let some unit := units[i]? | break
-      let (d, r) ← Ethereum.Conform.processTests (unit.names.map (unit.path, ·))
-      discarded := discarded ++ d
-      results := results ++ r
-    return (discarded, results)
+      results := results ++ (← Ethereum.Conform.processTests (unit.names.map (unit.path, ·)))
+    return results
   let mut tasks := #[]
   for _ in [0:max threads 1] do
     tasks := tasks.push (← IO.asTask worker .dedicated)
-  let mut discarded := #[]
   let mut results := #[]
   for task in tasks do
-    let (d, r) ← IO.ofExcept task.get
-    discarded := discarded ++ d
-    results := results ++ r
-  return (discarded, results)
+    results := results ++ (← IO.ofExcept task.get)
+  return results
 
 def testFiles (roots              : Array System.FilePath)
-              (directoryBlacklist : Array System.FilePath := #[])
-              (fileBlacklist      : Array System.FilePath := #[])
-              (testBlacklist      : Array String := #[])
-              (testWhitelist      : Array String := #[])
               (slowDirectories    : Array System.FilePath := #[])
               (slowTests          : Array String := #[])
               (skipSlow           : Bool := false)
@@ -117,10 +92,7 @@ def testFiles (roots              : Array System.FilePath)
   -- `|`-separated substrings.
   let filter := (← IO.getEnv "CONFORM_FILTER").getD ""
   let isToBeTested (testname : String) : Bool :=
-    let whitelist := testWhitelist
-    let blacklist := testBlacklist ++ Ethereum.Conform.GlobalBlacklist
-    testname ∉ blacklist ∧ (whitelist.isEmpty ∨ testname ∈ whitelist) ∧
-      ¬(skipSlow ∧ isSlowTest testname) ∧
+    ¬(skipSlow ∧ isSlowTest testname) ∧
       (filter.isEmpty ∨ (filter.splitOn "|").any (fun f => (testname.splitOn f).length > 1))
 
   let mut found := #[]
@@ -128,8 +100,7 @@ def testFiles (roots              : Array System.FilePath)
     found := found ++ Array.filter isTestFile (← System.FilePath.walkDir root)
 
   let testFiles := found.filter fun p =>
-    p ∉ fileBlacklist ∧ ¬directoryBlacklist.any (isUnder · p) ∧
-      ¬(skipSlow ∧ slowDirectories.any (isUnder · p))
+    ¬(skipSlow ∧ slowDirectories.any (isUnder · p))
   let testFiles := testFiles.filter fun p => p.components.all (· != ".meta")
 
   let mut selected : Array (System.FilePath × ℕ × Array String) := #[]
@@ -154,7 +125,7 @@ def testFiles (roots              : Array System.FilePath)
   IO.println s!"Scheduled {scheduled} tests in {units.size} units on {threads} thread{if threads == 1 then "" else "s"}."
   IO.println s!"Running..."
   (← IO.getStdout).flush
-  let (_, results) ← runWorkUnits units threads
+  let results ← runWorkUnits units threads
 
   let mut numSuccess := 0
   let mut failedTests : Array String := .empty

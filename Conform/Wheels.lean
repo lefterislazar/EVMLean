@@ -7,12 +7,6 @@ import Mathlib.Data.Multiset.Sort
 
 namespace Lean.Json
 
-def getObjValAs!
-  (self : Json) (α : Type) (key : String) [Inhabited α] [FromJson α] : α :=
-  match self.getObjValAs? α key with
-          | .error _ => panic! s!"Expected the key {key} in the map."
-          | .ok pre  => pre
-
 /--
 Turn non-existance of the key into default initialisation.
 
@@ -47,21 +41,13 @@ end Lean.Json
 
 namespace Ethereum
 
-namespace Conform
-
-end Conform
-
 section WithConform
-
-open Conform
 
 namespace UInt256
 
 def fromBlob? (blob : Blob) : Except String UInt256 :=
   .ofNat <$> ((·.1) <| blob.foldr (init := (.ok 0, 0)) λ digit (acc, exp) ↦
     (do pure <| (←acc) + (16 ^ exp) * (←cToHex? digit), exp + 1))
-
-def fromBlob! (blob : Blob) : UInt256 := fromBlob? blob |>.toOption.get!
 
 end UInt256
 
@@ -73,32 +59,9 @@ namespace AccountAddress
 
 def fromBlob? (s : Blob) : Except String AccountAddress := (Fin.ofNat _ ·.toNat) <$> UInt256.fromBlob? s
 
-def fromBlob! (blob : Blob) : AccountAddress := fromBlob? blob |>.toOption.get!
-
 end AccountAddress
 
 end WithConform
-
-namespace DebuggingAndProfiling
-
-section
-
-set_option autoImplicit true
-
-unsafe def report [Inhabited β] (s : String) (f : α → β) (a : α) : β :=
-  dbg_trace s!"BEGIN: {s}"
-  let res := timeit s!"The function '{s}' took:" <| pure (f a)
-  dbg_trace s!"END: {s}"
-  unsafeIO res |>.toOption.get!
-
-def testJsonParser (α : Type) [Repr α] [Lean.FromJson α] (s : String) : String :=
-  match Lean.FromJson.fromJson? (α := α) <| (Lean.Json.parse s).toOption.getD Lean.Json.null with
-    | .error e  => s!"err: {e}"
-    | .ok    ok => s!"ok: {repr ok}"
-
-end
-
-end DebuggingAndProfiling
 
 end Ethereum
 
@@ -107,6 +70,3 @@ def computeToList! {α}
                    [DecidableRel (α := α) (· ≤ ·)] (m : Multiset α) : List α :=
   m.sort (· ≤ ·)
 
-def Batteries.RBMap.partition {α β : Type} {cmp : α → α → Ordering}
-  (t : Batteries.RBMap α β cmp) (p : α → β → Bool) : Batteries.RBMap α β cmp × Batteries.RBMap α β cmp :=
-  (t.filter p, t.filter (λ k v ↦ not (p k v)))

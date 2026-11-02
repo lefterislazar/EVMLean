@@ -13,17 +13,12 @@ import Ethereum.Maps.AccountMap
 import Ethereum.Pretty
 import Ethereum.Wheels
 
-import Conform.Exception
 import Conform.Model
 import Conform.TestParser
 
 namespace Ethereum
 
 namespace Conform
-
-def VerySlowTests : Array String := #[]
-
-def GlobalBlacklist : Array String := VerySlowTests
 
 abbrev TestId : Type := System.FilePath × String
 
@@ -54,18 +49,6 @@ def PersistentAccountMap.toEVMState (self : PersistentAccountMap) : State :=
     s.setAccount addr account
 
 def Pre.toEVMState : Pre → State := PersistentAccountMap.toEVMState
-
-def TestMap.toTests (self : TestMap) : List (String × TestEntry) := self.toList
-
-def Post.toEVMState : Post → State := PersistentAccountMap.toEVMState
-
-local instance : Inhabited EVM.Transformer where
-  default := λ _ ↦ default
-
-private def compareWithEVMdefaults (s₁ s₂ : Ethereum.Storage) : Bool :=
-  withDefault s₁ == withDefault s₂
-  where
-    withDefault (s : Ethereum.Storage) : Ethereum.Storage := if s.contains ⟨0⟩ then s else s.insert ⟨0⟩ ⟨0⟩
 
 /--
 TODO - This should be a generic map complement, but we are not trying to write a library here.
@@ -264,34 +247,26 @@ instance (priority := high) : Repr (PersistentAccountMap) := ⟨λ m _ ↦
         result := result ++ s!"{sk} → {sv}\n"
     return result⟩
  
-def processTest (entry : TestEntry) (isTimed : Option (Nat × TestId) := .none) (verbose := true) : IO TestResult := do
-  let tα ← if isTimed.isSome then IO.monoMsNow else pure 0
+def processTest (entry : TestEntry) : IO TestResult := do
   let result := preImpliesPost entry
-  let tω ← if isTimed.isSome then IO.monoMsNow else pure 0
-  if let .some (thread, filepath, testname) := isTimed then
-    IO.eprint s!"#{if thread / 10 == 1 then "" else " "}{thread} "
-    IO.eprint s!"{testname} FROM {System.FilePath.mk (filepath.components.drop 3 |>.intersperse "/" |>.foldl (·++·) "")} "
-    IO.eprintln s!"took: {(tω - tα).toFloat / 1000.0}s"
   pure <|
     match result with
     | .error err => .mkFailed s!"{repr err}"
-    | .ok result => errorF <$> result
-  where discardError : PersistentAccountMap → String := λ _ ↦ "ERROR."
-        verboseError : PersistentAccountMap → String := λ σ ↦
+    | .ok result => describe <$> result
+  where describe : PersistentAccountMap → String := λ σ ↦
           match entry.postState with
             | .Map post =>
               let (postSubActual, actualSubPost) := storageΔ post σ
               s!"\npost / actual: {repr postSubActual} \nactual / post: {repr actualSubPost}"
             | .Hash h =>
               s!"\npost: {Ethereum.toHex h} \nactual: {Ethereum.toHex <$> stateTrieRoot σ}"
-        errorF := if verbose then verboseError else discardError
 
 /--
 Run `tests`, parsing each fixture file once. Every result comes with the
-test's running time in milliseconds.
+test's running time in milliseconds. A test that cannot be parsed is reported
+on stderr and left out.
 -/
-def processTests (tests : Array TestId) (isTimed : Option Nat := .none) :
-                 IO (Array TestId × Array (TestId × TestResult × Nat)) := do
+def processTests (tests : Array TestId) : IO (Array (TestId × TestResult × Nat)) := do
   let mut groups : Array (System.FilePath × Array String) := #[]
   let mut idx : Std.HashMap System.FilePath Nat := ∅
   for (path, name) in tests do
@@ -304,27 +279,24 @@ def processTests (tests : Array TestId) (isTimed : Option Nat := .none) :
   -- `CONFORM_PROGRESS` names a file that records each test as it starts and
   -- finishes, to see which tests are running.
   let progress := (← IO.getEnv "CONFORM_PROGRESS").map System.FilePath.mk
-  let mut discarded : Array TestId := .empty
   let mut results : Array (TestId × TestResult × Nat) := .empty
   for (path, names) in groups do
     let file ← Lean.Json.fromFile path
     for testName in names do
       let testId := (path, testName)
-      let test := Except.mapError Conform.Exception.CannotParse <| file.getObjValAs? TestEntry testName
-      match test with
+      match file.getObjValAs? TestEntry testName with
       | .error _ => IO.eprintln s!"Cannot parse: {testId}"
-                    discarded := discarded.push testId
       | .ok test =>
           if (ForkNetwork.parse? test.network).isSome then
             let start ← IO.monoMsNow
             if let some progress := progress then
               IO.FS.withFile progress .append (·.putStrLn s!"start {testName} FROM {path}")
-            let res ← processTest test <| isTimed <&> (·, testId)
+            let res ← processTest test
             let elapsed := (← IO.monoMsNow) - start
             if let some progress := progress then
               IO.FS.withFile progress .append (·.putStrLn s!"done {elapsed}ms {testName}")
             results := results.push (testId, res, elapsed)
-  return (discarded, results)
+  return results
 
 end Conform
 

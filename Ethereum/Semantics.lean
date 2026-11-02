@@ -33,8 +33,6 @@ import Ethereum.MachineState
 
 import Conform.Wheels
 
-open Ethereum.DebuggingAndProfiling
-
 namespace Ethereum
 
 namespace EVM
