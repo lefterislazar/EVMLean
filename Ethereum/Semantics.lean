@@ -31,7 +31,6 @@ import Ethereum.EllipticCurves
 import Ethereum.UInt256
 import Ethereum.MachineState
 
-import Conform.Wheels
 
 namespace Ethereum
 

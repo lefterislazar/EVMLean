@@ -3,7 +3,6 @@ import Mathlib.Data.List.AList
 import Ethereum.UInt256
 import Ethereum.Wheels
 import Ethereum.State.TrieRoot
-import Conform.Wheels
 import Ethereum.State.Substate
 
 namespace Ethereum

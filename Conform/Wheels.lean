@@ -3,7 +3,6 @@ import Ethereum.UInt256
 import Ethereum.Wheels
 import Batteries.Data.RBMap
 
-import Mathlib.Data.Multiset.Sort
 
 namespace Lean.Json
 
@@ -64,9 +63,3 @@ end AccountAddress
 end WithConform
 
 end Ethereum
-
-def computeToList! {α}
-                   [LE α] [IsTrans α (· ≤ ·)] [Std.Antisymm (α := α) (· ≤ ·)] [Std.Total (α := α) (· ≤ ·)]
-                   [DecidableRel (α := α) (· ≤ ·)] (m : Multiset α) : List α :=
-  m.sort (· ≤ ·)
-

@@ -1,7 +1,6 @@
 import Ethereum.PerformIO
 import Ethereum.PrecompileOutput
 import Ethereum.Wheels
-import Conform.Wheels
 
 def blobBLS12_381 (operation : Nat) (data : String) : String :=
   totallySafePerformIO <|

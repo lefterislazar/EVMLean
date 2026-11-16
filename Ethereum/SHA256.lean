@@ -1,6 +1,5 @@
 import Ethereum.PerformIO
 import Ethereum.Wheels
-import Conform.Wheels
 
 def blobSHA256 (d : String) : String :=
   totallySafePerformIO <|

@@ -1,6 +1,5 @@
 import Ethereum.PerformIO
 import Ethereum.Wheels
-import Conform.Wheels
 
 def blobP256Verify (data : String) : String :=
   totallySafePerformIO <|
