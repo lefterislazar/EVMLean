@@ -62,25 +62,34 @@ instance (priority := high) : Repr (PersistentAccountMap) := ⟨λ m _ ↦
 inductive Failure where
   /-- The model does not support the test's chain configuration. -/
   | unsupportedConfig : String → Failure
+  /-- The state root of the genesis block is not the root of the pre-state. -/
+  | genesisStateRootMismatch (expected actual : UInt256) : Failure
   /-- A block was rejected with an exception that the test does not expect. -/
   | unexpectedException : EVM.Exception → Failure
   /-- A block that the test expects to be rejected was accepted. -/
   | missedExpectedException : List String → Failure
+  /-- The last block applied is not the block `lastblockhash`. -/
+  | lastBlockMismatch (expected actual : UInt256) : Failure
   /-- The resulting state differs from the expected one, as described. -/
   | postStateMismatch : String → Failure
 
 instance : ToString Failure where
   toString
     | .unsupportedConfig reason => reason
+    | .genesisStateRootMismatch expected actual =>
+      s!"genesis state root: {hex expected}, root of the pre-state: {hex actual}"
     | .unexpectedException e => s!"{repr e}"
     | .missedExpectedException expected =>
       "Missed expected exception: " ++ String.intercalate "|" expected
+    | .lastBlockMismatch expected actual =>
+      s!"last block: {hex expected}, last block applied: {hex actual}"
     | .postStateMismatch description => description
+  where hex (n : UInt256) : String := Ethereum.toHex n.toByteArray
 
 /--
-Applies the test's blocks in order. A block that the test expects to be
-invalid must fail with one of the expected exceptions, and leaves the state
-unchanged.
+Applies the test's blocks in order, from the genesis block, whose state root
+must be that of the pre-state. A block that the test expects to be invalid
+must fail with one of the expected exceptions, and leaves the state unchanged.
 -/
 def processBlocks
   (config : ChainConfig)
@@ -91,6 +100,9 @@ def processBlocks
 := do
   let (genesisHash, genesisBlockHeader, _) ←
     deserializeBlock genesisRLP |>.mapError .unexpectedException
+  let preStateRoot : UInt256 := .ofNat <| (stateTrieRoot pre).option 0 fromByteArrayBigEndian
+  if preStateRoot ≠ genesisBlockHeader.stateRoot then
+    throw <| .genesisStateRootMismatch genesisBlockHeader.stateRoot preStateRoot
   let state₀ :=
     { stateOf pre with
         executionEnv.blocks := #[⟨genesisHash, genesisBlockHeader, accountMapOf pre⟩]
@@ -107,17 +119,17 @@ def processBlocks
       else throw <| .unexpectedException e
 
 /--
-Runs `test`: applies its blocks, and compares the state after the block
-`lastblockhash` (or after the last block, when there is no such block) with
-the expected post-state.
+Runs `test`: applies its blocks, checks that the last block applied (or the
+genesis block, when none is) is the block `lastblockhash`, and compares the
+resulting state with the expected post-state.
 -/
 def run (test : BlockchainTest) : Except Failure Unit := do
   let config ← chainConfig test.network test.config |>.mapError .unsupportedConfig
   let state ← processBlocks config test.pre test.blocks test.genesisRLP
-  let lastAccountMap :=
-    state.executionEnv.blocks.findRev? (·.hash == test.lastblockhash)
-    |>.option state.accountMap ProcessedBlock.σ
-  let actual := lastAccountMap.toPersistentAccountMap
+  let lastHash := state.executionEnv.blocks.back?.option ⟨0⟩ (·.hash)
+  if lastHash ≠ test.lastblockhash then
+    throw <| .lastBlockMismatch test.lastblockhash lastHash
+  let actual := state.accountMap.toPersistentAccountMap
   match test.postState with
   | .Map post =>
     unless post == actual do
