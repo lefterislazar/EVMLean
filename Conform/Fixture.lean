@@ -56,26 +56,20 @@ root.
 -/
 instance : FromJson Storage where
   fromJson? json := do
-    let storage ← getObjValsExt? json UInt256 UInt256
+    let storage : Storage ← getObjMap? hexUInt256? json
     pure <| storage.filter fun _ value => value ≠ ⟨0⟩
 
-instance : FromJson PersistentAccountState where
-  fromJson? json := do
-    pure {
-      balance := ← json.getObjValAs? UInt256   "balance"
-      nonce   := ← json.getObjValAs? UInt256   "nonce"
-      code    := ← json.getObjValAs? ByteArray "code"
-      storage := ← json.getObjValAs? Storage   "storage"
-    }
+-- From the fields `balance`, `nonce`, `code` and `storage`.
+deriving instance FromJson for PersistentAccountState
 
 instance : FromJson PersistentAccountMap where
-  fromJson? json := getObjValsExt? json AccountAddress PersistentAccountState
+  fromJson? := getObjMap? hexAddress?
 
 instance : FromJson FixtureBlock where
   fromJson? json := do
-    let exception ← json.getObjValAsD! (Option String) "expectException"
+    let exception ← json.getObjValAs? (Option String) "expectException"
     pure {
-      rlp             := ← json.getObjValAsD! ByteArray "rlp"
+      rlp             := ← json.getObjValAs? ByteArray "rlp"
       expectException := exception.option [] (·.splitOn "|")
     }
 
@@ -90,10 +84,10 @@ instance : FromJson BlockchainTest where
     let postState ←
       match json.getObjVal? "postStateHash" with
       | .ok hash => .Hash <$> FromJson.fromJson? hash
-      | .error _ => .Map <$> json.getObjValAsD! PersistentAccountMap "postState"
+      | .error _ => .Map <$> json.getObjValAs? PersistentAccountMap "postState"
     pure {
       network       := ← json.getObjValAs? String "network"
-      config        := ← json.getObjValAsD Json "config" (.obj {})
+      config        := (·.getD (.obj {})) (← json.getObjValAs? (Option Json) "config")
       pre           := ← json.getObjValAs? PersistentAccountMap "pre"
       genesisRLP    := ← json.getObjValAs? ByteArray "genesisRLP"
       blocks        := ← json.getObjValAs? (Array FixtureBlock) "blocks"

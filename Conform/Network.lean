@@ -13,7 +13,7 @@ namespace Ethereum
 
 namespace Conform
 
-open Lean (FromJson Json)
+open Lean (Json)
 
 /-- The fork named `s` in a fixture, such as `Prague`. -/
 def parseFork? (s : String) : Option Fork := Fork.all.find? (·.name == s)
@@ -42,17 +42,17 @@ def chainConfig (networkName : String) (config : Json) : Except String ChainConf
     | throw s!"unsupported network: {networkName}"
   let chainId ←
     match config.getObjVal? "chainid" with
-    | .ok value => FromJson.fromJson? value
+    | .ok _ => getHexNat? config "chainid"
     | .error _ => pure 1
   if chainId ≠ Ethereum.chainId then
     throw s!"unsupported chain id: {chainId}"
-  let schedules ← config.getObjValAsD Json "blobSchedule" (.obj {})
+  let schedules := (·.getD (.obj {})) (← config.getObjValAs? (Option Json) "blobSchedule")
   for fork in Fork.all do
     if let .ok entry := schedules.getObjVal? fork.name then
       let schedule : BlobSchedule := {
-        targetBlobs := ← entry.getObjValAs? ℕ "target"
-        maxBlobs := ← entry.getObjValAs? ℕ "max"
-        baseFeeUpdateFraction := ← entry.getObjValAs? ℕ "baseFeeUpdateFraction"
+        targetBlobs := ← getHexNat? entry "target"
+        maxBlobs := ← getHexNat? entry "max"
+        baseFeeUpdateFraction := ← getHexNat? entry "baseFeeUpdateFraction"
       }
       if schedule ≠ fork.spec.blobSchedule then
         throw s!"blob schedule of {fork.name} differs from the model"

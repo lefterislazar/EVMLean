@@ -1,5 +1,4 @@
 import Lean.Data.Json
-import Batteries.Data.RBMap
 
 import Ethereum.UInt256
 import Ethereum.Wheels
@@ -7,85 +6,50 @@ import Ethereum.Wheels
 /-!
 # JSON helpers
 
-Generic JSON helpers, and the hex encoding that the test fixtures use for
-numbers, addresses and byte strings (`"0x…"`).
+The fixtures encode numbers, addresses and byte strings as hex strings
+(`"0x…"`). The `FromJson` instances for them are scoped to `Ethereum.Conform`,
+so that they do not replace the instances elsewhere, such as the core one
+that reads a `Nat` from a JSON number.
 -/
-
-namespace Lean.Json
-
-/--
-Turn non-existance of the key into default initialisation.
-
-This silences ONLY the `property not found:` error.
-If the parsing of an existing value fails, we propagate the error.
--/
-def getObjValAsD (j : Json) (α : Type) [FromJson α] (k : String) (D : α) : Except String α :=
-  match j.getObjVal? k with
-    | .error _   => pure D
-    | .ok    val => fromJson? val
-
-/--
-`getObjValAsD! = getObjValAsD default` for inhabited types.
--/
-def getObjValAsD! (j : Json) (α : Type) [FromJson α] [Inhabited α] (k : String) : Except String α :=
-  getObjValAsD j α k default
-
-def getObjVals?
-  (self : Json) (α β : Type) [Ord α] [FromJson α] [FromJson β] : Except String (Batteries.RBMap α β compare) := do
-  let keys := (← self.getObj?).toArray.map Prod.fst
-  let mut result : Batteries.RBMap α β compare := ∅
-  for k in keys do
-    if let .ok key := FromJson.fromJson? (.str k) then
-      result := result.insert key (← self.getObjValAs? β k)
-  pure result
-
-def fromFile (path : System.FilePath) : IO Json := do
-  let .ok json ← Json.parse <$> IO.FS.readFile path | panic! s!"Failed to parse Json at: {path}"
-  pure json
-
-end Lean.Json
 
 namespace Ethereum
-
-namespace UInt256
-
-def fromBlob? (blob : Blob) : Except String UInt256 :=
-  .ofNat <$> ((·.1) <| blob.foldr (init := (.ok 0, 0)) λ digit (acc, exp) ↦
-    (do pure <| (←acc) + (16 ^ exp) * (←cToHex? digit), exp + 1))
-
-end UInt256
-
-def Nat.fromBlob? (blob : Blob) : Except String ℕ :=
-  ((·.1) <| blob.foldr (init := (.ok 0, 0)) λ digit (acc, exp) ↦
-    (do pure <| (←acc) + (16 ^ exp) * (←cToHex? digit), exp + 1))
-
-namespace AccountAddress
-
-def fromBlob? (s : Blob) : Except String AccountAddress := (Fin.ofNat _ ·.toNat) <$> UInt256.fromBlob? s
-
-end AccountAddress
 
 namespace Conform
 
 open Lean (FromJson Json)
 
-@[reducible] private def fromBlobString {α} (f : Blob → Except String α) : FromJson α :=
-  {
-    fromJson? := λ json ↦ json.getStr? >>= (getBlob? · >>= f)
-  }
+/-- The number that the hex string `s`, such as `0x1f`, encodes. -/
+def hexNat? (s : String) : Except String ℕ := do
+  let digits ← getBlob? s
+  match Lean.Syntax.decodeNatLitVal? ("0x" ++ toString digits) with
+  | some n => pure n
+  | none => throw s!"not a hex number: {s}"
 
-instance : FromJson UInt256 := fromBlobString UInt256.fromBlob?
-instance : FromJson ℕ := fromBlobString Nat.fromBlob?
-instance : FromJson AccountAddress := fromBlobString AccountAddress.fromBlob?
-instance : FromJson ByteArray := fromBlobString ByteArray.ofBlob
+def hexUInt256? (s : String) : Except String UInt256 := do
+  let n ← hexNat? s
+  if n < UInt256.size then pure (.ofNat n) else throw s!"not a 256-bit number: {s}"
 
-/-- A JSON object, as a map from its decoded keys to its decoded values. -/
-def getObjValsExt?
-    (json : Json) (α β : Type) [Ord α]
-    [Std.TransCmp (compare : α → α → Ordering)] [FromJson α] [FromJson β] :
-    Except String (Std.ExtTreeMap α β compare) := do
-  let vals ← json.getObjVals? α β
-  pure <| vals.toList.foldl (fun acc (key, value) => acc.insert key value) ∅
+def hexAddress? (s : String) : Except String AccountAddress := do
+  let n ← hexNat? s
+  if n < AccountAddress.size then pure (.ofNat n) else throw s!"not an address: {s}"
+
+/-- The hex number in the field `k` of `json`. -/
+def getHexNat? (json : Json) (k : String) : Except String ℕ :=
+  json.getObjValAs? String k >>= hexNat?
+
+scoped instance : FromJson UInt256 := ⟨(·.getStr? >>= hexUInt256?)⟩
+scoped instance : FromJson ByteArray := ⟨(·.getStr? >>= getBlob? >>= ByteArray.ofBlob)⟩
+
+/-- The JSON object `json`, as a map from its decoded keys to its decoded values. -/
+def getObjMap? {α β : Type} [Ord α] [Std.TransCmp (compare : α → α → Ordering)] [FromJson β]
+    (key : String → Except String α) (json : Json) : Except String (Std.ExtTreeMap α β compare) := do
+  (← json.getObj?).foldlM (init := ∅) fun map k v => do
+    pure <| map.insert (← key k) (← Lean.fromJson? v)
+
+def readJsonFile (path : System.FilePath) : IO Json := do
+  match Json.parse (← IO.FS.readFile path) with
+  | .ok json => pure json
+  | .error err => throw <| .userError s!"{path}: {err}"
 
 end Conform
 

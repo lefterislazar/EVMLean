@@ -41,7 +41,7 @@ def runFile (path : System.FilePath) (names : Array String) :
   -- `CONFORM_PROGRESS` names a file that records each test as it starts and
   -- finishes, to see which tests are running.
   let progress := (← IO.getEnv "CONFORM_PROGRESS").map System.FilePath.mk
-  let file ← Lean.Json.fromFile path
+  let file ← readJsonFile path
   let mut results := #[]
   for testName in names do
     let start ← IO.monoMsNow
@@ -150,9 +150,9 @@ def runTests (roots : Array System.FilePath) (threads : ℕ)
 
   let mut selected : Array (System.FilePath × ℕ × Array String) := #[]
   for path in files do
-    let json ← Lean.Json.fromFile path
+    let json ← readJsonFile path
     match json.getObj? with
-    | .error _ => panic! "Malformed test json."
+    | .error err => throw <| .userError s!"{path}: {err}"
     | .ok tests =>
         let names := tests.toArray.filterMap fun (name, test) =>
           if isSupported test && isToBeTested name then some name else none
