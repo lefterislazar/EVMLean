@@ -18,13 +18,6 @@ structure Withdrawals where
   array : Array Withdrawal
 deriving BEq, Inhabited, Repr
 
-structure RawBlock where
-  rlp          : ByteArray
-  exception    : List String
-deriving BEq, Inhabited, Repr
-
-abbrev RawBlocks := Array RawBlock
-
 structure DeserializedBlock where
   hash         : UInt256
   blockHeader  : BlockHeader

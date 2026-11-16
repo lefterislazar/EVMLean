@@ -34,9 +34,18 @@ inductive PostState where
   | Map : Post → PostState
   deriving Inhabited
 
+/--
+A block of a fixture: its RLP encoding, and the names of the exceptions with
+which it may be rejected. A block is expected to be valid when there are none.
+-/
+structure FixtureBlock where
+  rlp             : ByteArray
+  expectException : List String
+deriving Inhabited
+
 structure TestEntry where
   info               : Json := ""
-  blocks             : RawBlocks
+  blocks             : Array FixtureBlock
   genesisRLP         : ByteArray
   lastblockhash      : UInt256
   network            : String

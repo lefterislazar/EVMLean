@@ -7,6 +7,7 @@ import Ethereum.Wheels
 import Ethereum.State.Withdrawal
 
 import Conform.Model
+import Conform.Network
 import Conform.Wheels
 
 namespace Ethereum
@@ -64,23 +65,23 @@ instance : FromJson Pre where
 - Format₀: `EthereumTests/BlockchainTests/GeneralStateTests/VMTests/vmArithmeticTest/add.json`
 - Format₁: `EthereumTests/BlockchainTests/GeneralStateTests/Pyspecs/cancun/eip4844_blobs/invalid_static_excess_blob_gas.json`
 -/
-private def blockOfJson (json : Json) : Except String RawBlock := do
+private def blockOfJson (json : Json) : Except String FixtureBlock := do
   -- The exception, if exists, is always in the outermost object regardless of the `<Format>` (see this function's docs).
   let exception ← json.getObjValAsD! (Option String) "expectException"
   let rlp ← json.getObjValAsD! ByteArray "rlp"
   pure {
     rlp
-    exception := exception.option [] (·.splitOn "|")
+    expectException := exception.option [] (·.splitOn "|")
   }
 
-instance : FromJson RawBlock := ⟨blockOfJson⟩
+instance : FromJson FixtureBlock := ⟨blockOfJson⟩
 
 /--
 The chain configuration of a fixture. The model fixes the blob schedule of
 each fork, so a fixture whose `config.blobSchedule` disagrees is rejected.
 -/
 def parseChainConfig (json : Json) (networkName : String) : Except String ChainConfig := do
-  let some network := ForkNetwork.parse? networkName
+  let some network := parseNetwork? networkName
     | throw s!"unsupported network: {networkName}"
   let config ← json.getObjValAsD Json "config" (.obj {})
   let chainId ←
@@ -111,7 +112,7 @@ instance : FromJson TestEntry where
           .Hash <$> FromJson.fromJson? postStateHash
     pure {
       info               := ← json.getObjValAs? Json "info"
-      blocks             := ← json.getObjValAs? RawBlocks "blocks"
+      blocks             := ← json.getObjValAs? (Array FixtureBlock) "blocks"
       genesisRLP         := ← json.getObjValAs? ByteArray "genesisRLP"
       lastblockhash      := ← json.getObjValAs? UInt256 "lastblockhash"
       network            := ← json.getObjValAs? String "network"

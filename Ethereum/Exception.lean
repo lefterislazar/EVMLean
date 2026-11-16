@@ -161,7 +161,6 @@ inductive Exception where
   | TransactionException : TransactionException → Exception
   | SenderRecoverError :                 String → Exception
   | BlockException :             BlockException → Exception
-  | MissedExpectedException :       List String → Exception
 
 instance : Repr Exception where
   reprPrec s _ :=
@@ -171,8 +170,6 @@ instance : Repr Exception where
       | .TransactionException e =>      "TransactionException." ++ repr e
       | .SenderRecoverError s =>        "SenderRecoverError." ++ s
       | .BlockException be =>           "BlockException." ++ repr be
-      | .MissedExpectedException mee =>
-        "Missed expected exception: " ++ String.intercalate "|" mee
 
 end EVM
 

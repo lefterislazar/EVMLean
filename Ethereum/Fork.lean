@@ -64,8 +64,6 @@ def name : Fork → String
   | .bpo3 => "BPO3"
   | .bpo4 => "BPO4"
 
-def parse? (s : String) : Option Fork := all.find? (·.name == s)
-
 end Fork
 
 /-- A fixed fork, or a network that switches fork at a block timestamp. -/
@@ -80,17 +78,6 @@ def activeFork : ForkNetwork → Nat → Fork
   | .fixed fork, _ => fork
   | .transition before after activation, timestamp =>
       if timestamp < activation then before else after
-
-/-- Parses fixture network names such as `Prague` or `PragueToOsakaAtTime15k`. -/
-def parse? (s : String) : Option ForkNetwork :=
-  match Fork.parse? s with
-  | some fork => some (.fixed fork)
-  | none => Id.run do
-    for before in Fork.all do
-      for after in Fork.all do
-        if s == before.name ++ "To" ++ after.name ++ "AtTime15k" then
-          return some (.transition before after 15000)
-    return none
 
 end ForkNetwork
 

@@ -14,6 +14,7 @@ import Ethereum.Pretty
 import Ethereum.Wheels
 
 import Conform.Model
+import Conform.Network
 import Conform.TestParser
 
 namespace Ethereum
@@ -168,6 +169,19 @@ def acceptsExpectedException (expected : List String) (e : EVM.Exception) : Bool
   let reported := (repr e).pretty
   expected.contains reported || (legacyExceptionNames reported).any expected.contains
 
+/-- Why a fixture's blocks did not apply as the fixture expects. -/
+inductive Failure where
+  /-- A block was rejected with an exception that the fixture does not expect. -/
+  | unexpectedException : EVM.Exception → Failure
+  /-- A block that the fixture expects to be rejected was accepted. -/
+  | missedExpectedException : List String → Failure
+
+instance : ToString Failure where
+  toString
+    | .unexpectedException e => s!"{repr e}"
+    | .missedExpectedException expected =>
+      "Missed expected exception: " ++ String.intercalate "|" expected
+
 /--
 Applies the fixture's blocks in order. A block that the fixture expects to be
 invalid must fail with one of the expected exceptions, and leaves the state
@@ -176,11 +190,12 @@ unchanged.
 def processBlocks
   (config : ChainConfig)
   (pre : Pre)
-  (blocks : RawBlocks)
+  (blocks : Array FixtureBlock)
   (genesisRLP : ByteArray)
-  : Except EVM.Exception State
+  : Except Failure State
 := do
-  let (genesisHash, genesisBlockHeader, _) ← deserializeBlock genesisRLP
+  let (genesisHash, genesisBlockHeader, _) ←
+    deserializeBlock genesisRLP |>.mapError .unexpectedException
   let state₀ :=
     { pre.toEVMState with
         executionEnv.blocks :=
@@ -191,22 +206,16 @@ def processBlocks
             ⟩
           ]
     }
-  blocks.foldlM (init := state₀)
-    λ accState rawBlock ↦ do
-      try
-        let accState ← EVM.applyBlock config accState rawBlock.rlp
-        if ¬rawBlock.exception.isEmpty then
-          throw <| .MissedExpectedException rawBlock.exception
-        pure accState
-      catch e =>
-        match e with
-          | .MissedExpectedException _  => throw e
-          | _ =>
-            let e := selectReportedException rawBlock.exception e
-            if acceptsExpectedException rawBlock.exception e then
-              pure accState
-            else
-              throw e
+  blocks.foldlM (init := state₀) fun accState block =>
+    let expected := block.expectException
+    match EVM.applyBlock config accState block.rlp with
+    | .ok accState' =>
+      if expected.isEmpty then pure accState'
+      else throw <| .missedExpectedException expected
+    | .error e =>
+      let e := selectReportedException expected e
+      if acceptsExpectedException expected e then pure accState
+      else throw <| .unexpectedException e
 
 /--
 - `.none` on success
@@ -215,7 +224,7 @@ def processBlocks
 NB we can throw away the final state if it coincided with the expected one, hence `.none`.
 -/
 def preImpliesPost (entry : TestEntry)
-  : Except EVM.Exception (Option (PersistentAccountMap))
+  : Except Failure (Option (PersistentAccountMap))
 := do
     let resultState ← processBlocks entry.config entry.pre entry.blocks entry.genesisRLP
     let lastAccountMap :=
@@ -251,7 +260,7 @@ def processTest (entry : TestEntry) : IO TestResult := do
   let result := preImpliesPost entry
   pure <|
     match result with
-    | .error err => .mkFailed s!"{repr err}"
+    | .error err => .mkFailed (toString err)
     | .ok result => describe <$> result
   where describe : PersistentAccountMap → String := λ σ ↦
           match entry.postState with
@@ -287,7 +296,7 @@ def processTests (tests : Array TestId) : IO (Array (TestId × TestResult × Nat
       match file.getObjValAs? TestEntry testName with
       | .error _ => IO.eprintln s!"Cannot parse: {testId}"
       | .ok test =>
-          if (ForkNetwork.parse? test.network).isSome then
+          if (parseNetwork? test.network).isSome then
             let start ← IO.monoMsNow
             if let some progress := progress then
               IO.FS.withFile progress .append (·.putStrLn s!"start {testName} FROM {path}")

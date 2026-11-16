@@ -111,7 +111,7 @@ def testFiles (roots              : Array System.FilePath)
     | .ok x =>
         let names := x.toArray.filterMap fun (name, val) =>
           let supported := match val.getObjVal? "network" >>= Lean.Json.getStr? with
-            | .ok network => (Ethereum.ForkNetwork.parse? network).isSome
+            | .ok network => (Ethereum.Conform.parseNetwork? network).isSome
             | .error _ => false
           if supported && isToBeTested name then some name else none
         selected := selected.push (path, x.size, names)
