@@ -1,8 +1,15 @@
 import Lean.Data.Json
-import Ethereum.UInt256
-import Ethereum.Wheels
 import Batteries.Data.RBMap
 
+import Ethereum.UInt256
+import Ethereum.Wheels
+
+/-!
+# JSON helpers
+
+Generic JSON helpers, and the hex encoding that the test fixtures use for
+numbers, addresses and byte strings (`"0x…"`).
+-/
 
 namespace Lean.Json
 
@@ -40,8 +47,6 @@ end Lean.Json
 
 namespace Ethereum
 
-section WithConform
-
 namespace UInt256
 
 def fromBlob? (blob : Blob) : Except String UInt256 :=
@@ -60,6 +65,28 @@ def fromBlob? (s : Blob) : Except String AccountAddress := (Fin.ofNat _ ·.toNat
 
 end AccountAddress
 
-end WithConform
+namespace Conform
+
+open Lean (FromJson Json)
+
+@[reducible] private def fromBlobString {α} (f : Blob → Except String α) : FromJson α :=
+  {
+    fromJson? := λ json ↦ json.getStr? >>= (getBlob? · >>= f)
+  }
+
+instance : FromJson UInt256 := fromBlobString UInt256.fromBlob?
+instance : FromJson ℕ := fromBlobString Nat.fromBlob?
+instance : FromJson AccountAddress := fromBlobString AccountAddress.fromBlob?
+instance : FromJson ByteArray := fromBlobString ByteArray.ofBlob
+
+/-- A JSON object, as a map from its decoded keys to its decoded values. -/
+def getObjValsExt?
+    (json : Json) (α β : Type) [Ord α]
+    [Std.TransCmp (compare : α → α → Ordering)] [FromJson α] [FromJson β] :
+    Except String (Std.ExtTreeMap α β compare) := do
+  let vals ← json.getObjVals? α β
+  pure <| vals.toList.foldl (fun acc (key, value) => acc.insert key value) ∅
+
+end Conform
 
 end Ethereum

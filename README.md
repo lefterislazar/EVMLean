@@ -107,6 +107,9 @@ release `tests@v20.0.2`. The test running infrastructure can be found in:
 ```
 Conform/
 ```
+`Conform.lean` lists its modules: decoding the fixtures, running one test, and
+running a suite of tests. The two suites, the fixtures and the legacy suite
+below, are in the same fixture format and differ only in `Conform/Suites.lean`.
 
 Passing this suite is the baseline behavioral trust check for the executable EVM
 model. Any changes are accepted under the constraint that these
