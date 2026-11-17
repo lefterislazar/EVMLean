@@ -13,7 +13,7 @@ proofs about function selectors and storage slots. `hash_eq_referenceHash` prove
 them equal.
 -/
 
-namespace Ethereum.Keccak256
+namespace Ethereum.Crypto.Keccak256
 
 /-- A Keccak-f[1600] state: 25 lanes of 64 bits. -/
 abbrev State := Vector UInt64 25
@@ -541,10 +541,10 @@ theorem hash_size (input : ByteArray) : (hash input).size = digestBytes := rfl
 
 theorem hash_size_eq_32 (input : ByteArray) : (hash input).size = 32 := rfl
 
-end Ethereum.Keccak256
+end Ethereum.Crypto.Keccak256
 
 namespace Ethereum
 
-def KEC := Ethereum.Keccak256.hash
+def KEC := Ethereum.Crypto.Keccak256.hash
 
 end Ethereum

@@ -132,7 +132,7 @@ theorem precompile_BLS12_381_zero_gas
       cases h : blsInputLengthValid op I.calldata.size
       · rfl
       · exact absurd (blsRequiredGas_pos_of_valid h) hpos
-    have hbls : BLS12_381 op (blsOutputSize op) I.calldata =
+    have hbls : BLS12_381 op I.calldata =
         .error "BLS12-381: invalid input length" := by
       unfold BLS12_381
       simp [hvalid]

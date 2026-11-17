@@ -18,7 +18,6 @@ import Ethereum.PointEval
 import Ethereum.P256Verify
 import Ethereum.BLS12_381
 
-import Ethereum.FFI.ffi
 
 open Ethereum
 
@@ -72,7 +71,7 @@ def Ξ_SHA256
     (∅, ⟨0⟩, A, .empty)
   else
     let o :=
-      match ffi.SHA256 I.calldata with
+      match SHA256 I.calldata with
         | .ok s => s
         | .error e =>
           dbg_trace s!"Ξ_SHA56 failed: {e}"
@@ -372,7 +371,7 @@ def Ξ_BLAKE2_F
     dbg_trace "failed"
     (∅, ⟨0⟩, A, .empty)
   else
-    let o := ffi.BLAKE2 d
+    let o := BLAKE2_F d
     match o with
       | .ok o => (σ, g - .ofNat gᵣ, A, o)
       | .error e =>
@@ -499,14 +498,6 @@ theorem blsRequiredGas_pos_of_valid {operation size : ℕ}
   · simp [blsRequiredGas]
   · simp at h
 
-/-- Output size of the EIP-2537 precompile at address `operation`. -/
-def blsOutputSize (operation : ℕ) : ℕ :=
-  match operation with
-  | 11 | 12 | 16 => 128
-  | 13 | 14 | 17 => 256
-  | 15 => 32
-  | _ => 0
-
 /-- The EIP-2537 BLS12-381 precompiles at `0x0b`–`0x11` (Prague). -/
 def Ξ_BLS12_381
   (operation : ℕ)
@@ -521,7 +512,7 @@ def Ξ_BLS12_381
   if g.toNat < gᵣ then
     (∅, ⟨0⟩, A, .empty)
   else
-    match BLS12_381 operation (blsOutputSize operation) I.calldata with
+    match BLS12_381 operation I.calldata with
     | .ok o => (σ, g - .ofNat gᵣ, A, o)
     | .error _ => (∅, ⟨0⟩, A, .empty)
 

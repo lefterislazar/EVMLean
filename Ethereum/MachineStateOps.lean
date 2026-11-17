@@ -1,6 +1,6 @@
 import Ethereum.MachineState
 
-import Ethereum.SpongeHash.Keccak256
+import Ethereum.Crypto.Keccak256
 
 namespace Ethereum
 

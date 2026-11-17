@@ -1165,7 +1165,7 @@ lemma precompile_SHA256_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
   unfold Ξ_SHA256
   by_cases hgas : g.toNat < 60 + 12 * ((I.calldata.size + 31) / 32)
   · simp [hgas]
-  · cases ffi.SHA256 I.calldata <;>
+  · cases SHA256 I.calldata <;>
       simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_RIP160_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
@@ -1233,7 +1233,7 @@ lemma precompile_BLAKE2_F_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
   unfold Ξ_BLAKE2_F
   by_cases hgas : g.toNat < fromByteArrayBigEndian (I.calldata.extract 0 4)
   · simp [hgas, dbgTrace]
-  · cases hres : ffi.BLAKE2 I.calldata with
+  · cases hres : BLAKE2_F I.calldata with
     | ok o =>
         simp [hgas, hres, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
     | error e =>
@@ -1255,7 +1255,7 @@ lemma precompile_BLS12_381_gas_le (op : ℕ) (σ : AccountMap) (g : UInt256) (A 
   unfold Ξ_BLS12_381
   by_cases hgas : g.toNat < blsRequiredGas op I.calldata.size
   · simp [hgas]
-  · cases BLS12_381 op (blsOutputSize op) I.calldata <;>
+  · cases BLS12_381 op I.calldata <;>
       simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_P256VERIFY_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)

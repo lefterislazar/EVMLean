@@ -1,6 +1,13 @@
-import Ethereum.SpongeHash.Keccak256
+import Ethereum.Crypto.Keccak256
 
-namespace Ethereum.Keccak256Tests
+/-!
+Keccak-256 digests, which the `#guard`s check when `CryptoTests` is built,
+and so when `lake exe crypto-tests` runs.
+-/
+
+namespace CryptoTests.Keccak256
+
+open Ethereum (KEC)
 
 private def hex (bytes : ByteArray) : String :=
   let digits := "0123456789abcdef".toList.toArray
@@ -75,4 +82,4 @@ example : KEC ⟨Array.replicate 136 0x61⟩ = ⟨#[
     0xeb, 0xca, 0xeb, 0x4b, 0x60, 0xaa, 0x38, 0x6e]⟩ := by
   decide +kernel
 
-end Ethereum.Keccak256Tests
+end CryptoTests.Keccak256
