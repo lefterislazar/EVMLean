@@ -127,8 +127,11 @@ parallel; it defaults to the number of processors. We recommend redirecting
 This runs every fixture network from Cancun on, including the fork transition
 networks. The threads take fixture files from a shared queue, largest first.
 A test of a network that the model does not support is not run; the summary
-counts such tests per network, and `tests_1.txt` lists them. The following
-environment variables adjust a run:
+counts such tests per network.
+
+A run writes its logs to `.cache/conform/`, replacing those of the previous
+run: `results.txt` has the result of every test, and `failures.txt` the tests
+that failed and why. The following environment variables adjust a run:
 
 - `EEST_FIXTURES` points to another `fixtures/blockchain_tests` directory.
 - `CONFORM_DIRS` restricts the run to a comma-separated list of fixture
@@ -136,8 +139,8 @@ environment variables adjust a run:
 - `CONFORM_FILTER` restricts the run to the tests whose name contains one of
   its `|`-separated substrings.
 - `CONFORM_TIMED=1` writes the running time of every test, slowest first, to
-  `timings_1.txt`, and `CONFORM_PROGRESS=<file>` logs each test as it starts
-  and finishes.
+  `.cache/conform/timings.txt`, and `CONFORM_PROGRESS=1` logs each test as it
+  starts and finishes to `.cache/conform/progress.txt`.
 - `CONFORM_SUITE=legacy` runs the legacy Cancun suite of
   [ethereum/tests](https://github.com/ethereum/tests) and
   [ethereum/legacytests](https://github.com/ethereum/legacytests) instead of

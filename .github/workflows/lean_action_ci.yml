@@ -44,4 +44,4 @@ jobs:
 
       - name: Show failing conformance tests
         if: failure()
-        run: cat failures_live.txt || true
+        run: cat .cache/conform/failures.txt || true

@@ -28,14 +28,20 @@ instance : ToString TestResult where
     | .failed reason => reason
     | .unsupportedNetwork network => s!"Skipped: unsupported network {network}"
 
-def logFile : System.FilePath := "tests_1.txt"
+/-- The directory of the logs of a run, which git ignores. Each run replaces them. -/
+def logDirectory : System.FilePath := ".cache/conform"
 
-def liveFailureLog : System.FilePath := "failures_live.txt"
+/-- The result of every test. -/
+def resultsLog : System.FilePath := logDirectory / "results.txt"
 
-def timingsFile : System.FilePath := "timings_1.txt"
+/-- The tests that failed, and why. -/
+def failuresLog : System.FilePath := logDirectory / "failures.txt"
 
-def log (testFile : System.FilePath) (testName : String) (result : TestResult) : IO Unit :=
-  IO.FS.withFile logFile .append λ h ↦ h.putStrLn s!"{testFile.fileName.get!}[{testName}] - {result}\n"
+/-- With `CONFORM_TIMED`, the running time of every test that ran, slowest first. -/
+def timingsLog : System.FilePath := logDirectory / "timings.txt"
+
+/-- With `CONFORM_PROGRESS`, each test as it starts and finishes, to see which tests are running. -/
+def progressLog : System.FilePath := logDirectory / "progress.txt"
 
 /--
 Run the tests of the fixture file `path` whose names `isSelected` selects,
@@ -44,9 +50,7 @@ milliseconds.
 -/
 def runFile (path : System.FilePath) (isSelected : String → Bool) :
     IO (Array (TestId × TestResult × ℕ)) := do
-  -- `CONFORM_PROGRESS` names a file that records each test as it starts and
-  -- finishes, to see which tests are running.
-  let progress := (← IO.getEnv "CONFORM_PROGRESS").map System.FilePath.mk
+  let progress := (← IO.getEnv "CONFORM_PROGRESS").isSome
   let tests ← match (← readJsonFile path).getObj? with
     | .ok tests => pure tests
     | .error err => throw <| .userError s!"{path}: {err}"
@@ -58,8 +62,8 @@ def runFile (path : System.FilePath) (isSelected : String → Bool) :
         results := results.push ((path, testName), .unsupportedNetwork network, 0)
         continue
     let start ← IO.monoMsNow
-    if let some progress := progress then
-      IO.FS.withFile progress .append (·.putStrLn s!"start {testName} FROM {path}")
+    if progress then
+      IO.FS.withFile progressLog .append (·.putStrLn s!"start {testName} FROM {path}")
     let result : TestResult :=
       match (Lean.fromJson? test : Except String BlockchainTest) with
       | .error err => .failed s!"Cannot decode: {err}"
@@ -68,8 +72,8 @@ def runFile (path : System.FilePath) (isSelected : String → Bool) :
         | .error failure => .failed (toString failure)
         | .ok () => .passed
     let elapsed := (← IO.monoMsNow) - start
-    if let some progress := progress then
-      IO.FS.withFile progress .append (·.putStrLn s!"done {elapsed}ms {testName}")
+    if progress then
+      IO.FS.withFile progressLog .append (·.putStrLn s!"done {elapsed}ms {testName}")
     results := results.push ((path, testName), result, elapsed)
   return results
 
@@ -131,8 +135,9 @@ def runTests (roots : Array System.FilePath) (threads : ℕ)
       if path.extension == some "json" ∧ ¬skipFile path ∧ path.components.all (· != ".meta") then
         files := files.push (path, (← path.metadata).byteSize)
 
-  for file in [logFile, liveFailureLog] do
-    if ← file.pathExists then IO.FS.removeFile file
+  IO.FS.createDirAll logDirectory
+  for log in [resultsLog, failuresLog, timingsLog, progressLog] do
+    if ← log.pathExists then IO.FS.removeFile log
 
   -- The largest files start first, so that they do not finish last.
   let queue := (files.qsort (·.2 > ·.2)).map (·.1)
@@ -141,21 +146,25 @@ def runTests (roots : Array System.FilePath) (threads : ℕ)
   let results ← runFiles queue isSelected threads
 
   let mut summary : Summary := { passed := 0, failed := #[], unsupported := ∅ }
+  let mut resultLines := #[]
+  let mut failureLines := #[]
   for ((file, test), result, _) in results do
-    log file test result
+    let name := s!"{file.fileName.get!}[{test}]"
+    resultLines := resultLines.push s!"{name} - {result}\n"
     match result with
     | .passed => summary := { summary with passed := summary.passed + 1 }
     | .failed reason =>
-      summary := { summary with failed := summary.failed.push s!"{file.fileName.get!}[{test}]" }
-      IO.FS.withFile liveFailureLog .append fun h =>
-        h.putStrLn s!"{file.fileName.get!}[{test}] {reason}"
+      summary := { summary with failed := summary.failed.push name }
+      failureLines := failureLines.push s!"{name} {reason}"
     | .unsupportedNetwork network =>
       summary := { summary with unsupported := summary.unsupported.alter network (some <| ·.getD 0 + 1) }
+  IO.FS.writeFile resultsLog (String.intercalate "\n" resultLines.toList ++ "\n")
+  unless failureLines.isEmpty do
+    IO.FS.writeFile failuresLog (String.intercalate "\n" failureLines.toList ++ "\n")
 
-  -- `CONFORM_TIMED` writes the running time of every test that ran, slowest first.
   if (← IO.getEnv "CONFORM_TIMED").isSome then
     let ran := results.filter fun (_, result, _) => !(result matches .unsupportedNetwork _)
-    IO.FS.withFile timingsFile .write fun h =>
+    IO.FS.withFile timingsLog .write fun h =>
       for ((file, test), _, ms) in ran.qsort (·.2.2 > ·.2.2) do
         h.putStrLn s!"{ms.toFloat / 1000.0}s {file}[{test}]"
   return summary
@@ -172,6 +181,8 @@ def report (summary : Summary) : IO UInt32 := do
   IO.println <| s!"Skipped, unsupported network: {skipped}" ++
     String.join (unsupported.toList.map fun (network, n) => s!"\n  {network}: {n}")
   IO.println s!"Failed tests:\n{summary.failed}"
+  IO.println <| s!"Logs in {logDirectory}: results of every test in {resultsLog.fileName.get!}" ++
+    (if summary.failed.isEmpty then "." else s!", failures in {failuresLog.fileName.get!}.")
   return if summary.failed.isEmpty then 0 else 1
 
 end Conform
