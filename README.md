@@ -125,9 +125,8 @@ parallel; it defaults to the number of processors. We recommend redirecting
 `stderr` into a file to not pollute the output.
 
 This runs every fixture network from Cancun on, including the fork transition
-networks. The threads take fixture files, or slices of large ones, from a
-shared queue, slow tests first and then the most expensive files. The
-following environment variables adjust a run:
+networks. The threads take fixture files from a shared queue, largest first.
+The following environment variables adjust a run:
 
 - `EEST_FIXTURES` points to another `fixtures/blockchain_tests` directory.
 - `CONFORM_DIRS` restricts the run to a comma-separated list of fixture
@@ -142,9 +141,9 @@ following environment variables adjust a run:
   [ethereum/legacytests](https://github.com/ethereum/legacytests) instead of
   the fixtures. Fetch it once with `scripts/fetch-legacy-tests.sh`, which
   downloads the test directories at
-  pinned commits; `LEGACY_FIXTURES` points to another copy. It includes
-  performance tests (`vmPerformance` and a few others), which take up to an
-  hour each; `CONFORM_SKIP_PERF=1` leaves them out.
+  pinned commits; `LEGACY_FIXTURES` points to another copy. Its performance
+  tests (`vmPerformance` and a few others), which take up to an hour each,
+  are left out unless `CONFORM_PERF=1`.
 
 # License
 

@@ -60,56 +60,25 @@ def runFile (path : System.FilePath) (names : Array String) :
     results := results.push ((path, testName), result, elapsed)
   return results
 
-/--
-A unit of work: tests of one fixture file, run by one thread, which parses the
-file once. `cost` estimates the unit's running time, for scheduling.
--/
-structure WorkUnit where
-  path  : System.FilePath
-  names : Array String
-  cost  : ℕ
-
 /-- Whether `path` lies in the directory `dir`, comparing path components. -/
 def isUnder (dir path : System.FilePath) : Bool :=
   let parts (p : System.FilePath) := p.components.filter (· ≠ "")
   (parts dir).isPrefixOf (parts path)
 
 /--
-Split the selected tests of each fixture file into work units. A large file is
-split into up to `threads` units, so that its tests spread over the threads; a
-unit's cost is its share of the file's size.
+Run the tests `names` of each fixture file `path` of `files` on `threads`
+threads. Each thread repeatedly takes the next file from a shared queue, in
+the order of `files`.
 -/
-def workUnits (threads : ℕ) (files : Array (System.FilePath × ℕ × Array String))
-    (isFirst : WorkUnit → Bool := fun _ => false) : IO (Array WorkUnit) := do
-  let largeFile : ℕ := 4 * 1024 * 1024
-  let mut units := #[]
-  for (path, total, names) in files do
-    if names.isEmpty then continue
-    let size := (← path.metadata).byteSize.toNat
-    let pieces := if size > largeFile then min threads names.size else 1
-    let chunk := (names.size + pieces - 1) / pieces
-    for k in [0:pieces] do
-      let part := names.extract (k * chunk) ((k + 1) * chunk)
-      unless part.isEmpty do
-        units := units.push { path, names := part, cost := size * part.size / max total 1 }
-  -- The `isFirst` units go first, then the most expensive ones.
-  return units.qsort fun a b =>
-    if isFirst a != isFirst b then isFirst a else a.cost > b.cost
-
-/--
-Run the work units on `threads` threads. Each thread repeatedly takes the
-next unit from a shared queue, most expensive first, so that threads finish
-together.
--/
-def runWorkUnits (units : Array WorkUnit) (threads : ℕ) :
+def runFiles (files : Array (System.FilePath × Array String)) (threads : ℕ) :
     IO (Array (TestId × TestResult × ℕ)) := do
   let next ← IO.mkRef 0
   let worker : IO (Array (TestId × TestResult × ℕ)) := do
     let mut results := #[]
     repeat
       let i ← next.modifyGet fun i => (i, i + 1)
-      let some unit := units[i]? | break
-      results := results ++ (← runFile unit.path unit.names)
+      let some (path, names) := files[i]? | break
+      results := results ++ (← runFile path names)
     return results
   let mut tasks := #[]
   for _ in [0:max threads 1] do
@@ -126,29 +95,27 @@ def isSupported (test : Lean.Json) : Bool :=
   | .error _ => false
 
 /--
-Run the tests of the fixture files in `roots` on `threads` threads. The tests
-in the files that `isSlowFile` selects, and the tests that `isSlowTest`
-selects, are slow: they start first, or are left out when `skipSlow` holds.
-Returns the number of tests that passed, and the tests that failed.
+Run the tests of the fixture files in `roots` on `threads` threads, leaving
+out the files that `skipFile` selects and the tests that `skipTest` selects.
+The largest files start first, so that they do not finish last. Returns the
+number of tests that passed, and the tests that failed.
 -/
 def runTests (roots : Array System.FilePath) (threads : ℕ)
-    (isSlowFile : System.FilePath → Bool := fun _ => false)
-    (isSlowTest : String → Bool := fun _ => false)
-    (skipSlow : Bool := false) : IO (ℕ × Array String) := do
+    (skipFile : System.FilePath → Bool := fun _ => false)
+    (skipTest : String → Bool := fun _ => false) : IO (ℕ × Array String) := do
   -- `CONFORM_FILTER` selects the tests whose name contains one of its
   -- `|`-separated substrings.
   let filter := (← IO.getEnv "CONFORM_FILTER").getD ""
   let isToBeTested (testName : String) : Bool :=
-    ¬(skipSlow ∧ isSlowTest testName) ∧
+    ¬skipTest testName ∧
       (filter.isEmpty ∨ (filter.splitOn "|").any (fun f => (testName.splitOn f).length > 1))
 
   let mut found := #[]
   for root in roots do
     found := found ++ (← System.FilePath.walkDir root).filter (·.extension == some "json")
-  let files := found.filter fun p =>
-    ¬(skipSlow ∧ isSlowFile p) ∧ p.components.all (· != ".meta")
+  let files := found.filter fun p => ¬skipFile p ∧ p.components.all (· != ".meta")
 
-  let mut selected : Array (System.FilePath × ℕ × Array String) := #[]
+  let mut selected : Array (System.FilePath × Array String × ℕ) := #[]
   for path in files do
     let json ← readJsonFile path
     match json.getObj? with
@@ -156,19 +123,19 @@ def runTests (roots : Array System.FilePath) (threads : ℕ)
     | .ok tests =>
         let names := tests.toArray.filterMap fun (name, test) =>
           if isSupported test && isToBeTested name then some name else none
-        selected := selected.push (path, tests.size, names)
+        unless names.isEmpty do
+          selected := selected.push (path, names, (← path.metadata).byteSize.toNat)
 
   for file in [logFile, liveFailureLog] do
     if ← file.pathExists then IO.FS.removeFile file
 
-  -- Slow tests start first, so that they do not finish last.
-  let units ← workUnits threads selected fun u =>
-    isSlowFile u.path ∨ u.names.any isSlowTest
-  let scheduled := units.foldl (· + ·.names.size) 0
-  IO.println s!"Scheduled {scheduled} tests in {units.size} units on {threads} thread{if threads == 1 then "" else "s"}."
+  -- The largest files start first, so that they do not finish last.
+  let queue := (selected.qsort (·.2.2 > ·.2.2)).map fun (path, names, _) => (path, names)
+  let scheduled := queue.foldl (· + ·.2.size) 0
+  IO.println s!"Scheduled {scheduled} tests in {queue.size} files on {threads} thread{if threads == 1 then "" else "s"}."
   IO.println s!"Running..."
   (← IO.getStdout).flush
-  let results ← runWorkUnits units threads
+  let results ← runFiles queue threads
 
   let mut numSuccess := 0
   let mut failedTests : Array String := .empty
