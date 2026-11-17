@@ -77,23 +77,7 @@ The pins and the fetching are in `lakefile.lean`.
 
 This runs every fixture network from Cancun on.
 
-`lake test -- --help` lists conformance parameters:
-
-- `--threads N` runs on `N` threads; by default, one per processor.
-- `--dirs D1,D2,...` restricts the run to these fixture directories, such as
-  `for_osaka`.
-- `--filter S1|S2|...` restricts the run to the tests whose name contains one
-  of these substrings.
-- `--fixtures PATH` runs the fixtures in `PATH` instead of fetching the pinned
-  ones.
-- `--timed` writes the running time of every test, slowest first, to
-  `.cache/conform/timings.txt`, and `--progress` logs each test as it starts
-  and finishes to `.cache/conform/progress.txt`.
-- `--legacy` runs the legacy Cancun suite of
-  [ethereum/tests](https://github.com/ethereum/tests) and
-  [ethereum/legacytests](https://github.com/ethereum/legacytests) instead of
-  the fixtures. Its performance tests (`vmPerformance` and a few others),
-  which take up to an hour each, are left out unless `--perf`.
+`lake test -- --help` lists conformance parameters.
 
 # License
 
