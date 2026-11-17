@@ -3,10 +3,12 @@ import Conform.Driver
 /-!
 # The test suites
 
-- `runEEST`: the blockchain fixtures of an `execution-spec-tests` release,
-  fetched by `scripts/fetch-eest.sh`.
+- `runEEST`: the blockchain fixtures of an `execution-spec-tests` release.
 - `runLegacy`: the Cancun blockchain tests of `ethereum/tests` and
-  `ethereum/legacytests`, fetched by `scripts/fetch-legacy-tests.sh`.
+  `ethereum/legacytests`.
+
+`lake test` fetches the pinned fixtures of the suite (see `lakefile.lean`), and
+names them in `EEST_FIXTURES` or `LEGACY_FIXTURES`.
 
 Both are in the same fixture format (see `Conform.Fixture`); they differ only
 in where their files are and which of their tests are left out.
@@ -16,12 +18,15 @@ namespace Ethereum
 
 namespace Conform
 
-/-- The `execution-spec-tests` release the conformance driver is pinned to. -/
-def eestVersion : String := "20.0.2"
-
-/-- Where `scripts/fetch-eest.sh` extracts the pinned release's blockchain fixtures. -/
-def defaultEESTFixtures : System.FilePath :=
-  s!".cache/eest/tests-v{eestVersion}/fixtures/blockchain_tests"
+/-- The directory in the environment variable `envVar`, which `lake test` sets. -/
+def fixturesDirectory (envVar : String) : IO (Option System.FilePath) := do
+  let some fixtures := (← IO.getEnv envVar).map System.FilePath.mk
+    | IO.eprintln s!"{envVar} is not set. Run the tests with `lake test`, which fetches the fixtures."
+      return none
+  unless ← fixtures.pathExists do
+    IO.eprintln s!"{envVar}: no fixtures at {fixtures}."
+    return none
+  return fixtures
 
 /--
 The fixture directories of the networks that the model supports. Each
@@ -34,17 +39,12 @@ def eestDirectories : Array System.FilePath :=
     "for_bpo2tobpo3attime15k", "for_bpo3tobpo4attime15k"]
 
 /--
-Run the `execution-spec-tests` blockchain fixtures in `EEST_FIXTURES`, by
-default those of the pinned release, on `threads` threads. `CONFORM_DIRS`
-restricts the run to a comma-separated list of the fixture directories.
+Run the `execution-spec-tests` blockchain fixtures in `EEST_FIXTURES` on
+`threads` threads. `CONFORM_DIRS` restricts the run to a comma-separated list
+of the fixture directories.
 -/
 def runEEST (threads : ℕ) : IO UInt32 := do
-  let fixtures : System.FilePath :=
-    ((← IO.getEnv "EEST_FIXTURES").map System.FilePath.mk).getD defaultEESTFixtures
-  unless ← fixtures.pathExists do
-    IO.eprintln s!"No fixtures at {fixtures}. Fetch them with `scripts/fetch-eest.sh {eestVersion}`,"
-    IO.eprintln "set EEST_FIXTURES, or set CONFORM_SUITE=legacy to run the legacy EthereumTests suite."
-    return 1
+  let some fixtures ← fixturesDirectory "EEST_FIXTURES" | return 1
   let selected := (← IO.getEnv "CONFORM_DIRS").map (·.splitOn ",")
   let roots ← eestDirectories.filterMapM λ d ↦ do
     let root := fixtures / d
@@ -53,10 +53,6 @@ def runEEST (threads : ℕ) : IO UInt32 := do
   IO.println s!"EEST fixtures in {fixtures}: {roots.size} directories."
   (← IO.getStdout).flush
   report (← runTests roots threads)
-
-/-- Where `scripts/fetch-legacy-tests.sh` places the legacy EthereumTests suite. -/
-def defaultLegacyFixtures : System.FilePath :=
-  ".cache/legacy-tests/c67e485ff8b5-1f581b8ccdc4"
 
 /-- Tests of the legacy suite that take from a minute to an hour. -/
 def legacyPerformanceTests : Array String :=
@@ -79,12 +75,7 @@ The performance tests, in the `vmPerformance` directory and a few others, take
 from a minute to an hour each. They are left out unless `CONFORM_PERF=1`.
 -/
 def runLegacy (threads : ℕ) : IO UInt32 := do
-  let fixtures : System.FilePath :=
-    ((← IO.getEnv "LEGACY_FIXTURES").map System.FilePath.mk).getD defaultLegacyFixtures
-  unless ← fixtures.pathExists do
-    IO.eprintln s!"No legacy tests at {fixtures}. Fetch them with `scripts/fetch-legacy-tests.sh`,"
-    IO.eprintln "or set LEGACY_FIXTURES."
-    return 1
+  let some fixtures ← fixturesDirectory "LEGACY_FIXTURES" | return 1
   let cancun := fixtures / "LegacyTests" / "Cancun" / "BlockchainTests"
   let performanceDirectory := cancun / "GeneralStateTests" / "VMTests" / "vmPerformance"
   -- The `ethereum/tests` v17.2 refill also names tests by their filler path,

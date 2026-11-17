@@ -7,9 +7,9 @@ def nproc : IO Nat := do
   return out.stdout.trimAscii.toString.toNat? |>.getD 1
 
 /--
-`lake test -- [THREADS]` runs the `execution-spec-tests` fixtures, or the
-legacy suite when `CONFORM_SUITE=legacy` (see `Conform.Suites`), on `THREADS`
-threads, by default one per processor.
+Runs the `execution-spec-tests` fixtures, or the legacy suite when
+`CONFORM_SUITE=legacy` (see `Conform.Suites`), on `THREADS` threads, by default
+one per processor. `lake test -- [THREADS]` fetches the fixtures and runs it.
 -/
 def main (args : List String) : IO UInt32 := do
   let threads : ℕ := args.head? <&> String.toNat! |>.getD (← nproc)

@@ -64,9 +64,125 @@ lean_lib «Conform»
 @[default_target]
 lean_lib «Ethereum»
 
-@[test_driver]
 lean_exe «conform» where
   root := `Conform.Main
+
+/-! ## Conformance test fixtures
+
+`lake test` fetches the pinned fixtures of the conformance suite that it runs
+into `.cache`, then runs `conform` on them. `conform` itself does not access
+the network.
+-/
+
+/-- The `execution-spec-tests` release of the fixtures, and the SHA-256 of its `fixtures.tar.gz`. -/
+def eestVersion := "20.0.2"
+def eestSha256 := "1280540950a4c3470a421416b6f35458a9b635827265c29e5aef1ae839ae1788"
+
+/-- The commits of `ethereum/tests` and `ethereum/legacytests` of the legacy suite. -/
+def legacyTestsCommit := "c67e485ff8b5be9abc8ad15345ec21aa22e290d9"
+def legacyLegacyTestsCommit := "1f581b8ccdc4c63acf5f2c5c1b155c690c32a8eb"
+
+def runCommand (cmd : String) (args : Array String) : IO Unit := do
+  let code ← (← IO.Process.spawn {cmd, args}).wait
+  unless code == 0 do
+    throw <| .userError s!"`{cmd} {" ".intercalate args.toList}` failed with exit code {code}"
+
+def commandOutput (cmd : String) (args : Array String) : IO String := do
+  let out ← IO.Process.output {cmd, args}
+  unless out.exitCode == 0 do
+    throw <| .userError s!"`{cmd} {" ".intercalate args.toList}` failed: {out.stderr}"
+  return out.stdout.trimAscii.toString
+
+/--
+The directory `directory`, which `fill` fills on first use. `fill` fills a
+scratch directory, which becomes `directory` once complete, so that an
+interrupted fetch does not leave a partial `directory`.
+-/
+def cachedDirectory (directory : FilePath) (fill : FilePath → IO Unit) : IO FilePath := do
+  if ← (directory / ".complete").pathExists then return directory
+  let scratch : FilePath := directory.toString ++ ".partial"
+  if ← scratch.pathExists then IO.FS.removeDirAll scratch
+  IO.FS.createDirAll scratch
+  fill scratch
+  IO.FS.writeFile (scratch / ".complete") ""
+  if ← directory.pathExists then IO.FS.removeDirAll directory
+  IO.FS.rename scratch directory
+  return directory
+
+/-- The `blockchain_tests` fixtures of the pinned `execution-spec-tests` release, fetched into `cache`. -/
+def fetchEEST (cache : FilePath) : IO FilePath := do
+  IO.FS.createDirAll cache
+  let archive := cache / s!"fixtures-tests-v{eestVersion}.tar.gz"
+  let release ← cachedDirectory (cache / s!"tests-v{eestVersion}") fun scratch => do
+    unless ← archive.pathExists do
+      IO.println s!"Downloading the execution-spec-tests fixtures of tests@v{eestVersion}."
+      let download : FilePath := archive.toString ++ ".partial"
+      runCommand "curl" #["--fail", "--location", "--retry", "3", "--output", download.toString,
+        s!"https://github.com/ethereum/execution-specs/releases/download/tests%40v{eestVersion}/fixtures.tar.gz"]
+      IO.FS.rename download archive
+    let sha256 := (← commandOutput "sha256sum" #[archive.toString]).splitOn " " |>.head!
+    unless sha256 == eestSha256 do
+      IO.FS.removeFile archive
+      throw <| .userError s!"{archive} has SHA-256 {sha256}, not {eestSha256}; removed it"
+    IO.println s!"Extracting {archive}."
+    runCommand "tar" #["-xzf", archive.toString, "-C", scratch.toString]
+  return release / "fixtures" / "blockchain_tests"
+
+/-- The directory `directory` of the repository `repo` at `commit`, checked out as `destination`. -/
+def fetchGitDirectory (repo commit directory : String) (destination : FilePath) : IO Unit := do
+  IO.println s!"Fetching {directory} of {repo} at {commit}."
+  let clone : FilePath := destination.toString ++ ".clone"
+  let git (args : Array String) := runCommand "git" (#["-C", clone.toString] ++ args)
+  runCommand "git" #["init", "--quiet", clone.toString]
+  git #["remote", "add", "origin", repo]
+  git #["sparse-checkout", "set", directory]
+  git #["fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", commit]
+  git #["-c", "advice.detachedHead=false", "checkout", "--quiet", "FETCH_HEAD"]
+  let head ← commandOutput "git" #["-C", clone.toString, "rev-parse", "HEAD"]
+  unless head == commit do
+    throw <| .userError s!"{repo} checked out {head}, not {commit}"
+  if let some parent := destination.parent then IO.FS.createDirAll parent
+  IO.FS.rename (clone / directory) destination
+  IO.FS.removeDirAll clone
+
+/--
+The legacy suite, fetched into `cache`: `BlockchainTests` of `ethereum/tests`,
+and `Cancun/BlockchainTests` of `ethereum/legacytests` as
+`LegacyTests/Cancun/BlockchainTests`.
+-/
+def fetchLegacy (cache : FilePath) : IO FilePath := do
+  IO.FS.createDirAll cache
+  let name := String.ofList (legacyTestsCommit.toList.take 12) ++ "-" ++
+    String.ofList (legacyLegacyTestsCommit.toList.take 12)
+  cachedDirectory (cache / name) fun scratch => do
+    fetchGitDirectory "https://github.com/ethereum/tests.git" legacyTestsCommit
+      "BlockchainTests" (scratch / "BlockchainTests")
+    fetchGitDirectory "https://github.com/ethereum/legacytests.git" legacyLegacyTestsCommit
+      "Cancun/BlockchainTests" (scratch / "LegacyTests" / "Cancun" / "BlockchainTests")
+
+/--
+`lake test -- [THREADS]` runs the conformance tests on `THREADS` threads, by
+default one per processor: the `execution-spec-tests` fixtures, or the legacy
+suite when `CONFORM_SUITE=legacy`. It first fetches the pinned fixtures of the
+suite, unless `EEST_FIXTURES` or `LEGACY_FIXTURES` names a copy.
+-/
+@[test_driver]
+script test (args) do
+  let ws ← getWorkspace
+  let cache := ws.root.dir / ".cache"
+  let (envVar, fetch) :=
+    if (← IO.getEnv "CONFORM_SUITE") == some "legacy" then
+      ("LEGACY_FIXTURES", fetchLegacy (cache / "legacy-tests"))
+    else
+      ("EEST_FIXTURES", fetchEEST (cache / "eest"))
+  let fixtures ← match ← IO.getEnv envVar with
+    | some fixtures => pure fixtures
+    | none => toString <$> fetch
+  let some conform := ws.findLeanExe? `conform
+    | error "no `conform` executable"
+  let conform ← ws.runBuild conform.fetch {}
+  let env := (← getAugmentedEnv).push (envVar, some fixtures)
+  (← IO.Process.spawn {cmd := conform.toString, args := args.toArray, env}).wait
 
 lean_exe «gigahorse» where
   root := `Gigahorse.Main

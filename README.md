@@ -115,14 +115,18 @@ Passing this suite is the baseline behavioral trust check for the executable EVM
 model. Any changes are accepted under the constraint that these
 conformance tests continue to pass.
 
-Fetch the fixtures once, then run the conformance tests:
+Run the conformance tests with:
 ```
-scripts/fetch-eest.sh 20.0.2
 lake test -- <NUM_THREADS> 2> out_discard.txt
 ```
 where `<NUM_THREADS>` is the number of threads running conformance tests in
 parallel; it defaults to the number of processors. We recommend redirecting
 `stderr` into a file to not pollute the output.
+
+The first run downloads the pinned fixtures (540 MB) with `curl`, checks their
+SHA-256, and extracts them into `.cache/eest/`; later runs reuse them. The
+pins and the fetching are in `lakefile.lean`; the `conform` executable that
+runs the tests does not access the network.
 
 This runs every fixture network from Cancun on, including the fork transition
 networks. The threads take fixture files from a shared queue, largest first.
@@ -133,7 +137,8 @@ A run writes its logs to `.cache/conform/`, replacing those of the previous
 run: `results.txt` has the result of every test, and `failures.txt` the tests
 that failed and why. The following environment variables adjust a run:
 
-- `EEST_FIXTURES` points to another `fixtures/blockchain_tests` directory.
+- `EEST_FIXTURES` points to another `fixtures/blockchain_tests` directory,
+  which is used instead of fetching the pinned fixtures.
 - `CONFORM_DIRS` restricts the run to a comma-separated list of fixture
   directories, such as `for_osaka`.
 - `CONFORM_FILTER` restricts the run to the tests whose name contains one of
@@ -144,9 +149,9 @@ that failed and why. The following environment variables adjust a run:
 - `CONFORM_SUITE=legacy` runs the legacy Cancun suite of
   [ethereum/tests](https://github.com/ethereum/tests) and
   [ethereum/legacytests](https://github.com/ethereum/legacytests) instead of
-  the fixtures. Fetch it once with `scripts/fetch-legacy-tests.sh`, which
-  downloads the test directories at
-  pinned commits; `LEGACY_FIXTURES` points to another copy. Its performance
+  the fixtures. The first run checks out their test directories at pinned
+  commits with `git` into `.cache/legacy-tests/`; `LEGACY_FIXTURES` points to
+  another copy instead. Its performance
   tests (`vmPerformance` and a few others), which take up to an hour each,
   are left out unless `CONFORM_PERF=1`.
 

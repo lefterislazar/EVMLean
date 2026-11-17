@@ -36,9 +36,6 @@ jobs:
           path: .cache/eest/fixtures-tests-v20.0.2.tar.gz
           key: eest-fixtures-v20.0.2
 
-      - name: Fetch the execution-spec-tests fixtures
-        run: scripts/fetch-eest.sh 20.0.2
-
       - name: Run the fixture conformance tests
         run: lake test -- "$(nproc)" 2> conformance-stderr.txt
 
