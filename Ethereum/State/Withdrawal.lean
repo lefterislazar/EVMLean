@@ -3,7 +3,6 @@
 import Ethereum.Wheels
 import Ethereum.State.TrieRoot
 import Ethereum.Maps.AccountMap
-import Conform.Wheels
 import Ethereum.Exception
 
 import Ethereum.State.TrieRoot

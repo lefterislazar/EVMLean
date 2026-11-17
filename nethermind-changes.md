@@ -7,8 +7,10 @@ focus: supporting proof development over the EVM semantics.
 The changes favor definitions that are easier to inspect and reason about in
 Lean. Some of them trade executable performance for simpler proof obligations
 or a smaller trusted surface. They do not relax the behavioral compatibility
-target: the EVM model continues to pass the Ethereum conformance tests used by
-the original project.
+target. The conformance suite has changed: the EVM model is tested against the
+execution-spec-tests fixtures for every fork it supports, from Cancun to Osaka,
+instead of the EthereumTests Cancun suite used by the original project, which
+remains available as a secondary suite.
 
 This document summarizes the main conceptual differences. It is not intended to
 be an exhaustive file-by-file changelog.
@@ -76,10 +78,18 @@ single- and multi-block inputs are handled, including the final-rate-byte
 `0x81` padding case.
 
 The implementation exposes `Ethereum.Keccak256.round`,
-`Ethereum.Keccak256.permute`, and `Ethereum.Keccak256.hash`; `Ethereum.KEC` is
-the name used by the executable semantics and replaces the former `ffi.KEC`
-name. The state and rate-block dimensions are represented by fixed-size
-vectors, and `hash_size_eq_32` proves the output size. This reduces the trusted
+`Ethereum.Keccak256.permute`, and `Ethereum.Keccak256.referenceHash`;
+`Ethereum.KEC` is the name used by the executable semantics and replaces the
+former `ffi.KEC` name. The state and rate-block dimensions are represented by
+fixed-size vectors.
+
+`Ethereum.KEC` is `Ethereum.Keccak256.hash`, a second implementation over 25
+`Nat` lanes (`Ethereum.Keccak256.Lanes`) with the round written out lane by
+lane and the padded input read as one number, so that the kernel evaluates
+concrete hashes with its GMP-backed `Nat` operations (about 20 ms per function
+selector instead of 3 s). `hash_eq_referenceHash` proves `hash` equal to
+`referenceHash` on all inputs and, as a `csimp` lemma, makes compiled code run
+`referenceHash`. `hash_size_eq_32` proves the output size. This reduces the trusted
 surface and makes concrete Keccak computations available to kernel reduction,
 at a significant executable-performance cost relative to the C implementation.
 It is not yet a mathematical proof that the implementation refines an

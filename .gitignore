@@ -1,5 +1,6 @@
 *.olean
 .lake/
+.claude/
 /.venv/
 vc/.stack-work/*
 __pycache__/

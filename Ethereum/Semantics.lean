@@ -31,9 +31,6 @@ import Ethereum.EllipticCurves
 import Ethereum.UInt256
 import Ethereum.MachineState
 
-import Conform.Wheels
-
-open Ethereum.DebuggingAndProfiling
 
 namespace Ethereum
 
@@ -1145,6 +1142,13 @@ def applyAuthorizations
         (σ.insert authority { account with nonce := account.nonce + ⟨1⟩, code }, accessed, refund)
 
 -- Type Υ using \Upsilon or \GU
+/--
+The transaction-level state transition `Υ` (Yellow Paper, Section 6).
+
+It assumes that `T` is valid and that `S_T` is its sender, as established by
+`validateTransaction` (`Ethereum/Transaction.lean`); `applyTransaction`
+combines the two.
+-/
 def Υ
   (fork : Fork)
   (σ : AccountMap)
