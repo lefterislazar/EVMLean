@@ -159,7 +159,6 @@ inductive Exception where
   | ExecutionException :     ExecutionException → Exception
   | NotEncodableRLP :                             Exception
   | TransactionException : TransactionException → Exception
-  | SenderRecoverError :                 String → Exception
   | BlockException :             BlockException → Exception
 
 instance : Repr Exception where
@@ -168,7 +167,6 @@ instance : Repr Exception where
       | .ExecutionException ee =>       "Execution exception: " ++ repr ee
       | .NotEncodableRLP =>             "NotEncodableRLP"
       | .TransactionException e =>      "TransactionException." ++ repr e
-      | .SenderRecoverError s =>        "SenderRecoverError." ++ s
       | .BlockException be =>           "BlockException." ++ repr be
 
 end EVM

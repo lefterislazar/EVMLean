@@ -153,7 +153,8 @@ def recoverSender (chainId : ℕ) (T : Transaction) : Except Exception AccountAd
       | .ok s =>
         pure <| Fin.ofNat _ <| fromByteArrayBigEndian <|
           (KEC s).extract 12 32 /- 160 bits = 20 bytes -/
-      | .error s => throw <| .SenderRecoverError s
+      -- A signature from which no sender can be recovered is invalid.
+      | .error _ => throw <| .TransactionException .INVALID_SIGNATURE_VRS
   pure S_T
 
 /--
@@ -199,10 +200,14 @@ def validateTransaction
 
   match T with
     | .legacy t =>
-      -- EIP-155 signatures commit to a chain id.
+      -- EIP-155 signatures commit to a chain id, which is a 64-bit number: a
+      -- `w` that encodes a larger one is an invalid signature.
       let w := t.w.toNat
-      if w ≥ 35 ∧ (w - 35) / 2 ≠ chainId then
-        throw <| .TransactionException .INVALID_CHAINID
+      if w ≥ 35 then
+        if (w - 35) / 2 ≥ 2 ^ 64 then
+          throw <| .TransactionException .INVALID_SIGNATURE_VRS
+        if (w - 35) / 2 ≠ chainId then
+          throw <| .TransactionException .INVALID_CHAINID
     | .access t | .dynamic t | .blob t | .setCode t =>
       if t.chainId.toNat ≠ chainId then
         throw <| .TransactionException .INVALID_CHAINID
