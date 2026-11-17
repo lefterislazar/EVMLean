@@ -126,7 +126,9 @@ parallel; it defaults to the number of processors. We recommend redirecting
 
 This runs every fixture network from Cancun on, including the fork transition
 networks. The threads take fixture files from a shared queue, largest first.
-The following environment variables adjust a run:
+A test of a network that the model does not support is not run; the summary
+counts such tests per network, and `tests_1.txt` lists them. The following
+environment variables adjust a run:
 
 - `EEST_FIXTURES` points to another `fixtures/blockchain_tests` directory.
 - `CONFORM_DIRS` restricts the run to a comma-separated list of fixture

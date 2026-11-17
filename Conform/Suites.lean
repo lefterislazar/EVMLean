@@ -23,7 +23,11 @@ def eestVersion : String := "20.0.2"
 def defaultEESTFixtures : System.FilePath :=
   s!".cache/eest/tests-v{eestVersion}/fixtures/blockchain_tests"
 
-/-- The fixture directories of the networks that the model supports. -/
+/--
+The fixture directories of the networks that the model supports. Each
+directory holds the tests of one network, so the model supports every test in
+them.
+-/
 def eestDirectories : Array System.FilePath :=
   #["for_cancun", "for_cancuntopragueattime15k", "for_prague", "for_praguetoosakaattime15k",
     "for_osaka", "for_osakatobpo1attime15k", "for_bpo1tobpo2attime15k",
@@ -67,7 +71,9 @@ def legacyPerformanceTests : Array String :=
 Run the legacy suite in `LEGACY_FIXTURES` on `threads` threads: the refilled
 block tests of `ethereum/tests` in `BlockchainTests` and the Cancun
 general-state corpus of `ethereum/legacytests` in
-`LegacyTests/Cancun/BlockchainTests`.
+`LegacyTests/Cancun/BlockchainTests`. The files of the Cancun corpus mix
+networks, from Berlin to Cancun; the tests of the networks that the model does
+not support are reported as skipped.
 
 The performance tests, in the `vmPerformance` directory and a few others, take
 from a minute to an hour each. They are left out unless `CONFORM_PERF=1`.
