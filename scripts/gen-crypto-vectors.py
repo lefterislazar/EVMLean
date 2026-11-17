@@ -9,19 +9,24 @@ against independent reference implementations:
 - secp256k1 recovery (`coincurve`, which wraps libsecp256k1);
 - secp256r1 verification (`cryptography`, which wraps OpenSSL);
 - alt_bn128 and BLS12-381 (`py_ecc`);
-- trie roots (the `TrieTests` of the `EthereumTests` submodule).
+- trie roots (the `TrieTests` of ethereum/tests, which it downloads at a
+  pinned commit).
 
 This script is a development tool only: the model and its tests do not run
 Python. Run it from the repository root with the packages of
 `requirements.txt` installed:
 
     python3 scripts/gen-crypto-vectors.py > CryptoTests/Vectors.lean
+
+The output is deterministic: running it again reproduces
+`CryptoTests/Vectors.lean`.
 """
 
 import hashlib
 import json
 import random
 import struct
+import urllib.request
 
 import coincurve
 from Crypto.Hash import RIPEMD160
@@ -149,10 +154,15 @@ def add_p256(data):
     add("p256verify", data, u256(1) if p256_verify(data) else b"")
 
 
+# The keys come from their own seeded generator, which leaves the draws of
+# `rng` as they were, and the signatures are deterministic (RFC 6979), so
+# that the vectors are reproducible.
+p256_rng = random.Random(20251117)
 for _ in range(6):
-    key = ec.generate_private_key(ec.SECP256R1())
+    key = ec.derive_private_key(p256_rng.randrange(1, P256_N), ec.SECP256R1())
     h = rand_bytes(32)
-    r, s = utils.decode_dss_signature(key.sign(h, ec.ECDSA(utils.Prehashed(hashes.SHA256()))))
+    r, s = utils.decode_dss_signature(
+        key.sign(h, ec.ECDSA(utils.Prehashed(hashes.SHA256()), deterministic_signing=True)))
     pub = key.public_key().public_numbers()
     data = h + u256(r) + u256(s) + u256(pub.x) + u256(pub.y)
     add_p256(data)
@@ -467,19 +477,28 @@ def add_trie(entries, root):
     add("trie", data, bytes.fromhex(root[2:]))
 
 
-with open("EthereumTests/TrieTests/trieanyorder.json") as f:
-    for test in json.load(f).values():
-        add_trie({trie_bytes(k): trie_bytes(v) for k, v in test["in"].items()}, test["root"])
-with open("EthereumTests/TrieTests/trietest.json") as f:
-    for test in json.load(f).values():
-        entries = {}
-        for k, v in test["in"]:
-            k, v = trie_bytes(k), trie_bytes(v)
-            if v:
-                entries[k] = v
-            else:
-                entries.pop(k, None)
-        add_trie(entries, test["root"])
+# The commit of ethereum/tests that the legacy conformance suite also pins.
+ETHEREUM_TESTS_COMMIT = "c67e485ff8b5be9abc8ad15345ec21aa22e290d9"
+
+
+def trie_tests(name):
+    url = ("https://raw.githubusercontent.com/ethereum/tests/"
+           f"{ETHEREUM_TESTS_COMMIT}/TrieTests/{name}")
+    with urllib.request.urlopen(url) as f:
+        return json.load(f)
+
+
+for test in trie_tests("trieanyorder.json").values():
+    add_trie({trie_bytes(k): trie_bytes(v) for k, v in test["in"].items()}, test["root"])
+for test in trie_tests("trietest.json").values():
+    entries = {}
+    for k, v in test["in"]:
+        k, v = trie_bytes(k), trie_bytes(v)
+        if v:
+            entries[k] = v
+        else:
+            entries.pop(k, None)
+    add_trie(entries, test["root"])
 
 # --- Output -------------------------------------------------------------------
 
