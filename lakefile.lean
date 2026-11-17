@@ -161,28 +161,22 @@ def fetchLegacy (cache : FilePath) : IO FilePath := do
       "Cancun/BlockchainTests" (scratch / "LegacyTests" / "Cancun" / "BlockchainTests")
 
 /--
-`lake test -- [THREADS]` runs the conformance tests on `THREADS` threads, by
-default one per processor: the `execution-spec-tests` fixtures, or the legacy
-suite when `CONFORM_SUITE=legacy`. It first fetches the pinned fixtures of the
-suite, unless `EEST_FIXTURES` or `LEGACY_FIXTURES` names a copy.
+`lake test -- [OPTION]...` runs the conformance tests: the
+`execution-spec-tests` fixtures, or the legacy suite with `--legacy`. It
+first fetches the pinned fixtures of the suite, unless `--fixtures` names a
+copy, then runs `conform` with the options (see `lake test -- --help`).
 -/
 @[test_driver]
 script test (args) do
   let ws ← getWorkspace
   let cache := ws.root.dir / ".cache"
-  let (envVar, fetch) :=
-    if (← IO.getEnv "CONFORM_SUITE") == some "legacy" then
-      ("LEGACY_FIXTURES", fetchLegacy (cache / "legacy-tests"))
-    else
-      ("EEST_FIXTURES", fetchEEST (cache / "eest"))
-  let fixtures ← match ← IO.getEnv envVar with
-    | some fixtures => pure fixtures
-    | none => toString <$> fetch
+  let mut args := args
+  unless "--help" ∈ args ∨ "--fixtures" ∈ args do
+    let fixtures ←
+      if "--legacy" ∈ args then fetchLegacy (cache / "legacy-tests")
+      else fetchEEST (cache / "eest")
+    args := args ++ ["--fixtures", fixtures.toString]
   let some conform := ws.findLeanExe? `conform
     | error "no `conform` executable"
   let conform ← ws.runBuild conform.fetch {}
-  let env := (← getAugmentedEnv).push (envVar, some fixtures)
-  (← IO.Process.spawn {cmd := conform.toString, args := args.toArray, env}).wait
-
-lean_exe «gigahorse» where
-  root := `Gigahorse.Main
+  (← IO.Process.spawn {cmd := conform.toString, args := args.toArray, env := ← getAugmentedEnv}).wait

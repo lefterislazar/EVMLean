@@ -14,6 +14,26 @@ namespace Ethereum
 
 namespace Conform
 
+/-- The command-line options of a run (see `Conform.Main`). -/
+structure Options where
+  /-- Run the legacy suite instead of the `execution-spec-tests` fixtures. -/
+  legacy   : Bool := false
+  /-- The fixtures of the suite. `lake test` fetches the pinned ones and sets this. -/
+  fixtures : Option System.FilePath := none
+  /-- The number of threads; by default, one per processor. -/
+  threads  : Option ℕ := none
+  /-- Run only these fixture directories of `execution-spec-tests`, such as `for_osaka`. -/
+  dirs     : Option (List String) := none
+  /-- Run only the tests whose name contains one of these substrings. -/
+  filter   : List String := []
+  /-- Include the performance tests of the legacy suite. -/
+  perf     : Bool := false
+  /-- Write the running time of every test that ran. -/
+  timed    : Bool := false
+  /-- Log each test as it starts and finishes. -/
+  progress : Bool := false
+  help     : Bool := false
+
 abbrev TestId : Type := System.FilePath × String
 
 inductive TestResult where
@@ -37,20 +57,19 @@ def resultsLog : System.FilePath := logDirectory / "results.txt"
 /-- The tests that failed, and why. -/
 def failuresLog : System.FilePath := logDirectory / "failures.txt"
 
-/-- With `CONFORM_TIMED`, the running time of every test that ran, slowest first. -/
+/-- With `--timed`, the running time of every test that ran, slowest first. -/
 def timingsLog : System.FilePath := logDirectory / "timings.txt"
 
-/-- With `CONFORM_PROGRESS`, each test as it starts and finishes, to see which tests are running. -/
+/-- With `--progress`, each test as it starts and finishes, to see which tests are running. -/
 def progressLog : System.FilePath := logDirectory / "progress.txt"
 
 /--
 Run the tests of the fixture file `path` whose names `isSelected` selects,
-parsing the file once. Every result comes with the test's running time in
-milliseconds.
+parsing the file once, and log them to `progressLog` when `progress` holds.
+Every result comes with the test's running time in milliseconds.
 -/
-def runFile (path : System.FilePath) (isSelected : String → Bool) :
+def runFile (path : System.FilePath) (isSelected : String → Bool) (progress : Bool) :
     IO (Array (TestId × TestResult × ℕ)) := do
-  let progress := (← IO.getEnv "CONFORM_PROGRESS").isSome
   let tests ← match (← readJsonFile path).getObj? with
     | .ok tests => pure tests
     | .error err => throw <| .userError s!"{path}: {err}"
@@ -87,15 +106,15 @@ Run the tests that `isSelected` selects of the fixture files `files` on
 `threads` threads. Each thread repeatedly takes the next file from a shared
 queue, in the order of `files`.
 -/
-def runFiles (files : Array System.FilePath) (isSelected : String → Bool) (threads : ℕ) :
-    IO (Array (TestId × TestResult × ℕ)) := do
+def runFiles (files : Array System.FilePath) (isSelected : String → Bool) (threads : ℕ)
+    (progress : Bool) : IO (Array (TestId × TestResult × ℕ)) := do
   let next ← IO.mkRef 0
   let worker : IO (Array (TestId × TestResult × ℕ)) := do
     let mut results := #[]
     repeat
       let i ← next.modifyGet fun i => (i, i + 1)
       let some path := files[i]? | break
-      results := results ++ (← runFile path isSelected)
+      results := results ++ (← runFile path isSelected progress)
     return results
   let mut tasks := #[]
   for _ in [0:max threads 1] do
@@ -113,20 +132,22 @@ structure Summary where
   /-- The number of tests of each network that the model does not support. -/
   unsupported : Std.HashMap String ℕ
 
+def nproc : IO ℕ := do
+  let out ← IO.Process.output {cmd := "nproc", stdin := .null}
+  return out.stdout.trimAscii.toString.toNat? |>.getD 1
+
 /--
-Run the tests of the fixture files in `roots` on `threads` threads, leaving
-out the files that `skipFile` selects and the tests that `skipTest` selects.
-The largest files start first, so that they do not finish last.
+Run the tests of the fixture files in `roots` with `options`, leaving out the
+files that `skipFile` selects and the tests that `skipTest` selects. The
+largest files start first, so that they do not finish last.
 -/
-def runTests (roots : Array System.FilePath) (threads : ℕ)
+def runTests (roots : Array System.FilePath) (options : Options)
     (skipFile : System.FilePath → Bool := fun _ => false)
     (skipTest : String → Bool := fun _ => false) : IO Summary := do
-  -- `CONFORM_FILTER` selects the tests whose name contains one of its
-  -- `|`-separated substrings.
-  let filter := (← IO.getEnv "CONFORM_FILTER").getD ""
+  let threads ← options.threads.getDM nproc
   let isSelected (testName : String) : Bool :=
     ¬skipTest testName ∧
-      (filter.isEmpty ∨ (filter.splitOn "|").any (fun f => (testName.splitOn f).length > 1))
+      (options.filter.isEmpty ∨ options.filter.any fun s => (testName.splitOn s).length > 1)
 
   -- The `.meta` directories hold an index of the fixtures, not fixtures.
   let mut files := #[]
@@ -143,7 +164,7 @@ def runTests (roots : Array System.FilePath) (threads : ℕ)
   let queue := (files.qsort (·.2 > ·.2)).map (·.1)
   IO.println s!"Running the tests of {queue.size} files on {threads} thread{if threads == 1 then "" else "s"}..."
   (← IO.getStdout).flush
-  let results ← runFiles queue isSelected threads
+  let results ← runFiles queue isSelected threads options.progress
 
   let mut summary : Summary := { passed := 0, failed := #[], unsupported := ∅ }
   let mut resultLines := #[]
@@ -162,7 +183,7 @@ def runTests (roots : Array System.FilePath) (threads : ℕ)
   unless failureLines.isEmpty do
     IO.FS.writeFile failuresLog (String.intercalate "\n" failureLines.toList ++ "\n")
 
-  if (← IO.getEnv "CONFORM_TIMED").isSome then
+  if options.timed then
     let ran := results.filter fun (_, result, _) => !(result matches .unsupportedNetwork _)
     IO.FS.withFile timingsLog .write fun h =>
       for ((file, test), _, ms) in ran.qsort (·.2.2 > ·.2.2) do

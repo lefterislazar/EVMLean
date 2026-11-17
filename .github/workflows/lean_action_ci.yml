@@ -37,7 +37,7 @@ jobs:
           key: eest-fixtures-v20.0.2
 
       - name: Run the fixture conformance tests
-        run: lake test -- "$(nproc)" 2> conformance-stderr.txt
+        run: lake test 2> conformance-stderr.txt
 
       - name: Show failing conformance tests
         if: failure()

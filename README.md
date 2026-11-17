@@ -117,11 +117,9 @@ conformance tests continue to pass.
 
 Run the conformance tests with:
 ```
-lake test -- <NUM_THREADS> 2> out_discard.txt
+lake test 2> out_discard.txt
 ```
-where `<NUM_THREADS>` is the number of threads running conformance tests in
-parallel; it defaults to the number of processors. We recommend redirecting
-`stderr` into a file to not pollute the output.
+We recommend redirecting `stderr` into a file to not pollute the output.
 
 The first run downloads the pinned fixtures (540 MB) with `curl`, checks their
 SHA-256, and extracts them into `.cache/eest/`; later runs reuse them. The
@@ -135,25 +133,27 @@ counts such tests per network.
 
 A run writes its logs to `.cache/conform/`, replacing those of the previous
 run: `results.txt` has the result of every test, and `failures.txt` the tests
-that failed and why. The following environment variables adjust a run:
+that failed and why. Options follow `--`, as in
+`lake test -- --dirs for_osaka --filter eip7951`; `lake test -- --help` lists
+them:
 
-- `EEST_FIXTURES` points to another `fixtures/blockchain_tests` directory,
-  which is used instead of fetching the pinned fixtures.
-- `CONFORM_DIRS` restricts the run to a comma-separated list of fixture
-  directories, such as `for_osaka`.
-- `CONFORM_FILTER` restricts the run to the tests whose name contains one of
-  its `|`-separated substrings.
-- `CONFORM_TIMED=1` writes the running time of every test, slowest first, to
-  `.cache/conform/timings.txt`, and `CONFORM_PROGRESS=1` logs each test as it
-  starts and finishes to `.cache/conform/progress.txt`.
-- `CONFORM_SUITE=legacy` runs the legacy Cancun suite of
+- `--threads N` runs on `N` threads; by default, one per processor.
+- `--dirs D1,D2,...` restricts the run to these fixture directories, such as
+  `for_osaka`.
+- `--filter S1|S2|...` restricts the run to the tests whose name contains one
+  of these substrings.
+- `--fixtures PATH` runs the fixtures in `PATH` instead of fetching the pinned
+  ones.
+- `--timed` writes the running time of every test, slowest first, to
+  `.cache/conform/timings.txt`, and `--progress` logs each test as it starts
+  and finishes to `.cache/conform/progress.txt`.
+- `--legacy` runs the legacy Cancun suite of
   [ethereum/tests](https://github.com/ethereum/tests) and
   [ethereum/legacytests](https://github.com/ethereum/legacytests) instead of
   the fixtures. The first run checks out their test directories at pinned
-  commits with `git` into `.cache/legacy-tests/`; `LEGACY_FIXTURES` points to
-  another copy instead. Its performance
-  tests (`vmPerformance` and a few others), which take up to an hour each,
-  are left out unless `CONFORM_PERF=1`.
+  commits with `git` into `.cache/legacy-tests/`. Its performance tests
+  (`vmPerformance` and a few others), which take up to an hour each, are left
+  out unless `--perf`.
 
 # License
 
