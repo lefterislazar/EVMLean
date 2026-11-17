@@ -35,8 +35,7 @@ them.
 -/
 def eestDirectories : Array System.FilePath :=
   #["for_cancun", "for_cancuntopragueattime15k", "for_prague", "for_praguetoosakaattime15k",
-    "for_osaka", "for_osakatobpo1attime15k", "for_bpo1tobpo2attime15k",
-    "for_bpo2tobpo3attime15k", "for_bpo3tobpo4attime15k"]
+    "for_osaka", "for_osakatobpo1attime15k", "for_bpo1", "for_bpo1tobpo2attime15k", "for_bpo2"]
 
 /--
 Run the `execution-spec-tests` blockchain fixtures with `options`, in the

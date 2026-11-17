@@ -103,7 +103,7 @@ for those implementations.
 ## Conformance testing
 The model is tested against the blockchain fixtures of
 [execution-spec-tests](https://github.com/ethereum/execution-specs), pinned to
-release `tests@v20.0.2`. The test running infrastructure can be found in:
+release `tests@v21.0.2`. The test running infrastructure can be found in:
 ```
 Conform/
 ```
@@ -121,7 +121,7 @@ lake test 2> out_discard.txt
 ```
 We recommend redirecting `stderr` into a file to not pollute the output.
 
-The first run downloads the pinned fixtures (540 MB) with `curl`, checks their
+The first run downloads the pinned fixtures (939 MB) with `curl`, checks their
 SHA-256, and extracts them into `.cache/eest/`; later runs reuse them. The
 pins and the fetching are in `lakefile.lean`; the `conform` executable that
 runs the tests does not access the network.

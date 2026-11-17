@@ -33,8 +33,8 @@ jobs:
       - name: Restore the execution-spec-tests fixtures
         uses: actions/cache@v4
         with:
-          path: .cache/eest/fixtures-tests-v20.0.2.tar.gz
-          key: eest-fixtures-v20.0.2
+          path: .cache/eest/fixtures-tests-v21.0.2.tar.gz
+          key: eest-fixtures-v21.0.2
 
       - name: Run the fixture conformance tests
         run: lake test 2> conformance-stderr.txt

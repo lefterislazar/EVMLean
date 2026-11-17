@@ -75,8 +75,8 @@ the network.
 -/
 
 /-- The `execution-spec-tests` release of the fixtures, and the SHA-256 of its `fixtures.tar.gz`. -/
-def eestVersion := "20.0.2"
-def eestSha256 := "1280540950a4c3470a421416b6f35458a9b635827265c29e5aef1ae839ae1788"
+def eestVersion := "21.0.2"
+def eestSha256 := "e2fa7ea2ea516459f9ab92284b2927892f318f4e1f78ca802cb05a6c3b479ed9"
 
 /-- The commits of `ethereum/tests` and `ethereum/legacytests` of the legacy suite. -/
 def legacyTestsCommit := "c67e485ff8b5be9abc8ad15345ec21aa22e290d9"
