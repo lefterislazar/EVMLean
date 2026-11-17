@@ -1,7 +1,6 @@
 import Ethereum.Wheels
 import Ethereum.PerformIO
 import Ethereum.PrecompileOutput
-import Conform.Wheels
 
 def blobSNARKV (data : String) : String :=
   totallySafePerformIO <|

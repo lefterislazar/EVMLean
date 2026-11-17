@@ -8,6 +8,8 @@ namespace Ethereum
 
 namespace EVM
 
+variable {fork : Fork}
+
 attribute [-simp] Std.ExtTreeMap.get?_eq_getElem?
 
 set_option linter.unusedSimpArgs false
@@ -1373,6 +1375,63 @@ theorem step_not : ∀ (s : State),
           · simp [UInt256_ofNat_1]
           · simp [Stack.push]
 
+/--
+`CLZ` (EIP-7939). From Osaka it replaces the top of the stack by its number of
+leading zero bits; before Osaka `0x1e` halts as an invalid instruction.
+-/
+theorem step_clz : ∀ (s : State),
+  let I_b := s.executionEnv.code
+  decode I_b s.machineState.pc = some (.CLZ, .none)
+  → Xstep (D_J I_b 0) s =
+      match s.machineState.stack with
+      | a :: t =>
+        if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
+        else
+        if s.machineState.stack.length - 1 + 1 > 1024 then .error .StackOverflow
+        else
+        if s.executionEnv.fork.spec.eip7939 then
+          .ok ({s with
+                    machineState.stack := UInt256.clz a :: t,
+                    machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Glow
+                    machineState.pc := s.machineState.pc + ⟨1⟩
+                    machineState.execLength := s.machineState.execLength + 1
+                    }
+                  ,.none)
+        else .error .InvalidInstruction
+      | _ => .error .StackUnderflow
+:= by
+    intros s I_b hclz
+    simp [Xstep, Z, δ, I_b, hclz]
+    match hstack : s.machineState.stack with
+    | [] => simp
+    | a :: t =>
+      have hstacksize' : ¬ t.length + 1 < 1 := by simp
+      simp [hstacksize']
+      simp [memoryExpansionCost, memoryExpansionCost.μᵢ', C'
+        , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
+        , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase
+        , InstructionGasGroups.Wverylow, InstructionGasGroups.Wlow
+        , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
+        , InstructionGasGroups.Wverylow.dupInstrs
+        , InstructionGasGroups.Wverylow.swapInstrs ]
+      by_cases hgas: (s.machineState.gasAvailable.toNat < GasConstants.Glow)
+      · simp [hgas]
+      · simp [hgas, α, Operation.isCreate]
+        by_cases hoverflow : 1024 < t.length + 1
+        · simp [hoverflow]
+        ·
+          simp [hoverflow]
+          simp [bind, Except.bind]
+          unfold step
+          by_cases hfork : s.executionEnv.fork.spec.eip7939 = true
+          · simp [hfork, Id.run, EVM.execUnOp, Stack.pop, Ethereum.State.replaceStackAndIncrPC]
+            unfold Ethereum.State.incrPC
+            simp
+            apply And.intro
+            · simp [UInt256_ofNat_1]
+            · simp [Stack.push]
+          · simp [hfork]
+
 /-
  -   Keccak Operation
  -/
@@ -2023,7 +2082,7 @@ theorem step_blobbasefee : ∀ (s : State),
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else
       .ok ({s with
-                machineState.stack := UInt256.ofNat s.executionEnv.header.getBlobGasprice :: s.machineState.stack,
+                machineState.stack := UInt256.ofNat (s.executionEnv.header.getBlobGasprice s.executionEnv.fork) :: s.machineState.stack,
                 machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
@@ -3938,7 +3997,7 @@ theorem step_call : ∀ (s : State),
           let gasAvailable' := s.machineState.gasAvailable.subNat memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
-            Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 7 + 1 > 1024 then .error .StackOverflow
@@ -3951,15 +4010,15 @@ theorem step_call : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := s.addAccessedAccount tAddr |>.substate
+            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4024,7 +4083,7 @@ theorem step_call : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.subNat (memoryExpansionCost s .CALL)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let gasCost :=
-          Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4035,7 +4094,7 @@ theorem step_call : ∀ (s : State),
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .CALL <
-                Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4086,7 +4145,7 @@ theorem step_call' : ∀ (s : State),
           let gasAvailable' := s.machineState.gasAvailable.subNat memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
-            Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 7 + 1 > 1024 then .error .StackOverflow
@@ -4099,15 +4158,15 @@ theorem step_call' : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := s.addAccessedAccount tAddr |>.substate
+            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4147,7 +4206,7 @@ theorem step_callcode : ∀ (s : State),
           let gasAvailable' := s.machineState.gasAvailable.subNat memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
-            Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 7 + 1 > 1024 then .error .StackOverflow
@@ -4159,15 +4218,15 @@ theorem step_callcode : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := s.addAccessedAccount tAddr |>.substate
+            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4232,7 +4291,7 @@ theorem step_callcode : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.subNat (memoryExpansionCost s .CALLCODE)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let gasCost :=
-          Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4243,7 +4302,7 @@ theorem step_callcode : ∀ (s : State),
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .CALLCODE <
-                Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4288,7 +4347,7 @@ theorem step_delegatecall : ∀ (s : State),
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let value := (⟨0⟩ : UInt256)
           let gasCost :=
-            Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 6 + 1 > 1024 then .error .StackOverflow
@@ -4301,15 +4360,15 @@ theorem step_delegatecall : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := s.addAccessedAccount tAddr |>.substate
+            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value') (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4371,7 +4430,7 @@ theorem step_delegatecall : ∀ (s : State),
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let value := (⟨0⟩ : UInt256)
         let gasCost :=
-          Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4382,7 +4441,7 @@ theorem step_delegatecall : ∀ (s : State),
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .DELEGATECALL <
-                Ccall (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner ({ val := 0 } : UInt256) gas
+                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4427,7 +4486,7 @@ theorem step_staticcall : ∀ (s : State),
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let value := (⟨0⟩ : UInt256)
           let gasCost :=
-            Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 6 + 1 > 1024 then .error .StackOverflow
@@ -4439,15 +4498,15 @@ theorem step_staticcall : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := s.addAccessedAccount tAddr |>.substate
+            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := false)
               else
@@ -4509,7 +4568,7 @@ theorem step_staticcall : ∀ (s : State),
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let value := (⟨0⟩ : UInt256)
         let gasCost :=
-          Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4520,7 +4579,7 @@ theorem step_staticcall : ∀ (s : State),
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .STATICCALL <
-                Ccall (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) ({ val := 0 } : UInt256) gas
+                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4585,7 +4644,7 @@ theorem step_create : ∀ (s : State),
           else
             if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
               let (a, σ', g', A', z, o) :=
-                Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
@@ -4719,7 +4778,7 @@ theorem step_create : ∀ (s : State),
                     if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
                       let (a, σ', g', A', z, o) :=
-                        Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                        Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
@@ -4897,7 +4956,7 @@ theorem step_create2 : ∀ (s : State),
           else
             if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
               let (a, σ', g', A', z, o) :=
-                Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
@@ -5034,7 +5093,7 @@ theorem step_create2 : ∀ (s : State),
                     if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
                       let (a, σ', g', A', z, o) :=
-                        Lambda (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                        Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ

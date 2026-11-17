@@ -49,13 +49,26 @@ def AccountMap.transferBalance  (σ : AccountMap) (from_addr to_addr : AccountAd
     | .none => .none
     | .some σ' => σ'.increaseBalance to_addr amount
 
-def toExecute  (σ : AccountMap) (t : AccountAddress) : ToExecute :=
-  if /- t is a precompiled account -/ t ∈ π then
+/--
+The code executed for an account whose own code is `code`. From Prague on, an
+EIP-7702 delegation designator is followed once to the code of its target. A
+target that is itself a designator, or a precompile, is not followed further:
+its code is executed as stored.
+-/
+def delegatedCode (fork : Fork) (σ : AccountMap) (code : ByteArray) : ByteArray :=
+  if fork.spec.eip7702 then
+    match delegationTarget? code with
+    | some target => σ.get? target |>.option .empty (·.code)
+    | none => code
+  else code
+
+def toExecute (fork : Fork) (σ : AccountMap) (t : AccountAddress) : ToExecute :=
+  if /- t is a precompiled account -/ t ∈ π fork then
     ToExecute.Precompiled t
   else Id.run do
     -- We use the code directly without an indirection a'la `codeMap[t]`.
     let .some tDirect := σ.get? t | ToExecute.Code default
-    ToExecute.Code tDirect.code
+    ToExecute.Code (delegatedCode fork σ tDirect.code)
 
 def L_S (σ : PersistentAccountMap) : Array (ByteArray × ByteArray) :=
   σ.foldl

@@ -35,6 +35,7 @@ def serializeCompBitInstr : CBLOp → UInt8
   | .SHL    => 0x1b
   | .SHR    => 0x1c
   | .SAR    => 0x1d
+  | .CLZ    => 0x1e
 
 def serializeKeccakInstr : KOp → UInt8
   | .KECCAK256 => 0x20
@@ -217,6 +218,7 @@ def δ : Operation → Option ℕ
   | .SHL            => some 2
   | .SHR            => some 2
   | .SAR            => some 2
+  | .CLZ            => some 1
   | .KECCAK256      => some 2
   | .ADDRESS        => some 0
   | .BALANCE        => some 1
@@ -336,6 +338,7 @@ def α : Operation → Option ℕ
   | .SHL => some 1
   | .SHR => some 1
   | .SAR => some 1
+  | .CLZ => some 1
   | .KECCAK256 => some 1
   | .ADDRESS => some 1
   | .BALANCE => some 1
@@ -452,6 +455,7 @@ def parseInstr : UInt8 → Option (Operation)
   | 0x1b => some .SHL
   | 0x1c => some .SHR
   | 0x1d => some .SAR
+  | 0x1e => some .CLZ
 
   | 0x20 => some .KECCAK256
 

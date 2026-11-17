@@ -31,9 +31,6 @@ import Ethereum.EllipticCurves
 import Ethereum.UInt256
 import Ethereum.MachineState
 
-import Conform.Wheels
-
-open Ethereum.DebuggingAndProfiling
 
 namespace Ethereum
 
@@ -151,6 +148,18 @@ inductive HaltCause where
   | success
   | revert
 
+/--
+The substate of a message call to `t`: `t` is accessed and, from Prague on,
+so is the target of a delegation designator held by `t` (EIP-7702).
+-/
+def callSubstate (fork : Fork) (σ : AccountMap) (t : AccountAddress) (A : Substate) : Substate :=
+  let A := A.addAccessedAccount t
+  if fork.spec.eip7702 then
+    match delegationTarget? (σ.get? t |>.option .empty (·.code)) with
+    | some target => A.addAccessedAccount target
+    | none => A
+  else A
+
 mutual
 
 def call
@@ -167,20 +176,22 @@ def call
       let Iₐ := evmState.executionEnv.codeOwner
       let σ := evmState.accountMap
       let Iₑ := evmState.executionEnv.depth
-      let callgas := Ccallgas t recipient value gas σ evmState.machineState evmState.substate
+      let fork := evmState.executionEnv.fork
+      let callgas := Ccallgas fork t recipient value gas σ evmState.machineState evmState.substate
       -- let evmState := evmState.subtractGas gasCost -- {evmState with machineState.gasAvailable := evmState.machineState.gasAvailable - gasCost}
       -- m[μs[3] . . . (μs[3] + μs[4] − 1)]
       let i := evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-      let A' := evmState.addAccessedAccount t |>.substate
+      let A' := callSubstate fork σ t evmState.substate
       let (σ', g', A', z, o) :=
         if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-            Θ (σ  := σ)                                     -- σ in  Θ(σ, ..)
+            Θ (fork := fork)
+              (σ  := σ)                                     -- σ in  Θ(σ, ..)
               (σ₀ := evmState.σ₀)
               (A  := A')                                    -- A* in Θ(.., A*, ..)
               (s  := source)
               (o  := evmState.executionEnv.sender)          -- Iₒ in Θ(.., Iₒ, ..)
               (r  := recipient)                             -- t in Θ(.., t, ..)
-              (c  := toExecute σ t)
+              (c  := toExecute fork σ t)
               (g  := .ofNat callgas)
               (p  := .ofNat evmState.executionEnv.gasPrice) -- Iₚ in Θ(.., Iₚ, ..)
               (v  := value)
@@ -247,6 +258,7 @@ def create
     else if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
       let Λ :=
         Lambda
+          I.fork
           σStar
           evmState.σ₀
           evmState.substate
@@ -422,6 +434,14 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
         execBinOp (flip UInt256.shiftRight) evmStateCharged
       | .SAR =>
         execBinOp UInt256.sar evmStateCharged
+      | .CLZ =>
+        /- EIP-7939 (Osaka). Before Osaka `0x1e` is an invalid instruction.
+           Rejecting it here rather than in `Z` is observationally the same:
+           every exceptional halt reverts the frame and consumes its gas. -/
+        if evmStateCharged.executionEnv.fork.spec.eip7939 then
+          execUnOp UInt256.clz evmStateCharged
+        else
+          .error .InvalidInstruction
 
       | .KECCAK256 =>
         binaryMachineStateOp' MachineState.keccak256 evmStateCharged
@@ -806,6 +826,7 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
       omega
 
 def Lambda
+  (fork : Fork)          -- the active fork
   (σ : AccountMap)
   (σ₀ : AccountMap)
   (A : Substate)
@@ -889,6 +910,7 @@ def Lambda
     , perm      := w
     , blobVersionedHashes := blobVersionedHashes
     , blocks := blocks
+    , fork := fork
     }
   match Ξ σStar σ₀ g AStar exEnv with
     | .error _ =>
@@ -966,11 +988,13 @@ Message cal
 `d`  - input data of the call
 `e`  - depth of the message-call / contract-creation stack
 `w`  - permissions to make modifications to the stack
+`fork` - the active fork
 
 NB - This is implemented using the 'boolean' fragment with ==, <=, ||, etc.
      The 'prop' version will come next once we have the comutable one.
 -/
-def Θ (σ  : AccountMap)
+def Θ (fork : Fork)
+      (σ  : AccountMap)
       (σ₀  : AccountMap)
       (A  : Substate)
       (s  : AccountAddress)
@@ -1027,6 +1051,7 @@ def Θ (σ  : AccountMap)
       header    := H
       blobVersionedHashes := blobVersionedHashes
       blocks := blocks
+      fork := fork
     }
 
   -- Equation (131)
@@ -1034,18 +1059,7 @@ def Θ (σ  : AccountMap)
   let (σ'', g', A'', out) :=
     match c with
       | ToExecute.Precompiled p =>
-        match p with
-          | 1  => Ξ_ECREC σ₁ g A I
-          | 2  => Ξ_SHA256 σ₁ g A I
-          | 3  => Ξ_RIP160 σ₁ g A I
-          | 4  => Ξ_ID σ₁ g A I
-          | 5  => Ξ_EXPMOD σ₁ g A I
-          | 6  => Ξ_BN_ADD σ₁ g A I
-          | 7  => Ξ_BN_MUL σ₁ g A I
-          | 8  => Ξ_SNARKV σ₁ g A I
-          | 9  => Ξ_BLAKE2_F σ₁ g A I
-          | 10 => Ξ_PointEval σ₁ g A I
-          | _ => default
+        Ξ_PRECOMPILE p σ₁ g A I
       | ToExecute.Code _ =>
         match Ξ σ₁ σ₀ g A I with
           | .error _ =>
@@ -1079,8 +1093,64 @@ end
 open Batteries (RBMap RBSet)
 
 
+/--
+EIP-7702 (Prague): the authority that signed `auth`, or `none` when the tuple
+is invalid for the chain `chainId` or its signature does not recover.
+-/
+def authorizationAuthority? (chainId : ℕ) (auth : Authorization) : Option AccountAddress := do
+  if auth.chainId.toNat ≠ 0 ∧ auth.chainId.toNat ≠ chainId then none
+  -- Applying an authorization increments the authority nonce (EIP-2681).
+  if auth.nonce.toNat ≥ 2 ^ 64 - 1 then none
+  if auth.yParity.toNat > 1 then none
+  let r := fromByteArrayBigEndian auth.r
+  let s := fromByteArrayBigEndian auth.s
+  if r = 0 ∨ r ≥ secp256k1n ∨ s = 0 ∨ s > secp256k1n / 2 then none
+  let payload ← RLP <| .𝕃
+    [ .𝔹 (BE auth.chainId.toNat)
+    , .𝔹 auth.address.toByteArray
+    , .𝔹 (BE auth.nonce.toNat)
+    ]
+  let digest := KEC (⟨#[0x05]⟩ ++ payload)
+  let publicKey ←
+    (ECDSARECOVER digest ⟨#[.ofNat auth.yParity.toNat]⟩ auth.r auth.s).toOption
+  pure <| .ofNat <| fromByteArrayBigEndian ((KEC publicKey).extract 12 32)
+
+/--
+EIP-7702 (Prague): apply an authorization list in order. Returns the new
+state, the authorities to add to the accessed accounts, and the refund for
+authorities that already existed.
+-/
+def applyAuthorizations
+    (chainId : ℕ) (auths : List Authorization) (σ : AccountMap) :
+    AccountMap × Batteries.RBSet AccountAddress compare × ℕ :=
+  auths.foldl (init := (σ, ∅, 0)) λ (σ, accessed, refund) auth ↦
+    match authorizationAuthority? chainId auth with
+    | none => (σ, accessed, refund)
+    | some authority =>
+      let accessed := accessed.insert authority
+      let account := σ.get? authority |>.getD default
+      if (account.code.size ≠ 0 ∧ ¬isDelegationDesignation account.code)
+          ∨ account.nonce ≠ auth.nonce then
+        (σ, accessed, refund)
+      else
+        let refund :=
+          if (σ.get? authority).isSome then
+            refund + (GasConstants.Gnewaccount - GasConstants.Gauthbase)
+          else refund
+        let code :=
+          if auth.address = 0 then .empty else delegationDesignation auth.address
+        (σ.insert authority { account with nonce := account.nonce + ⟨1⟩, code }, accessed, refund)
+
 -- Type Υ using \Upsilon or \GU
+/--
+The transaction-level state transition `Υ` (Yellow Paper, Section 6).
+
+It assumes that `T` is valid and that `S_T` is its sender, as established by
+`validateTransaction` (`Ethereum/Transaction.lean`); `applyTransaction`
+combines the two.
+-/
 def Υ
+  (fork : Fork)
   (σ : AccountMap)
   (H_f : ℕ)
   (H : BlockHeader)
@@ -1089,7 +1159,7 @@ def Υ
   (S_T : AccountAddress)
   : Except EVM.Exception (AccountMap × Substate × Bool × UInt256)
 := do
-  let g₀ : ℕ := EVM.intrinsicGas T
+  let g₀ : ℕ := EVM.intrinsicGas fork T
   -- "here can be no invalid transactions from this point"
   let senderAccount := (σ.get? S_T).get!
   -- The priority fee (67)
@@ -1097,13 +1167,13 @@ def Υ
     match T with
       | .legacy t | .access t =>
             t.gasPrice - .ofNat H_f
-      | .dynamic t | .blob t =>
+      | .dynamic t | .blob t | .setCode t =>
             min t.maxPriorityFeePerGas (t.maxFeePerGas - .ofNat H_f)
   -- The effective gas price
   let p := -- (66)
     match T with
       | .legacy t | .access t => t.gasPrice
-      | .dynamic _ | .blob _ => f + .ofNat H_f
+      | .dynamic _ | .blob _ | .setCode _ => f + .ofNat H_f
   let senderAccount :=
     { senderAccount with
         /-
@@ -1112,33 +1182,49 @@ def Υ
           the sender balance before transaction execution and burned, and is not
           refunded in case of transaction failure."
         -/
-        balance := senderAccount.balance - T.base.gasLimit * p - .ofNat (calcBlobFee H T)  -- (74)
+        balance := senderAccount.balance - T.base.gasLimit * p - .ofNat (calcBlobFee fork H T)  -- (74)
         nonce := senderAccount.nonce + ⟨1⟩ -- (75)
     }
   -- The checkpoint state (73)
   let σ₀ := σ.insert S_T senderAccount
+  -- EIP-7702 (Prague): authorizations are applied after the sender's nonce
+  -- increment and persist even when execution fails.
+  let (σ₀, authorities, authRefund) :=
+    if fork.spec.eip7702 then applyAuthorizations chainId T.authorizationList σ₀
+    else (σ₀, ∅, 0)
   let accessList := T.getAccessList
   let AStar_K : List (AccountAddress × UInt256) := do -- (78)
     let ⟨Eₐ, Eₛ⟩ ← accessList
     let eₛ ← Eₛ.toList
     pure (Eₐ, eₛ)
   let a := -- (80)
-    A0.accessedAccounts.insert S_T
+    (A0 fork).accessedAccounts.insert S_T
       |>.insert H.beneficiary
       |>.union <| Batteries.RBSet.ofList (accessList.map Prod.fst) compare
+  let a := a.union authorities
   -- (81)
   let g := .ofNat <| T.base.gasLimit.toNat - g₀
   let AStarₐ := -- (79)
     match T.base.recipient with
-      | some t => a.insert t
+      | some t =>
+        -- EIP-7702 (Prague): the delegation target of the recipient is warm.
+        let delegate :=
+          if fork.spec.eip7702 then delegationTarget? (σ₀.get? t |>.option .empty (·.code)) else none
+        match delegate with
+        | some d => (a.insert t).insert d
+        | none => a.insert t
       | none => a
   let AStar := -- (77)
-    { A0 with accessedAccounts := AStarₐ, accessedStorageKeys := Batteries.RBSet.ofList AStar_K Substate.storageKeysCmp}
+    { A0 fork with
+        accessedAccounts := AStarₐ
+        accessedStorageKeys := Batteries.RBSet.ofList AStar_K Substate.storageKeysCmp
+        refundBalance := .ofNat authRefund }
   let (/- provisional state -/ σ_P, g', A, z) ← -- (76)
     match T.base.recipient with
       | none => do
         match
           Lambda
+            fork
             σ₀
             σ₀
             AStar
@@ -1159,13 +1245,14 @@ def Υ
       | some t =>
         -- Proposition (71) suggests the recipient can be inexistent
         match
-          Θ σ₀
+          Θ fork
+            σ₀
             σ₀
             AStar
             S_T
             S_T
             t
-            (toExecute σ₀ t)
+            (toExecute fork σ₀ t)
             g
             p
             T.base.value
@@ -1180,6 +1267,10 @@ def Υ
           | (σ_P, g',  A, z, _) => pure (σ_P, g', A, z)
   -- The amount to be refunded (82)
   let gStar := g' + min ((T.base.gasLimit - g') / ⟨5⟩) A.refundBalance
+  -- EIP-7623 (Prague): the gas used is at least the calldata floor.
+  let floor := EVM.calldataFloorGas fork T
+  let gStar :=
+    if T.base.gasLimit.toNat - gStar.toNat < floor then T.base.gasLimit - .ofNat floor else gStar
   -- The pre-final state (83)
   let σStar :=
     σ_P.increaseBalance S_T (gStar * p)

@@ -8,7 +8,7 @@ modulo parametricity.
 
 import Ethereum.Operations
 
-import Conform.Wheels
+import Mathlib.Data.Multiset.Sort
 
 namespace Ethereum
 
@@ -22,6 +22,11 @@ def Operation.pretty (self : Operation) : String :=
   let reprStr := ToString.toString <| repr self
   let lastComponent := reprStr.splitOn "." |>.getLast!
   (lastComponent.take lastComponent.length.pred).toString
+
+def computeToList! {α}
+                   [LE α] [IsTrans α (· ≤ ·)] [Std.Antisymm (α := α) (· ≤ ·)] [Std.Total (α := α) (· ≤ ·)]
+                   [DecidableRel (α := α) (· ≤ ·)] (m : Multiset α) : List α :=
+  m.sort (· ≤ ·)
 
 /--
 `Finmap`s are not very computation-friendly and so the API is ever so slightly meh;

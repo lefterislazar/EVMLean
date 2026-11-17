@@ -58,10 +58,11 @@ structure Substate where
   deriving BEq, Inhabited, Repr
 
 /--
-  (63) `A0 ≡ (∅, (), ∅, 0, π, ∅)` for the original substate fields.
+  (63) `A0 ≡ (∅, (), ∅, 0, π, ∅)` for the original substate fields, where the
+  precompile set `π` depends on the fork.
   `createdAccounts` starts empty.
 -/
-def A0 : Substate := { (default : Substate) with accessedAccounts := π }
+def A0 (fork : Fork) : Substate := { (default : Substate) with accessedAccounts := π fork }
 
 -- See the Bloom filter function M
 def bloomFilter (a : Array ByteArray) : ByteArray  :=

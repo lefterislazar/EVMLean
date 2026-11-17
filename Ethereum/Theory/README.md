@@ -6,6 +6,10 @@ component.
 
 ## Files
 
+- [`PrecompileLemmas.lean`](PrecompileLemmas.lean) collects facts that hold
+  for every precompiled contract, lifted to the dispatch `Ξ_PRECOMPILE` with
+  `Ξ_PRECOMPILE_induction`.
+
 - [`OpcodeLemmas.lean`](OpcodeLemmas.lean) gives explicit characterizations of
   `step` for individual opcodes. These results provide a convenient starting
   point for proofs about concrete instructions.
@@ -39,6 +43,9 @@ component.
 - [`StaticStorage.lean`](StaticStorage.lean) proves preservation results for
   static execution, including that static calls preserve persistent storage,
   transient storage, and account code.
+
+The theorems are fork-parametric: they quantify over the active `Fork`, so
+they hold for Cancun, Prague, Osaka and the blob-parameter-only forks alike.
 
 All modules are imported by `Ethereum.lean`. The directory is active proof
 development, so theorem interfaces and file boundaries may still change.

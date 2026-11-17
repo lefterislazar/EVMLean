@@ -52,6 +52,11 @@ inductive BlockException where
   | INVALID_LOG_BLOOM
   | INVALID_TRANSACTIONS_ROOT
   | INVALID_RECEIPTS_ROOT
+  | RLP_BLOCK_LIMIT_EXCEEDED
+  | INVALID_REQUESTS
+  | INVALID_DEPOSIT_EVENT_LAYOUT
+  | SYSTEM_CONTRACT_EMPTY
+  | SYSTEM_CONTRACT_CALL_FAILED
 
 instance : Repr BlockException where
   reprPrec s _ :=
@@ -80,6 +85,11 @@ instance : Repr BlockException where
       | .INVALID_LOG_BLOOM => "INVALID_LOG_BLOOM"
       | .INVALID_TRANSACTIONS_ROOT => "INVALID_TRANSACTIONS_ROOT"
       | .INVALID_RECEIPTS_ROOT => "INVALID_RECEIPTS_ROOT"
+      | .RLP_BLOCK_LIMIT_EXCEEDED => "RLP_BLOCK_LIMIT_EXCEEDED"
+      | .INVALID_REQUESTS => "INVALID_REQUESTS"
+      | .INVALID_DEPOSIT_EVENT_LAYOUT => "INVALID_DEPOSIT_EVENT_LAYOUT"
+      | .SYSTEM_CONTRACT_EMPTY => "SYSTEM_CONTRACT_EMPTY"
+      | .SYSTEM_CONTRACT_CALL_FAILED => "SYSTEM_CONTRACT_CALL_FAILED"
 
 inductive TransactionException where
   | IllFormedRLP
@@ -102,6 +112,13 @@ inductive TransactionException where
   | TYPE_3_TX_CONTRACT_CREATION
   | GASLIMIT_PRICE_PRODUCT_OVERFLOW
   | RLP_INVALID_VALUE
+  | GAS_LIMIT_EXCEEDS_MAXIMUM
+  | TYPE_4_TX_PRE_FORK
+  | TYPE_4_EMPTY_AUTHORIZATION_LIST
+  | TYPE_4_TX_CONTRACT_CREATION
+  | INVALID_CHAINID
+  | INTRINSIC_GAS_BELOW_FLOOR_GAS_COST
+  | TYPE_4_INVALID_AUTHORIZATION_FORMAT
 
 /--
   TYPE_NOT_SUPPORTED - No "Cancun" test needs this
@@ -130,14 +147,19 @@ instance : Repr TransactionException where
       | .TYPE_3_TX_CONTRACT_CREATION => "TYPE_3_TX_CONTRACT_CREATION"
       | .GASLIMIT_PRICE_PRODUCT_OVERFLOW => "GASLIMIT_PRICE_PRODUCT_OVERFLOW"
       | .RLP_INVALID_VALUE => "RLP_INVALID_VALUE"
+      | .GAS_LIMIT_EXCEEDS_MAXIMUM => "GAS_LIMIT_EXCEEDS_MAXIMUM"
+      | .TYPE_4_TX_PRE_FORK => "TYPE_4_TX_PRE_FORK"
+      | .TYPE_4_EMPTY_AUTHORIZATION_LIST => "TYPE_4_EMPTY_AUTHORIZATION_LIST"
+      | .TYPE_4_TX_CONTRACT_CREATION => "TYPE_4_TX_CONTRACT_CREATION"
+      | .INVALID_CHAINID => "INVALID_CHAINID"
+      | .INTRINSIC_GAS_BELOW_FLOOR_GAS_COST => "INTRINSIC_GAS_BELOW_FLOOR_GAS_COST"
+      | .TYPE_4_INVALID_AUTHORIZATION_FORMAT => "TYPE_4_INVALID_AUTHORIZATION_FORMAT"
 
 inductive Exception where
   | ExecutionException :     ExecutionException → Exception
   | NotEncodableRLP :                             Exception
   | TransactionException : TransactionException → Exception
-  | SenderRecoverError :                 String → Exception
   | BlockException :             BlockException → Exception
-  | MissedExpectedException :       List String → Exception
 
 instance : Repr Exception where
   reprPrec s _ :=
@@ -145,10 +167,7 @@ instance : Repr Exception where
       | .ExecutionException ee =>       "Execution exception: " ++ repr ee
       | .NotEncodableRLP =>             "NotEncodableRLP"
       | .TransactionException e =>      "TransactionException." ++ repr e
-      | .SenderRecoverError s =>        "SenderRecoverError." ++ s
       | .BlockException be =>           "BlockException." ++ repr be
-      | .MissedExpectedException mee =>
-        "Missed expected exception: " ++ String.intercalate "|" mee
 
 end EVM
 

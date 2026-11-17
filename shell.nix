@@ -11,6 +11,7 @@ pkgs.mkShell {
     python312Packages.pycryptodome
     python312Packages.eth-typing
     python312Packages.py-ecc
+    python312Packages.cryptography
     pkgs.openssl
   ];
   shellHook = ''

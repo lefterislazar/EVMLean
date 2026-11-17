@@ -6,6 +6,8 @@ namespace Ethereum
 
 namespace EVM
 
+variable {fork : Fork}
+
 /--
 The largest number of EVM memory words whose Yellow-Paper memory cost can be paid with a
 `UInt256` amount of gas.
@@ -2518,7 +2520,7 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
     (blobVersionedHashes : List ByteArray)
     (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Lambda σ σ₀ A
+    (Lambda fork σ σ₀ A
       s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
   let n : UInt256 := (σ.get? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
   let lₐ := Lambda.L_A s n ζ i
@@ -2545,7 +2547,7 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
   let exEnv : ExecutionEnv :=
     { codeOwner := a, sender := o, source := s, weiValue := v, calldata := default,
       code := initCode, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
   unfold Lambda
   simp only
   exact (by
@@ -2561,7 +2563,7 @@ lemma lambda_projection_output_size_lt_uint256
     (blobVersionedHashes : List ByteArray)
     (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Lambda σ σ₀ A
+    (Lambda fork σ σ₀ A
       s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (lambda_projection_output_size_le_maxReturnDataSizeByGas
@@ -2577,7 +2579,7 @@ lemma lambda_output_size_eq_zero_of_success
     {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
-    (h : Lambda σ σ₀ A
+    (h : Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', true, out)) :
     out.size = 0 := by
   unfold Lambda at h
@@ -2599,7 +2601,7 @@ lemma lambda_output_size_le_zero_of_success
     {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
-    (h : Lambda σ σ₀ A
+    (h : Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', true, out)) :
     out.size ≤ 0 := by
   exact Nat.le_of_eq (lambda_output_size_eq_zero_of_success h)
@@ -2612,25 +2614,25 @@ lemma lambda_projection_output_size_eq_zero_of_success
     (blocks : ProcessedBlocks)
     (w : Bool)
     (hz :
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.1 = true) :
-    (Lambda σ σ₀ A
+    (Lambda fork σ σ₀ A
       s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size = 0 := by
   exact lambda_output_size_eq_zero_of_success
     (a :=
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).1)
     (σ' :=
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.1)
     (g' :=
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.2.1)
     (A' :=
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.1)
     (out :=
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2)
     (by
       rw [← hz])
@@ -2644,14 +2646,14 @@ lemma lambda_output_size_le_maxReturnDataSizeByGas
     {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Lambda σ σ₀ A
+    (h : Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   by_cases hz : z = true
   · subst z
     exact Nat.le_trans (lambda_output_size_le_zero_of_success h) (Nat.zero_le _)
   have hout : out =
-      (Lambda σ σ₀ A
+      (Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2 := by
     have hp := congrArg (fun x => x.2.2.2.2.2) h
     simpa using hp.symm
@@ -2668,7 +2670,7 @@ lemma lambda_output_size_lt_uint256
     {w : Bool}
     {a : AccountAddress}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Lambda σ σ₀ A
+    (h : Lambda fork σ σ₀ A
         s o g p v i e ζ H blobVersionedHashes blocks w = (a, σ', g', A', z, out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
@@ -2682,7 +2684,7 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
     (blobVersionedHashes : List ByteArray)
     (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Θ σ σ₀ A s o r
+    (Θ fork σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
   let σ'₁ :=
@@ -2702,7 +2704,7 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
       source := s, weiValue := v', depth := e, perm := w, code := code,
-      header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+      header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
   unfold Θ
   simp only
   exact (by
@@ -2716,7 +2718,7 @@ lemma theta_code_projection_output_size_lt_uint256
     (blobVersionedHashes : List ByteArray)
     (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Θ σ σ₀ A s o r
+    (Θ fork σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (theta_code_projection_output_size_le_maxReturnDataSizeByGas
@@ -2732,12 +2734,12 @@ lemma theta_code_output_size_le_maxReturnDataSizeByGas
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
+    (h : Θ fork σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   have hout : out =
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2 := by
     have hp := congrArg (fun x => x.2.2.2.2) h
     simpa using hp.symm
@@ -2754,7 +2756,7 @@ lemma theta_code_output_size_lt_uint256
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
+    (h : Θ fork σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out)) :
     out.size < UInt256.size := by
@@ -2770,9 +2772,9 @@ lemma theta_toExecute_nonprecompile_output_size_le_maxReturnDataSizeByGas
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (hnot : r ∉ π)
-    (h : Θ σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+    (hnot : r ∉ π fork)
+    (h : Θ fork σ σ₀ A s o r
+        (toExecute fork σ r) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold toExecute at h
@@ -2795,9 +2797,9 @@ lemma theta_toExecute_nonprecompile_output_size_lt_uint256
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (hnot : r ∉ π)
-    (h : Θ σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+    (hnot : r ∉ π fork)
+    (h : Θ fork σ σ₀ A s o r
+        (toExecute fork σ r) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
@@ -2830,47 +2832,21 @@ lemma expModAux_lt {m : Nat} (hm : 0 < m) :
           · apply ih (k.succ / 2)
             exact Nat.div_lt_self (Nat.succ_pos k) (by decide : 1 < 2)
 
-lemma expMod_lt {m : Nat} (hm : 0 < m) (b : UInt256) (n : Nat) :
+lemma expMod_lt {m : Nat} (hm : 0 < m) (b : Nat) (n : Nat) :
     expMod m b n < m := by
   unfold expMod
-  exact expModAux_lt hm n 1 b.toNat
-
-private def expmodVariableCost (data : ByteArray) : Nat :=
-  let base_length := nat_of_slice data 0 32
-  let exp_length := nat_of_slice data 32 32
-  let modulus_length := nat_of_slice data 64 32
-  let exp := fun () => nat_of_slice data (96 + base_length) exp_length
-  let multiplication_complexity := fun x y : Nat => ((max x y + 7) / 8) ^ 2
-  let adjusted_exp_length :=
-    if exp_length ≤ 32 ∧ exp () = 0 then
-      0
-    else if exp_length ≤ 32 then
-      Nat.log 2 (exp ())
-    else
-      let length_part := 8 * (exp_length - 32)
-      let bits_part :=
-        let exp_head := nat_of_slice data (96 + base_length) 32
-        if 32 < exp_length ∧ exp_head ≠ 0 then
-          Nat.log 2 exp_head
-        else
-          0
-      length_part + bits_part
-  let iterations := max adjusted_exp_length 1
-  multiplication_complexity base_length modulus_length * iterations / 3
-
-private def expmodGasCost (data : ByteArray) : Nat :=
-  max 200 (expmodVariableCost data)
+  exact expModAux_lt hm n 1 b
 
 lemma BE_expMod_size_le_modulus_length
     (data : ByteArray) (base_length exp_length modulus_length : Nat)
     (hmod :
       0 < nat_of_slice data (96 + base_length + exp_length) modulus_length) :
     (BE (expMod (nat_of_slice data (96 + base_length + exp_length) modulus_length)
-      (.ofNat (nat_of_slice data 96 base_length))
+      (nat_of_slice data 96 base_length)
       (nat_of_slice data (96 + base_length) exp_length))).size ≤ modulus_length := by
   have hmodlt := nat_of_slice_lt data (96 + base_length + exp_length) modulus_length
   exact BE_le (Nat.lt_trans
-    (expMod_lt hmod (.ofNat (nat_of_slice data 96 base_length))
+    (expMod_lt hmod (nat_of_slice data 96 base_length)
       (nat_of_slice data (96 + base_length) exp_length))
     hmodlt)
 
@@ -2905,130 +2881,70 @@ private lemma EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_cost_lt
     exact Nat.div_le_div_right (Nat.le_trans hksq hiter)
   omega
 
-private lemma EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_gas
-    (data : ByteArray) (g : UInt256)
-    (hgas : ¬ (g.toNat < 200 ∨ g.toNat < expmodVariableCost data)) :
+/-- A satisfiable `EXPMOD` gas requirement bounds the modulus length: from Osaka
+    by EIP-7823, and before by the cost of the multiplication. -/
+private lemma EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_required
+    (fork : Fork) (data : ByteArray) (gᵣ : Nat)
+    (hreq : expmodRequiredGas fork data = some gᵣ) (hlt : gᵣ < UInt256.size) :
     nat_of_slice data 64 32 ≤ maxReturnDataSizeByGas := by
-  let base_length := nat_of_slice data 0 32
-  let exp_length := nat_of_slice data 32 32
-  let modulus_length := nat_of_slice data 64 32
-  let exp := fun () => nat_of_slice data (96 + base_length) exp_length
-  let multiplication_complexity := fun x y : Nat => ((max x y + 7) / 8) ^ 2
-  let adjusted_exp_length :=
-    if exp_length ≤ 32 && exp () == 0 then
-      0
-    else if exp_length ≤ 32 then
-      Nat.log 2 (exp ())
-    else
-      let length_part := 8 * (exp_length - 32)
-      let bits_part :=
-        let exp_head := nat_of_slice data (96 + base_length) 32
-        if 32 < exp_length ∧ exp_head != 0 then
-          Nat.log 2 exp_head
-        else
-          0
-      length_part + bits_part
-  let iterations := max adjusted_exp_length 1
-  let cost := multiplication_complexity base_length modulus_length * iterations / 3
-  have hcost_le_g :
-      cost ≤ g.toNat := by
-    apply Nat.le_of_not_gt
-    intro hcost
-    apply hgas
-    right
-    simpa [base_length, exp_length, modulus_length, exp, multiplication_complexity,
-      adjusted_exp_length, iterations, cost, expmodVariableCost] using hcost
-  have hcost_lt : cost < UInt256.size :=
-    Nat.lt_of_le_of_lt hcost_le_g g.val.isLt
-  have hiterations : 1 ≤ iterations := by
-    exact le_max_right adjusted_exp_length 1
-  exact EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_cost_lt
-    base_length modulus_length iterations hiterations hcost_lt
+  have h64 := pow_two_64_le_maxReturnDataSizeByGas
+  unfold expmodRequiredGas at hreq
+  dsimp only at hreq
+  by_cases h7823 : fork.spec.eip7823 = true
+  · by_cases hbig : nat_of_slice data 64 32 > 1024
+    · simp [h7823, hbig] at hreq
+    · omega
+  · have h7883 : fork.spec.eip7883 = false := by
+      cases h : fork.spec.eip7883
+      · rfl
+      · exact absurd (Fork.eip7823_of_eip7883 h) h7823
+    simp only [h7823, h7883, Bool.false_eq_true, false_and, if_false, Option.some.injEq] at hreq
+    apply EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_cost_lt
+      (nat_of_slice data 0 32) (nat_of_slice data 64 32)
+      (max (expmodAdjustedExponentLength fork data (nat_of_slice data 0 32)
+        (nat_of_slice data 32 32)) 1)
+      (le_max_right _ _)
+    rw [← hreq] at hlt
+    exact Nat.lt_of_le_of_lt (le_max_right _ _) hlt
 
 lemma precompile_EXPMOD_output_size_le_modulus_length
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
     (Ξ_EXPMOD σ g A I).2.2.2.size ≤ nat_of_slice I.calldata 64 32 := by
-  by_cases hgas : g.toNat < 200 ∨ g.toNat < expmodVariableCost I.calldata
-  ·
-    have hgasImpl := hgas
-    simp only [expmodVariableCost] at hgasImpl
-    simp [Ξ_EXPMOD, hgasImpl]
-  ·
-    have hgasImpl := hgas
-    simp only [expmodVariableCost] at hgasImpl
-    let data := I.calldata
-    let base_length := nat_of_slice data 0 32
-    let exp_length := nat_of_slice data 32 32
-    let modulus_length := nat_of_slice data 64 32
-    let modulus := nat_of_slice data (96 + base_length + exp_length) modulus_length
-    by_cases hzero : modulus_length == 0 || modulus == 0
-    · simp [Ξ_EXPMOD, hgasImpl, data, base_length, exp_length,
-        modulus_length, modulus, hzero,
-        ByteArray_zeroes_size]
-    ·
-      have hmod_ne : modulus ≠ 0 := by
-        intro hz
-        apply hzero
-        simp [hz]
-      have hmod_pos : 0 < modulus := Nat.pos_of_ne_zero hmod_ne
-      have hbase_size :
-          (BE (expMod modulus (.ofNat (nat_of_slice data 96 base_length))
-            (nat_of_slice data (96 + base_length) exp_length))).size ≤ modulus_length := by
-        simpa [data, base_length, exp_length, modulus_length, modulus] using
-          BE_expMod_size_le_modulus_length data base_length exp_length modulus_length hmod_pos
-      by_cases hpad :
-          modulus_length ≥
-            (BE (expMod modulus (.ofNat (nat_of_slice data 96 base_length))
-              (nat_of_slice data (96 + base_length) exp_length))).size
-      · simp [Ξ_EXPMOD, hgasImpl, data, base_length, exp_length,
-          modulus_length, modulus, hzero, hpad]
-        rw [ByteArray_zeroes_size]
-        have hzero_size :
-            ((OfNat.ofNat modulus_length : USize) -
-              (OfNat.ofNat
-                (BE (expMod modulus (.ofNat (nat_of_slice data 96 base_length))
-                  (nat_of_slice data (96 + base_length) exp_length))).size : USize)).toNat ≤
-              modulus_length -
-                (BE (expMod modulus (.ofNat (nat_of_slice data 96 base_length))
-                  (nat_of_slice data (96 + base_length) exp_length))).size :=
-          USize.toNat_ofBitVec_sub_ofNat_le hbase_size
-        have hzero_size' :
-            ((OfNat.ofNat (nat_of_slice I.calldata 64 32) : USize) -
-              (OfNat.ofNat
-                (BE (expMod
-                  (nat_of_slice I.calldata
-                    (96 + nat_of_slice I.calldata 0 32 + nat_of_slice I.calldata 32 32)
-                    (nat_of_slice I.calldata 64 32))
-                  (.ofNat (nat_of_slice I.calldata 96 (nat_of_slice I.calldata 0 32)))
-                  (nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32)
-                    (nat_of_slice I.calldata 32 32)))).size : USize)).toNat ≤
-              nat_of_slice I.calldata 64 32 -
-                (BE (expMod
-                  (nat_of_slice I.calldata
-                    (96 + nat_of_slice I.calldata 0 32 + nat_of_slice I.calldata 32 32)
-                    (nat_of_slice I.calldata 64 32))
-                  (.ofNat (nat_of_slice I.calldata 96 (nat_of_slice I.calldata 0 32)))
-                  (nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32)
-                    (nat_of_slice I.calldata 32 32)))).size := by
-          simpa [data, base_length, exp_length, modulus_length, modulus] using hzero_size
-        have hbase_size' :
-            (BE (expMod
-              (nat_of_slice I.calldata
-                (96 + nat_of_slice I.calldata 0 32 + nat_of_slice I.calldata 32 32)
-                (nat_of_slice I.calldata 64 32))
-              (.ofNat (nat_of_slice I.calldata 96 (nat_of_slice I.calldata 0 32)))
-              (nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32)
-                (nat_of_slice I.calldata 32 32)))).size ≤
-              nat_of_slice I.calldata 64 32 := by
-          simpa [data, base_length, exp_length, modulus_length, modulus] using hbase_size
-        omega
-      · rw [Ξ_EXPMOD]
-        rw [if_neg (by
-          intro hg
-          apply hgas
-          simpa [expmodVariableCost] using hg)]
-        simp only [data, base_length, exp_length, modulus_length, modulus, hzero, hpad]
-        simpa [data, base_length, exp_length, modulus_length, modulus] using hbase_size
+  unfold Ξ_EXPMOD
+  dsimp only
+  cases hreq : expmodRequiredGas I.fork I.calldata with
+  | none => simp
+  | some gᵣ =>
+    by_cases hgas : g.toNat < gᵣ
+    · simp [hgas]
+    · split
+      · rename_i heq; cases heq
+      rename_i g' heq
+      injection heq with heq
+      subst heq
+      simp only [hgas, if_false]
+      let data := I.calldata
+      let base_length := nat_of_slice data 0 32
+      let exp_length := nat_of_slice data 32 32
+      let modulus_length := nat_of_slice data 64 32
+      let modulus := nat_of_slice data (96 + base_length + exp_length) modulus_length
+      let expBase := BE (expMod modulus (nat_of_slice data 96 base_length)
+        (nat_of_slice data (96 + base_length) exp_length))
+      by_cases hzero : modulus_length == 0 || modulus == 0
+      · have hz : (modulus_length == 0 || modulus == 0) = true := hzero
+        simp only [data, base_length, exp_length, modulus_length, modulus] at hz
+        simp [hz, ByteArray_zeroes_size]
+      · have hz : (modulus_length == 0 || modulus == 0) = false := by simpa using hzero
+        have hmod_ne : modulus ≠ 0 := by
+          intro h0; apply hzero; simp [h0]
+        have hbase_size : expBase.size ≤ modulus_length :=
+          BE_expMod_size_le_modulus_length data base_length exp_length modulus_length
+            (Nat.pos_of_ne_zero hmod_ne)
+        simp only [expBase, data, base_length, exp_length, modulus_length, modulus] at hz hbase_size
+        simp only [hz, Bool.false_eq_true, if_false]
+        split <;>
+          simp only [ByteArray.size_append, ByteArray_zeroes_size,
+            Nat.zero_add] <;> omega
 
 private def thetaValueTransferAccountMap
     (σ : AccountMap) (s r : AccountAddress) (v : UInt256) : AccountMap :=
@@ -3050,18 +2966,7 @@ private def precompileDispatchResult
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
     AccountMap × UInt256 × Substate × ByteArray :=
-  match pc with
-  | 1 => Ξ_ECREC σ g A I
-  | 2 => Ξ_SHA256 σ g A I
-  | 3 => Ξ_RIP160 σ g A I
-  | 4 => Ξ_ID σ g A I
-  | 5 => Ξ_EXPMOD σ g A I
-  | 6 => Ξ_BN_ADD σ g A I
-  | 7 => Ξ_BN_MUL σ g A I
-  | 8 => Ξ_SNARKV σ g A I
-  | 9 => Ξ_BLAKE2_F σ g A I
-  | 10 => Ξ_PointEval σ g A I
-  | _ => default
+  Ξ_PRECOMPILE pc σ g A I
 
 lemma precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3134,19 +3039,16 @@ lemma precompile_ID_output_size_le_maxReturnDataSizeByGas_or_calldata
 lemma precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
     (Ξ_EXPMOD σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
-  by_cases hgas : g.toNat < 200 ∨ g.toNat < expmodVariableCost I.calldata
-  ·
-    have hgasImpl := hgas
-    simp only [expmodVariableCost] at hgasImpl
-    simp [Ξ_EXPMOD, hgasImpl, maxReturnDataSizeByGas]
-  ·
-    have hmod :
-        nat_of_slice I.calldata 64 32 ≤ maxReturnDataSizeByGas :=
-      EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_gas I.calldata g hgas
-    have hout :
-        (Ξ_EXPMOD σ g A I).2.2.2.size ≤ nat_of_slice I.calldata 64 32 :=
-      precompile_EXPMOD_output_size_le_modulus_length
-    exact Nat.le_trans hout (Nat.le_trans hmod (le_max_left _ _))
+  cases hreq : expmodRequiredGas I.fork I.calldata with
+  | none => simp [Ξ_EXPMOD, hreq]
+  | some gᵣ =>
+    by_cases hgas : g.toNat < gᵣ
+    · simp [Ξ_EXPMOD, hreq, hgas]
+    · have hmod :=
+        EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_required I.fork I.calldata gᵣ hreq
+          (Nat.lt_of_le_of_lt (Nat.le_of_not_gt hgas) g.val.isLt)
+      exact Nat.le_trans precompile_EXPMOD_output_size_le_modulus_length
+        (Nat.le_trans hmod (le_max_left _ _))
 
 lemma BN_ADD_ok_output_size {x₀ y₀ x₁ y₁ s : ByteArray} :
     BN_ADD x₀ y₀ x₁ y₁ = .ok s → s.size = 64 := by
@@ -3250,46 +3152,63 @@ lemma precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
     | error e =>
         simp [dbgTrace, maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
-set_option maxRecDepth 65536 in
+lemma precompile_BLS12_381_output_size_le_maxReturnDataSizeByGas_or_calldata
+    {op : ℕ} {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
+    (Ξ_BLS12_381 op σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
+  have h64 := pow_two_64_le_maxReturnDataSizeByGas
+  unfold Ξ_BLS12_381
+  by_cases hgas : g.toNat < blsRequiredGas op I.calldata.size
+  · simp [hgas]
+  · simp only [hgas, if_false]
+    cases hres : BLS12_381 op (blsOutputSize op) I.calldata with
+    | ok out =>
+      have hs := BLS12_381_ok_size hres
+      have hle : blsOutputSize op ≤ 256 := by
+        unfold blsOutputSize; split <;> omega
+      exact le_max_of_le_left (by simp only; omega)
+    | error e => simp
+
+lemma P256Verify_ok_output_size_le {d out : ByteArray} :
+    P256Verify d = .ok out → out.size ≤ 32 := by
+  unfold P256Verify
+  split <;> intro h <;> cases h
+  · simp only [ByteArray.size_append, ByteArray_zeroes_size]
+    decide
+  · simp
+
+lemma precompile_P256VERIFY_output_size_le_maxReturnDataSizeByGas_or_calldata
+    {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
+    (Ξ_P256VERIFY σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
+  have h64 := pow_two_64_le_maxReturnDataSizeByGas
+  unfold Ξ_P256VERIFY
+  by_cases hgas : g.toNat < 6900
+  · simp [hgas]
+  · simp only [hgas, if_false]
+    cases hres : P256Verify I.calldata with
+    | ok out =>
+      have := P256Verify_ok_output_size_le hres
+      exact le_max_of_le_left (by simp only; omega)
+    | error e => simp [dbgTrace]
+
 lemma precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
     (precompileDispatchResult pc σ g A I).2.2.2.size ≤
-      max maxReturnDataSizeByGas I.calldata.size := by
-  unfold precompileDispatchResult
-  have hdispatch := precompile_dispatch_match_eq_if pc
-    (Ξ_ECREC σ g A I) (Ξ_SHA256 σ g A I) (Ξ_RIP160 σ g A I)
-    (Ξ_ID σ g A I) (Ξ_EXPMOD σ g A I) (Ξ_BN_ADD σ g A I)
-    (Ξ_BN_MUL σ g A I) (Ξ_SNARKV σ g A I) (Ξ_BLAKE2_F σ g A I)
-    (Ξ_PointEval σ g A I)
-    (default : AccountMap × UInt256 × Substate × ByteArray)
-  have hbound :
-      (if pc = 1 then Ξ_ECREC σ g A I
-       else if pc = 2 then Ξ_SHA256 σ g A I
-       else if pc = 3 then Ξ_RIP160 σ g A I
-       else if pc = 4 then Ξ_ID σ g A I
-       else if pc = 5 then Ξ_EXPMOD σ g A I
-       else if pc = 6 then Ξ_BN_ADD σ g A I
-       else if pc = 7 then Ξ_BN_MUL σ g A I
-       else if pc = 8 then Ξ_SNARKV σ g A I
-       else if pc = 9 then Ξ_BLAKE2_F σ g A I
-       else if pc = 10 then Ξ_PointEval σ g A I
-       else default).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
-    split_ifs
-    · exact precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_ID_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · exact precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
-    · change 0 ≤ max maxReturnDataSizeByGas I.calldata.size
-      exact Nat.zero_le _
-  exact (congrArg (fun x : AccountMap × UInt256 × Substate × ByteArray =>
-    x.2.2.2.size) hdispatch).symm ▸ hbound
+      max maxReturnDataSizeByGas I.calldata.size :=
+  Ξ_PRECOMPILE_induction (fun r => r.2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size)
+    precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_ID_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_BN_ADD_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_BN_MUL_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_SNARKV_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_BLAKE2_F_output_size_le_maxReturnDataSizeByGas_or_calldata
+    precompile_PointEval_output_size_le_maxReturnDataSizeByGas_or_calldata
+    (fun _ => precompile_BLS12_381_output_size_le_maxReturnDataSizeByGas_or_calldata)
+    precompile_P256VERIFY_output_size_le_maxReturnDataSizeByGas_or_calldata
+    (Nat.zero_le _)
 
 private lemma theta_precompiled_output_eq
     (σ σ₀ : AccountMap) (A : Substate) (s o r pc : AccountAddress)
@@ -3298,13 +3217,13 @@ private lemma theta_precompiled_output_eq
     (blobVersionedHashes : List ByteArray)
     (blocks : ProcessedBlocks)
     (w : Bool) :
-    (Θ σ σ₀ A s o r
+    (Θ fork σ σ₀ A s o r
         (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2 =
       (let σ₁ := thetaValueTransferAccountMap σ s r v
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
        let result := precompileDispatchResult pc σ₁ g A I
        result.2.2.2) := by
   unfold Θ thetaValueTransferAccountMap
@@ -3319,7 +3238,7 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
-    Θ σ σ₀ A s o r
+    Θ fork σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out) →
     out.size ≤ max maxReturnDataSizeByGas d.size := by
@@ -3330,14 +3249,14 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
         (σ', g', A', z, out)).size ≤
     max maxReturnDataSizeByGas d.size
   rw [← congrArg ByteArray.size hout]
-  change (Θ σ σ₀ A s o r
+  change (Θ fork σ σ₀ A s o r
       (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
     max maxReturnDataSizeByGas d.size
   rw [theta_precompiled_output_eq σ σ₀ A s o r pc d g p v v' e H blobVersionedHashes blocks w]
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
       code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
   have hdispatch := precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata pc
     (thetaValueTransferAccountMap σ s r v) g A I
   simpa [I] using hdispatch
@@ -3350,7 +3269,7 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
-    Θ σ σ₀ A s o r
+    Θ fork σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out) →
     d.size ≤ maxReturnDataSizeByGas →
@@ -3368,7 +3287,7 @@ lemma theta_precompiled_output_size_lt_uint256
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray} :
-    Θ σ σ₀ A s o r
+    Θ fork σ σ₀ A s o r
         (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out) →
     d.size < UInt256.size →
@@ -3386,7 +3305,7 @@ lemma theta_output_size_le_maxReturnDataSizeByGas_or_calldata
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
+    (h : Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out)) :
     out.size ≤ max maxReturnDataSizeByGas d.size := by
@@ -3406,7 +3325,7 @@ lemma theta_output_size_le_maxReturnDataSizeByGas
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
+    (h : Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out))
     (hd : d.size ≤ maxReturnDataSizeByGas) :
@@ -3425,7 +3344,7 @@ lemma theta_output_size_lt_uint256
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
+    (h : Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out))
     (hd : d.size < UInt256.size) :
@@ -3442,8 +3361,8 @@ lemma theta_toExecute_output_size_le_maxReturnDataSizeByGas
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+    (h : Θ fork σ σ₀ A s o r
+        (toExecute fork σ r) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out))
     (hd : d.size ≤ maxReturnDataSizeByGas) :
     out.size ≤ maxReturnDataSizeByGas := by
@@ -3457,8 +3376,8 @@ lemma theta_toExecute_output_size_lt_uint256
     {blocks : ProcessedBlocks}
     {w : Bool}
     {σ' : AccountMap} {g' : UInt256} {A' : Substate} {z : Bool} {out : ByteArray}
-    (h : Θ σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w =
+    (h : Θ fork σ σ₀ A s o r
+        (toExecute fork σ r) g p v v' d e H blobVersionedHashes blocks w =
         (σ', g', A', z, out))
     (hd : d.size < UInt256.size) :
     out.size < UInt256.size := by
@@ -3472,23 +3391,23 @@ lemma theta_projection_output_size_le_maxReturnDataSizeByGas
     (blocks : ProcessedBlocks)
     (w : Bool)
     (hd : d.size ≤ maxReturnDataSizeByGas) :
-    (Θ σ σ₀ A s o r
+    (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤ maxReturnDataSizeByGas := by
   exact theta_output_size_le_maxReturnDataSizeByGas
     (σ' :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).1)
     (g' :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.1)
     (A' :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.1)
     (z :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.2.1)
     (out :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2)
     rfl hd
 
@@ -3500,23 +3419,23 @@ lemma theta_projection_output_size_lt_uint256
     (blocks : ProcessedBlocks)
     (w : Bool)
     (hd : d.size < UInt256.size) :
-    (Θ σ σ₀ A s o r
+    (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
   exact theta_output_size_lt_uint256
     (σ' :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).1)
     (g' :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.1)
     (A' :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.1)
     (z :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.2.1)
     (out :=
-      (Θ σ σ₀ A s o r
+      (Θ fork σ σ₀ A s o r
         c g p v v' d e H blobVersionedHashes blocks w).2.2.2.2)
     rfl hd
 
@@ -3528,11 +3447,11 @@ lemma theta_toExecute_projection_output_size_le_maxReturnDataSizeByGas
     (blocks : ProcessedBlocks)
     (w : Bool)
     (hd : d.size ≤ maxReturnDataSizeByGas) :
-    (Θ σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
+    (Θ fork σ σ₀ A s o r
+        (toExecute fork σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
   exact theta_projection_output_size_le_maxReturnDataSizeByGas
-    σ σ₀ A s o r (toExecute σ r) d g p v v' e H blobVersionedHashes blocks w hd
+    σ σ₀ A s o r (toExecute fork σ r) d g p v v' e H blobVersionedHashes blocks w hd
 
 lemma theta_toExecute_projection_output_size_lt_uint256
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
@@ -3542,10 +3461,10 @@ lemma theta_toExecute_projection_output_size_lt_uint256
     (blocks : ProcessedBlocks)
     (w : Bool)
     (hd : d.size < UInt256.size) :
-    (Θ σ σ₀ A s o r
-        (toExecute σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
+    (Θ fork σ σ₀ A s o r
+        (toExecute fork σ r) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size < UInt256.size := by
   exact theta_projection_output_size_lt_uint256
-    σ σ₀ A s o r (toExecute σ r) d g p v v' e H blobVersionedHashes blocks w hd
+    σ σ₀ A s o r (toExecute fork σ r) d g p v v' e H blobVersionedHashes blocks w hd
 
 set_option linter.unusedSimpArgs false in
 lemma call_returnData_size_le_maxReturnDataSizeByGas
@@ -3572,13 +3491,13 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
       simpa using
         (theta_projection_output_size_le_maxReturnDataSizeByGas
           evmState.accountMap evmState.σ₀
-          (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
+          (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
-          (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+          (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
           (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (.ofNat
-            (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
+            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
               evmState.accountMap evmState.machineState evmState.substate))
           (.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header

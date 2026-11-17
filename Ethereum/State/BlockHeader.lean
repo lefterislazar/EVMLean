@@ -1,5 +1,6 @@
 import Ethereum.UInt256
 import Ethereum.Wheels
+import Ethereum.Fork
 
 namespace Ethereum
 
@@ -23,7 +24,8 @@ namespace Ethereum
 `nonce`         `n` [deprecated]
 `baseFeePerGas` `f`
 `withdrawalsRoot` (EIP-4895)
-`parentBeaconBlockRoot` (EIP-4877)
+`parentBeaconBlockRoot` (EIP-4788)
+`requestsHash` (EIP-7685, Prague)
 -/
 structure BlockHeader where
   parentHash    : UInt256
@@ -47,6 +49,9 @@ structure BlockHeader where
   withdrawalsRoot : ByteArray
   blobGasUsed     : UInt64
   excessBlobGas   : UInt64
+  /-- EIP-7685 commitment to the block's execution-layer requests. Present
+      exactly on Prague and later headers. -/
+  requestsHash    : Option ByteArray := none
 deriving DecidableEq, Inhabited, Repr, BEq
 
 def prettyDifference (h₁ h₂ : BlockHeader) : String := Id.run do
@@ -71,16 +76,9 @@ def prettyDifference (h₁ h₂ : BlockHeader) : String := Id.run do
   if h₁.withdrawalsRoot != h₂.withdrawalsRoot then result := result ++ "different withdrawalsRoot\n"
   if h₁.blobGasUsed != h₂.blobGasUsed then result := result ++ "different blobGasUsed\n"
   if h₁.excessBlobGas != h₂.excessBlobGas then result := result ++ "different excessBlobGas\n"
+  if h₁.requestsHash != h₂.requestsHash then result := result ++ "different requestsHash\n"
 
   result
-
-def TARGET_BLOB_GAS_PER_BLOCK := 393216
-
-def calcExcessBlobGas (parent : BlockHeader) : Option UInt64 := do
-  if parent.excessBlobGas.toNat + parent.blobGasUsed.toNat < TARGET_BLOB_GAS_PER_BLOCK then
-    pure ⟨0⟩
-  else
-    pure <| .ofNat <| parent.excessBlobGas.toNat + parent.blobGasUsed.toNat - TARGET_BLOB_GAS_PER_BLOCK
 
 -- See https://eips.ethereum.org/EIPS/eip-4844#gas-accounting
 partial def fakeExponential0 (i output factor numerator denominator : ℕ) : (numeratorAccum : ℕ) → ℕ
@@ -96,12 +94,36 @@ def fakeExponential (factor numerator denominator : ℕ) : ℕ :=
   fakeExponential0 1 0 factor numerator denominator (factor * denominator)
 
 def MIN_BASE_FEE_PER_BLOB_GAS := 1
-def BLOB_BASE_FEE_UPDATE_FRACTION := 3338477
 
-def BlockHeader.getBlobGasprice (h : BlockHeader) : ℕ :=
+/-- EIP-4844 blob base fee of a block, under the blob schedule of `fork`. -/
+def BlockHeader.getBlobGasprice (fork : Fork) (h : BlockHeader) : ℕ :=
   fakeExponential
     MIN_BASE_FEE_PER_BLOB_GAS
     h.excessBlobGas.toNat
-    BLOB_BASE_FEE_UPDATE_FRACTION
+    fork.spec.blobSchedule.baseFeeUpdateFraction
+
+/-- EIP-7918 (Osaka): the cost of execution gas that bounds blob gas pricing. -/
+def BLOB_BASE_COST : ℕ := 2 ^ 13
+
+/--
+The expected `excessBlobGas` of a block at `fork` whose parent is `parent`
+(EIP-4844, EIP-7691). The schedule of the child's fork applies to the parent
+as well, which handles the first block after a schedule change. From Osaka on,
+EIP-7918 stops the excess from decreasing while blob gas is priced below the
+reserve price `BLOB_BASE_COST * baseFee`.
+-/
+def calcExcessBlobGas (fork : Fork) (parent : BlockHeader) : UInt64 :=
+  let schedule := fork.spec.blobSchedule
+  let accumulated := parent.excessBlobGas.toNat + parent.blobGasUsed.toNat
+  if accumulated < schedule.targetBlobGas then
+    ⟨0⟩
+  else if fork.spec.eip7918 ∧
+      BLOB_BASE_COST * parent.baseFeePerGas >
+        GAS_PER_BLOB * parent.getBlobGasprice fork then
+    .ofNat <|
+      parent.excessBlobGas.toNat +
+        parent.blobGasUsed.toNat * (schedule.maxBlobs - schedule.targetBlobs) / schedule.maxBlobs
+  else
+    .ofNat <| accumulated - schedule.targetBlobGas
 
 end Ethereum

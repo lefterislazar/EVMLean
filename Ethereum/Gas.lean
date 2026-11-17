@@ -52,7 +52,7 @@ def Wverylow : List (Operation) := [
     ]
 
 def Wlow : List (Operation) := [
-  .MUL, .DIV, .SDIV, .MOD, .SMOD, .SIGNEXTEND, .SELFBALANCE
+  .MUL, .DIV, .SDIV, .MOD, .SMOD, .SIGNEXTEND, .SELFBALANCE, .CLZ
 ]
 
 def Wmid : List (Operation) := [
@@ -167,32 +167,44 @@ def Cnew (t : AccountAddress) (val : UInt256) (σ : AccountMap) : ℕ :=
 def Cxfer (val : UInt256) : ℕ :=
   if val != ⟨0⟩ then Gcallvalue else 0
 
-def Cextra (t r : AccountAddress) (val : UInt256) (σ : AccountMap) (A : Substate) : ℕ :=
-  Caccess t A + Cxfer val + Cnew r val σ
+/--
+EIP-7702 (Prague): the access cost of the delegation target when the callee
+`t` holds a delegation designator. The callee itself is accessed first, so a
+self-delegation finds its target warm.
+-/
+def Cdelegation (fork : Fork) (t : AccountAddress) (σ : AccountMap) (A : Substate) : ℕ :=
+  if fork.spec.eip7702 then
+    match delegationTarget? (σ.get? t |>.option .empty (·.code)) with
+    | some target => if target = t then Gwarmaccess else Caccess target A
+    | none => 0
+  else 0
 
-def Cgascap (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) :=
-  if μ.gasAvailable.toNat >= Cextra t r val σ A then
-    min (L <| (μ.gasAvailable.subNat $ Cextra t r val σ A).toNat) g.toNat
+def Cextra (fork : Fork) (t r : AccountAddress) (val : UInt256) (σ : AccountMap) (A : Substate) : ℕ :=
+  Caccess t A + Cdelegation fork t σ A + Cxfer val + Cnew r val σ
+
+def Cgascap (fork : Fork) (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) :=
+  if μ.gasAvailable.toNat >= Cextra fork t r val σ A then
+    min (L <| (μ.gasAvailable.subNat $ Cextra fork t r val σ A).toNat) g.toNat
   else
     g.toNat
 
-def Ccallgas (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
+def Ccallgas (fork : Fork) (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
   match val with
-    | ⟨0⟩ => Cgascap t r val g σ μ A
-    | _ => Cgascap t r val g σ μ A + GasConstants.Gcallstipend
+    | ⟨0⟩ => Cgascap fork t r val g σ μ A
+    | _ => Cgascap fork t r val g σ μ A + GasConstants.Gcallstipend
 
 /--
 NB Assumes.machineState.stack coherence.
 -/
-def Ccall (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
-  Cgascap t r val g σ μ A + Cextra t r val σ A
+def Ccall (fork : Fork) (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
+  Cgascap fork t r val g σ μ A + Cextra fork t r val σ A
 
 /--
 (65)
 -/
 def R (x : ℕ) : ℕ := Ginitcodeword * ((x + 31) / 32)
 
-def intrinsicGas (T : Transaction) : ℕ :=
+def intrinsicGas (fork : Fork) (T : Transaction) : ℕ :=
   let g₀_data :=
     T.base.data.foldl
       (λ acc b ↦
@@ -213,7 +225,20 @@ def intrinsicGas (T : Transaction) : ℕ :=
         acc + GasConstants.Gaccesslistaddress + s.size * GasConstants.Gaccessliststorage
       )
       0
-  g₀_data + g₀_create + GasConstants.Gtransaction + g₀_accessList
+  -- EIP-7702 (Prague): each authorization is charged as a new account.
+  let g₀_authorizations : ℕ :=
+    if fork.spec.eip7702 then GasConstants.Gnewaccount * T.authorizationList.length else 0
+  g₀_data + g₀_create + GasConstants.Gtransaction + g₀_accessList + g₀_authorizations
+
+/--
+EIP-7623 (Prague): the minimum gas a transaction is charged, from its calldata
+tokens. Zero before Prague, where there is no floor.
+-/
+def calldataFloorGas (fork : Fork) (T : Transaction) : ℕ :=
+  if fork.spec.eip7623 then
+    let tokens := T.base.data.foldl (λ acc b ↦ acc + if b == 0 then 1 else 4) 0
+    GasConstants.Gtransaction + GasConstants.Gfloorpertoken * tokens
+  else 0
 
 /--
 H.1. Gas Cost - the third summand.
@@ -247,10 +272,10 @@ def C' (s : State) (instr : Operation) : ℕ :=
       not what happens to be on the stack at index 2. Therefore it is 0 for
       `DELEGATECALL` and `STATICCALL`.
     -/
-    | .CALL =>         Ccall (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!) μₛ[2]! μₛ[0]! σ μ A
-    | .CALLCODE =>     Ccall (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner μₛ[2]! μₛ[0]! σ μ A
-    | .DELEGATECALL => Ccall (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner    ⟨0⟩ μₛ[0]! σ μ A
-    | .STATICCALL =>   Ccall (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!)    ⟨0⟩ μₛ[0]! σ μ A
+    | .CALL =>         Ccall I.fork (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!) μₛ[2]! μₛ[0]! σ μ A
+    | .CALLCODE =>     Ccall I.fork (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner μₛ[2]! μₛ[0]! σ μ A
+    | .DELEGATECALL => Ccall I.fork (AccountAddress.ofUInt256 μₛ[1]!)          s.executionEnv.codeOwner    ⟨0⟩ μₛ[0]! σ μ A
+    | .STATICCALL =>   Ccall I.fork (AccountAddress.ofUInt256 μₛ[1]!) (AccountAddress.ofUInt256 μₛ[1]!)    ⟨0⟩ μₛ[0]! σ μ A
     | .BLOBHASH => HASH_OPCODE_GAS
     | w =>
       if w ∈ Wcopy then Gverylow + Gcopy * ((μₛ[2]!.toNat + 31) / 32) else

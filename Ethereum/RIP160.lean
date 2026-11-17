@@ -1,7 +1,6 @@
 import Ethereum.PerformIO
 import Ethereum.PrecompileOutput
 import Ethereum.Wheels
-import Conform.Wheels
 
 def blobRIP160 (d : String) : String :=
   totallySafePerformIO <|

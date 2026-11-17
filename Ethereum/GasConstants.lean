@@ -41,6 +41,10 @@ def Gkeccak256word : ℕ     := 6
 def Gcopy : ℕ              := 3
 def Gblockhash : ℕ         := 20
 def HASH_OPCODE_GAS : ℕ    := 3
+/-- EIP-7702 (Prague) base cost of an authorization for an existing account. -/
+def Gauthbase : ℕ          := 12500
+/-- EIP-7623 (Prague) cost per calldata token in the transaction floor. -/
+def Gfloorpertoken : ℕ     := 10
 
 end FeeSchedule
 

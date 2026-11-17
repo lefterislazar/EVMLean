@@ -8,21 +8,23 @@ Everything here is work in progress and is subject to change therefore.
 
 The changes in this repository are intended to ease proof development over the
 EVM model, with some tradeoffs against executable performance. They do not
-relax the behavioral compatibility target: the model continues to pass the same
-pinned Ethereum conformance suite and test driver used by the EVMYulLean
-baseline. For a summary of the main differences from Nethermind's
-upstream project, see
+relax the behavioral compatibility target. The conformance suite has changed,
+and the model is now tested against the EEST:
+[execution-spec-tests](https://github.com/ethereum/execution-specs).
+
+For a summary of the main differences from Nethermind's upstream project, see
 [nethermind-changes.md](nethermind-changes.md).
 
 # Requirements
-- Python packages: coincurve, typing-extensions, pycryptodome, eth-typing, py-ecc
+- Python packages: coincurve, typing-extensions, pycryptodome, eth-typing, py-ecc,
+  cryptography
 
 # Project structure
 
-## Primops
-The `Operation` describing all of the primitive operations:
+## Forks
+The semantics is parametric in the execution-layer fork, from Cancun to Osaka:
 ```
-Ethereum/Operations.lean
+Ethereum/Fork.lean
 ```
 
 ## EVM
@@ -40,11 +42,6 @@ Ethereum/Semantics.lean
 
 Ethereum's Keccak-256 is implemented as transparent Lean in
 [`Ethereum/SpongeHash/Keccak256.lean`](Ethereum/SpongeHash/Keccak256.lean).
-The implementation includes Keccak-f[1600], Ethereum's legacy `0x01` domain
-suffix, multi-block absorption, and a proof that every digest contains exactly
-32 bytes. It is exposed as `Ethereum.Keccak256.hash`, with `Ethereum.KEC` used
-by the executable EVM semantics. Keccak calls reachable from the semantics
-therefore do not cross an FFI boundary.
 
 `hash` computes on `Nat` lanes so that the kernel evaluates concrete hashes
 quickly, as `decide +kernel` proofs about function selectors and storage slots
@@ -52,45 +49,41 @@ require. `referenceHash` computes the same function on `UInt64` lanes;
 `hash_eq_referenceHash` proves them equal and, as a `csimp` lemma, makes
 compiled code run `referenceHash`.
 
-Several cryptographic precompiles still use external implementations. Their
-Lean wrappers pass successful results through
+The other cryptographic primitives use external implementations:
+
+- SHA-256 and the BLAKE2 compression function `F` are C functions linked
+  through the FFI (`Ethereum/FFI`).
+- ECDSA public-key recovery (`ECRECOVER`, transaction senders and EIP-7702
+  authorities), RIPEMD-160, the alt_bn128 operations (`BN_ADD`, `BN_MUL`,
+  `SNARKV`), the KZG point evaluation (EIP-4844), the BLS12-381 operations
+  (EIP-2537, Prague) and secp256r1 signature verification (EIP-7951, Osaka)
+  are Python helpers in `Ethereum/EllipticCurvesPy`.
+
+The Lean wrappers of the precompiles with a fixed result size pass successful
+results through
 [`Ethereum.checkedPrecompileOutput`](Ethereum/PrecompileOutput.lean), which
-rejects outputs whose size does not match the result size prescribed for that
-precompile. This makes the return-data size proofs independent of assumptions
-about external output lengths. It does not prove that the external
-implementations compute the correct cryptographic values; conformance testing
-remains the behavioral check for those implementations.
+rejects outputs whose size does not match the size prescribed for that
+precompile.
 
 ## Conformance testing
-A git submodule with EVM conformance tests is in:
-```
-EthereumTests/
-```
-
-The test running infrastructure can be found in:
+The model is tested against the blockchain fixtures of
+[execution-spec-tests](https://github.com/ethereum/execution-specs), pinned to
+release `tests@v21.0.2`. The test running infrastructure can be found in:
 ```
 Conform/
 ```
-
-Passing this suite is the baseline behavioral trust check for the executable EVM
-model. Any changes are accepted under the constraint that these
-conformance tests continue to pass.
-
-To execute conformance tests, make sure the `EthereumTests` directory is the appropriate git submodule and run:
+Run the conformance tests with:
 ```
-lake test -- <NUM_THREADS> 2> out_discard.txt
+lake test 2> out_discard.txt
 ```
-where `<NUM_THREADS>` is the number of threads running conformance tests in parallel. Note that the default is `1`.
 We recommend redirecting `stderr` into a file to not pollute the output.
 
-The run includes the performance tests (`vmPerformance`), a few of which take
-minutes; set `CONFORM_SKIP_PERF=1` to leave them out, as CI does.
+The first run downloads the pinned fixtures.
+The pins and the fetching are in `lakefile.lean`.
 
-The threads take fixture files, or slices of large ones, from a shared queue,
-the performance tests first and then the most expensive files. Set
-`CONFORM_TIMED=1` to write the running time of every test, slowest first, to
-`timings_1.txt`, and `CONFORM_PROGRESS=<file>` to log each test as it starts
-and finishes.
+This runs every fixture network from Cancun on.
+
+`lake test -- --help` lists conformance parameters.
 
 # License
 
@@ -98,4 +91,4 @@ This repository is based on Nethermind's [EVMYulLean](https://github.com/Netherm
 
 Notable modifications include porting the project to a newer Lean version, stripping the Yul portions, and adapting the remaining EVM model and project structure for proof development. See [NOTICE](NOTICE) for attribution and modification notes.
 
-Some included third-party components carry their own licenses, including `EthereumTests/LICENSE`, `sha2/LICENSE.md`, and `keccak256/LICENSE`.
+Some included third-party components carry their own licenses, including `sha2/LICENSE.md` and `keccak256/LICENSE`.

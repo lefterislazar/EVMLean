@@ -11,6 +11,8 @@ end State
 
 namespace EVM
 
+variable {fork : Fork}
+
 open GasConstants InstructionGasGroups
 
 set_option linter.unusedTactic false
@@ -28,18 +30,18 @@ lemma Caccess_pos (a A) : 0 < Caccess a A := by
   unfold Caccess
   split <;> simp [Gwarmaccess, Gcoldaccountaccess]
 
-lemma Cextra_pos (t r val σ A) : 0 < Cextra t r val σ A := by
+lemma Cextra_pos (fork t r val σ A) : 0 < Cextra fork t r val σ A := by
   unfold Cextra
   have h := Caccess_pos t A
   omega
 
-lemma Ccall_pos (t r val g σ μ A) : 0 < Ccall t r val g σ μ A := by
+lemma Ccall_pos (fork t r val g σ μ A) : 0 < Ccall fork t r val g σ μ A := by
   unfold Ccall
-  have h := Cextra_pos t r val σ A
+  have h := Cextra_pos fork t r val σ A
   omega
 
-lemma Ccallgas_lt_Ccall (t r val g σ μ A) :
-    Ccallgas t r val g σ μ A < Ccall t r val g σ μ A := by
+lemma Ccallgas_lt_Ccall (fork t r val g σ μ A) :
+    Ccallgas fork t r val g σ μ A < Ccall fork t r val g σ μ A := by
   by_cases hval : val = (⟨0⟩ : UInt256)
   · subst val
     unfold Ccall Ccallgas Cextra Cxfer Cnew Caccess
@@ -1184,38 +1186,12 @@ lemma precompile_ID_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
 lemma precompile_EXPMOD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) : (Ξ_EXPMOD σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_EXPMOD
-  set foo : Nat :=
-    ((max (nat_of_slice I.calldata 0 32) (nat_of_slice I.calldata 64 32) + 7) / 8) ^ 2 *
-      max
-        (if
-            nat_of_slice I.calldata 32 32 ≤ 32 ∧
-              nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32)
-                (nat_of_slice I.calldata 32 32) = 0 then
-            0
-          else if nat_of_slice I.calldata 32 32 ≤ 32 then
-            Nat.log 2
-              (nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32)
-                (nat_of_slice I.calldata 32 32))
-          else
-            8 * (nat_of_slice I.calldata 32 32 - 32) +
-              if
-                  32 < nat_of_slice I.calldata 32 32 ∧
-                    ¬ nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32) 32 = 0 then
-                Nat.log 2 (nat_of_slice I.calldata (96 + nat_of_slice I.calldata 0 32) 32)
-              else 0)
-        1 /
-      3
-  by_cases hgas : g.toNat < 200 ∨ g.toNat < foo
-  · simp [hgas, foo]
-  · have hle : max 200 foo ≤ g.toNat := by
-      have h200 : ¬ g.toNat < 200 := by
-        intro h
-        exact hgas (Or.inl h)
-      have hfoo : ¬ g.toNat < foo := by
-        intro h
-        exact hgas (Or.inr h)
-      omega
-    simp [hgas, foo, UInt256.toNat_sub_ofNat_le hle]
+  cases hreq : expmodRequiredGas I.fork I.calldata with
+  | none => simp [hreq]
+  | some gᵣ =>
+    by_cases hgas : g.toNat < gᵣ
+    · simp [hreq, hgas]
+    · simp [hreq, hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_BN_ADD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) : (Ξ_BN_ADD σ g A I).2.1.toNat ≤ g.toNat := by
@@ -1274,65 +1250,38 @@ lemma precompile_PointEval_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
     | error e =>
         simp [hgas, hres, dbgTrace]
 
-set_option maxRecDepth 65536 in
-lemma precompile_dispatch_match_eq_if {α : Type} (p : AccountAddress)
-    (a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 d : α) :
-    (match p with
-      | 1 => a1 | 2 => a2 | 3 => a3 | 4 => a4 | 5 => a5
-      | 6 => a6 | 7 => a7 | 8 => a8 | 9 => a9 | 10 => a10
-      | _ => d) =
-    (if p = 1 then a1 else if p = 2 then a2 else if p = 3 then a3
-     else if p = 4 then a4 else if p = 5 then a5 else if p = 6 then a6
-     else if p = 7 then a7 else if p = 8 then a8 else if p = 9 then a9
-     else if p = 10 then a10 else d) := by
-  split <;> try simp_all
-  all_goals
-    have h1 : p ≠ 1 := by assumption
-    have h2 : p ≠ 2 := by assumption
-    have h3 : p ≠ 3 := by assumption
-    have h4 : p ≠ 4 := by assumption
-    have h5 : p ≠ 5 := by assumption
-    have h6 : p ≠ 6 := by assumption
-    have h7 : p ≠ 7 := by assumption
-    have h8 : p ≠ 8 := by assumption
-    have h9 : p ≠ 9 := by assumption
-    have h10 : p ≠ 10 := by assumption
-    simp [h1, h2, h3, h4, h5, h6, h7, h8, h9, h10]
+lemma precompile_BLS12_381_gas_le (op : ℕ) (σ : AccountMap) (g : UInt256) (A : Substate)
+    (I : ExecutionEnv) : (Ξ_BLS12_381 op σ g A I).2.1.toNat ≤ g.toNat := by
+  unfold Ξ_BLS12_381
+  by_cases hgas : g.toNat < blsRequiredGas op I.calldata.size
+  · simp [hgas]
+  · cases BLS12_381 op (blsOutputSize op) I.calldata <;>
+      simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
-set_option maxRecDepth 65536 in
+lemma precompile_P256VERIFY_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
+    (I : ExecutionEnv) : (Ξ_P256VERIFY σ g A I).2.1.toNat ≤ g.toNat := by
+  unfold Ξ_P256VERIFY
+  by_cases hgas : g.toNat < 6900
+  · simp [hgas]
+  · cases P256Verify I.calldata <;>
+      simp [hgas, dbgTrace, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
+
 lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
     (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match p with
-      | 1 => Ξ_ECREC σ g A I
-      | 2 => Ξ_SHA256 σ g A I
-      | 3 => Ξ_RIP160 σ g A I
-      | 4 => Ξ_ID σ g A I
-      | 5 => Ξ_EXPMOD σ g A I
-      | 6 => Ξ_BN_ADD σ g A I
-      | 7 => Ξ_BN_MUL σ g A I
-      | 8 => Ξ_SNARKV σ g A I
-      | 9 => Ξ_BLAKE2_F σ g A I
-      | 10 => Ξ_PointEval σ g A I
-      | _ => default).2.1.toNat ≤ g.toNat := by
-  rw [precompile_dispatch_match_eq_if]
-  split_ifs
-  · exact precompile_ECREC_gas_le _ _ _ _
-  · exact precompile_SHA256_gas_le _ _ _ _
-  · exact precompile_RIP160_gas_le _ _ _ _
-  · exact precompile_ID_gas_le _ _ _ _
-  · exact precompile_EXPMOD_gas_le _ _ _ _
-  · exact precompile_BN_ADD_gas_le _ _ _ _
-  · exact precompile_BN_MUL_gas_le _ _ _ _
-  · exact precompile_SNARKV_gas_le _ _ _ _
-  · exact precompile_BLAKE2_F_gas_le _ _ _ _
-  · exact precompile_PointEval_gas_le _ _ _ _
-  · change (default : UInt256).toNat ≤ g.toNat
-    simp
+    (Ξ_PRECOMPILE p σ g A I).2.1.toNat ≤ g.toNat :=
+  Ξ_PRECOMPILE_induction (fun r => r.2.1.toNat ≤ g.toNat)
+    (precompile_ECREC_gas_le σ g A I) (precompile_SHA256_gas_le σ g A I)
+    (precompile_RIP160_gas_le σ g A I) (precompile_ID_gas_le σ g A I)
+    (precompile_EXPMOD_gas_le σ g A I) (precompile_BN_ADD_gas_le σ g A I)
+    (precompile_BN_MUL_gas_le σ g A I) (precompile_SNARKV_gas_le σ g A I)
+    (precompile_BLAKE2_F_gas_le σ g A I) (precompile_PointEval_gas_le σ g A I)
+    (fun op => precompile_BLS12_381_gas_le op σ g A I) (precompile_P256VERIFY_gas_le σ g A I)
+    (by change (default : UInt256).toNat ≤ g.toNat; simp)
 
 set_option maxHeartbeats 800000 in
 theorem Theta_gas_le {σ σ₀ A s o r c g p v v' d e H
     blobVersionedHashes blocks w} :
-    (Θ σ σ₀ A s o r c
+    (Θ fork σ σ₀ A s o r c
       g p v v' d e H blobVersionedHashes blocks w).2.1.toNat ≤ g.toNat := by
   cases c with
   | Code code =>
@@ -1355,7 +1304,7 @@ lemma call_gas_decreases {gasCost : Nat}
     {permission : Bool} {evmState state' : State} {x : UInt256}
     (hgasCost : gasCost ≤ evmState.machineState.gasAvailable.toNat)
     (hcallgasLt :
-      Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+      Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
         value gas evmState.accountMap evmState.machineState evmState.substate < gasCost)
     (h : call gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
@@ -1368,18 +1317,19 @@ lemma call_gas_decreases {gasCost : Nat}
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
+        (fork := evmState.executionEnv.fork)
         (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
 
         (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
-        (A := evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
+        (A := callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
         (s := AccountAddress.ofUInt256 source)
         (o := evmState.executionEnv.sender)
         (r := AccountAddress.ofUInt256 recipient)
-        (c := toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+        (c := toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
         (g := UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate))
         (p := UInt256.ofNat evmState.executionEnv.gasPrice)
         (v := value)
@@ -1389,41 +1339,42 @@ lemma call_gas_decreases {gasCost : Nat}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
+          ((Θ (fork := evmState.executionEnv.fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
-              (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
+              (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
               (AccountAddress.ofUInt256 recipient)
-              (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+              (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
               (UInt256.ofNat
-                (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+                (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
                   value gas evmState.accountMap evmState.machineState evmState.substate))
               (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
               (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
               (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1.toNat) ≤
-            Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate := by
         exact Nat.le_trans htheta
           (UInt256.toNat_ofNat_le
-            (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate))
       exact gas_sub_refund_decreases (lt_of_le_of_lt hretLe hcallgasLt) hgasCost
     · rcases h with ⟨_, hstate⟩
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
+        (fork := evmState.executionEnv.fork)
         (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
 
         (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
-        (A := evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
+        (A := callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
         (s := AccountAddress.ofUInt256 source)
         (o := evmState.executionEnv.sender)
         (r := AccountAddress.ofUInt256 recipient)
-        (c := toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+        (c := toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
         (g := UInt256.ofNat
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate))
         (p := UInt256.ofNat evmState.executionEnv.gasPrice)
         (v := value)
@@ -1433,23 +1384,23 @@ lemma call_gas_decreases {gasCost : Nat}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
+          ((Θ (fork := evmState.executionEnv.fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
-              (evmState.substate.addAccessedAccount (AccountAddress.ofUInt256 t))
+              (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
               (AccountAddress.ofUInt256 recipient)
-              (toExecute evmState.accountMap (AccountAddress.ofUInt256 t))
+              (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
               (UInt256.ofNat
-                (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+                (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
                   value gas evmState.accountMap evmState.machineState evmState.substate))
               (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
               (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
               (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1.toNat) ≤
-            Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate := by
         exact Nat.le_trans htheta
           (UInt256.toNat_ofNat_le
-            (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate))
       exact gas_sub_refund_decreases (lt_of_le_of_lt hretLe hcallgasLt) hgasCost
   · split at h
@@ -1458,7 +1409,7 @@ lemma call_gas_decreases {gasCost : Nat}
       simp
       have hofNat :=
         UInt256.toNat_ofNat_le
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate)
       exact gas_sub_refund_decreases (lt_of_le_of_lt hofNat hcallgasLt) hgasCost
     · rcases h with ⟨_, hstate⟩
@@ -1466,7 +1417,7 @@ lemma call_gas_decreases {gasCost : Nat}
       simp
       have hofNat :=
         UInt256.toNat_ofNat_le
-          (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate)
       exact gas_sub_refund_decreases (lt_of_le_of_lt hofNat hcallgasLt) hgasCost
 
@@ -1508,17 +1459,17 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop7_get! hPop'
             rcases hidx with ⟨h0, h1, h2⟩
             have hcallgasLt :
-                Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 vPop.2.2.1) vPop.2.2.2.1 vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate :=
-                Ccallgas_lt_Ccall _ _ _ _ _ _ _
+                Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
               rw [hcost]
               simpa [sExec, C', Ccallgas, Cgascap, h0, h1, h2] using hbase
             have hdec := call_gas_decreases
@@ -1544,18 +1495,18 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop7_get! hPop'
             rcases hidx with ⟨h0, h1, h2⟩
             have hcallgasLt :
-                Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 (UInt256.ofNat s.executionEnv.codeOwner.val))
                   vPop.2.2.2.1 vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate :=
-                Ccallgas_lt_Ccall _ _ _ _ _ _ _
+                Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
               rw [hcost]
               simpa [sExec, C', Ccallgas, Cgascap, h0, h1, h2,
                 AccountAddress.ofUInt256_ofNat] using hbase
@@ -1583,18 +1534,18 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop6_get! hPop'
             rcases hidx with ⟨h0, h1⟩
             have hcallgasLt :
-                Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 (UInt256.ofNat s.executionEnv.codeOwner.val))
                   (⟨0⟩ : UInt256) vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate :=
-                Ccallgas_lt_Ccall _ _ _ _ _ _ _
+                Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
               rw [hcost]
               simpa [sExec, C', Ccallgas, Cgascap, h0, h1,
                 AccountAddress.ofUInt256_ofNat] using hbase
@@ -1622,18 +1573,18 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop6_get! hPop'
             rcases hidx with ⟨h0, h1⟩
             have hcallgasLt :
-                Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 vPop.2.2.1)
                   (⟨0⟩ : UInt256) vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate :=
-                Ccallgas_lt_Ccall _ _ _ _ _ _ _
+                Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
               rw [hcost]
               simpa [sExec, C', Ccallgas, Cgascap, h0, h1] using hbase
             have hdec := call_gas_decreases

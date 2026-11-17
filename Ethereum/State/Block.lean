@@ -18,19 +18,11 @@ structure Withdrawals where
   array : Array Withdrawal
 deriving BEq, Inhabited, Repr
 
-structure RawBlock where
-  rlp          : ByteArray
-  exception    : List String
-deriving BEq, Inhabited, Repr
-
-abbrev RawBlocks := Array RawBlock
-
 structure DeserializedBlock where
   hash         : UInt256
   blockHeader  : BlockHeader
   transactions : Transactions
   withdrawals  : Withdrawals
-  exception    : List String
 deriving BEq, Inhabited, Repr
 
 abbrev DeserializedBlocks := Array DeserializedBlock
@@ -132,10 +124,64 @@ def deserializeBlock
     | _ =>
       dbg_trace "RLP error: parseBlobVersionHash"
       throw <| .BlockException .RLP_STRUCTURES_ENCODING
+  parseAuthorization : 𝕋 → Except EVM.Exception Authorization
+    | .𝕃 [.𝔹 chainId, .𝔹 address, .𝔹 nonce, .𝔹 yParity, .𝔹 r, .𝔹 s] => do
+      pure {
+        chainId := ← validateUInt256 chainId (.TransactionException .TYPE_4_INVALID_AUTHORIZATION_FORMAT)
+        address := ← validateAccountAddress address (.TransactionException .TYPE_4_INVALID_AUTHORIZATION_FORMAT)
+        -- The authorization nonce is a `uint64` and `yParity` a `uint8`.
+        nonce := .ofNat (← validateUInt64 nonce (.TransactionException .TYPE_4_INVALID_AUTHORIZATION_FORMAT)).toNat
+        yParity := ← do
+          let y ← validateUInt256 yParity (.TransactionException .TYPE_4_INVALID_AUTHORIZATION_FORMAT)
+          if y.toNat ≥ 2 ^ 8 then throw (.TransactionException .TYPE_4_INVALID_AUTHORIZATION_FORMAT)
+          pure y
+        r
+        s
+      }
+    | _ => throw <| .TransactionException .TYPE_4_INVALID_AUTHORIZATION_FORMAT
   parseTransaction : 𝕋 → Except EVM.Exception Transaction
     | .𝔹 typePlusPayload => -- Transaction type > 0
-      match deserializeRLP (typePlusPayload.extract 1 typePlusPayload.size) with
-        | some -- Type 3 transactions
+      match (typePlusPayload[0]? : Option UInt8), deserializeRLP (typePlusPayload.extract 1 typePlusPayload.size) with
+        | some 4, some -- Type 4 transactions (EIP-7702)
+          (.𝕃
+            [ .𝔹 chainId
+            , .𝔹 nonce
+            , .𝔹 maxPriorityFeePerGas
+            , .𝔹 maxFeePerGas
+            , .𝔹 gasLimit
+            , .𝔹 recipient
+            , .𝔹 value
+            , .𝔹 p
+            , .𝕃 accessList
+            , .𝕃 authorizationList
+            , .𝔹 y
+            , .𝔹 r
+            , .𝔹 s
+            ]) => do
+            let recipient : Option AccountAddress ←
+              if recipient.isEmpty then pure none
+              else some <$> validateAccountAddress recipient (.BlockException .RLP_INVALID_ADDRESS)
+            let base : Transaction.Base :=
+              .mk
+                (.ofNat <| fromByteArrayBigEndian nonce)
+                (.ofNat <| fromByteArrayBigEndian gasLimit)
+                recipient
+                (← validateUInt256 value (.TransactionException .RLP_INVALID_VALUE))
+                r
+                s
+                p
+            let withAccessList : Transaction.WithAccessList :=
+              .mk
+                (.ofNat <| fromByteArrayBigEndian chainId)
+                (← accessList.mapM parseAccessListEntry)
+                (.ofNat <| fromByteArrayBigEndian y)
+            let dynamic : DynamicFeeTransaction :=
+              .mk base withAccessList
+                (.ofNat <| fromByteArrayBigEndian maxFeePerGas)
+                (.ofNat <| fromByteArrayBigEndian maxPriorityFeePerGas)
+            pure <| .setCode <|
+              SetCodeTransaction.mk dynamic (← authorizationList.mapM parseAuthorization)
+        | some 3, some -- Type 3 transactions
           (.𝕃
             [ .𝔹 chainId
             , .𝔹 nonce
@@ -186,7 +232,7 @@ def deserializeBlock
                 dynamicFeeTransaction
                   maxFeePerBlobGas
                   blobVersionedHashes
-        | some -- Type 2 transactions
+        | some 2, some -- Type 2 transactions
           (.𝕃
             [ .𝔹 chainId
             , .𝔹 nonce
@@ -230,7 +276,7 @@ def deserializeBlock
                 base
                 withAccessList
                 maxFeePerGas maxPriorityFeePerGas
-        | some -- Type 1 transactions
+        | some 1, some -- Type 1 transactions
           (.𝕃
             [ .𝔹 chainId
             , .𝔹 nonce
@@ -266,7 +312,7 @@ def deserializeBlock
                 (.ofNat <| fromByteArrayBigEndian y)
             let gasPrice := .ofNat <| fromByteArrayBigEndian gasPrice
             pure <| .access <| AccessListTransaction.mk base withAccessList ⟨gasPrice⟩
-        | _ =>
+        | _, _ =>
           dbg_trace "RLP error: deserializeRLP could not parse non-legacy transaction"
           throw <| .BlockException .RLP_STRUCTURES_ENCODING
     | .𝕃
@@ -327,6 +373,55 @@ def deserializeBlock
       , .𝔹 blobGasUsed
       , .𝔹 excessBlobGas
       , .𝔹 parentBeaconBlockRoot
+      , .𝔹 requestsHash
+      ]
+      => do
+        if requestsHash.size ≠ 32 then
+          throw <| .BlockException .RLP_STRUCTURES_ENCODING
+        pure <|
+        BlockHeader.mk
+          (.ofNat <| fromByteArrayBigEndian parentHash)
+          (.ofNat <| fromByteArrayBigEndian uncleHash)
+          (.ofNat <| fromByteArrayBigEndian coinbase)
+          (.ofNat <| fromByteArrayBigEndian stateRoot)
+          transactionsTrie
+          receiptTrie
+          bloom
+          (fromByteArrayBigEndian difficulty)
+          (fromByteArrayBigEndian number)
+          (fromByteArrayBigEndian gasLimit)
+          (fromByteArrayBigEndian gasUsed)
+          (fromByteArrayBigEndian timestamp)
+          extraData
+          (.ofNat <| fromByteArrayBigEndian nonce)
+          (.ofNat <| fromByteArrayBigEndian mixHash)
+          (fromByteArrayBigEndian baseFeePerGas)
+          parentBeaconBlockRoot
+          withdrawalsRoot
+          (.ofNat <| fromByteArrayBigEndian blobGasUsed)
+          (.ofNat <| fromByteArrayBigEndian excessBlobGas)
+          (some requestsHash)
+    | .𝕃
+      [ .𝔹 parentHash
+      , .𝔹 uncleHash
+      , .𝔹 coinbase
+      , .𝔹 stateRoot
+      , .𝔹 transactionsTrie
+      , .𝔹 receiptTrie
+      , .𝔹 bloom
+      , .𝔹 difficulty
+      , .𝔹 number
+      , .𝔹 gasLimit
+      , .𝔹 gasUsed
+      , .𝔹 timestamp
+      , .𝔹 extraData
+      , .𝔹 mixHash
+      , .𝔹 nonce
+      , .𝔹 baseFeePerGas
+      , .𝔹 withdrawalsRoot
+      , .𝔹 blobGasUsed
+      , .𝔹 excessBlobGas
+      , .𝔹 parentBeaconBlockRoot
       ]
       => pure <|
         BlockHeader.mk
@@ -350,6 +445,7 @@ def deserializeBlock
           withdrawalsRoot
           (.ofNat <| fromByteArrayBigEndian blobGasUsed)
           (.ofNat <| fromByteArrayBigEndian excessBlobGas)
+          none
     | _ =>
       dbg_trace "Block header has wrong RLP structure"
       throw <| .BlockException .RLP_STRUCTURES_ENCODING

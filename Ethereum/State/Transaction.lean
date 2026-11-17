@@ -3,7 +3,6 @@ import Mathlib.Data.List.AList
 import Ethereum.UInt256
 import Ethereum.Wheels
 import Ethereum.State.TrieRoot
-import Conform.Wheels
 import Ethereum.State.Substate
 
 namespace Ethereum
@@ -113,11 +112,27 @@ structure BlobTransaction extends DynamicFeeTransaction where
   blobVersionedHashes : List ByteArray
 deriving BEq, Repr
 
+/-- An EIP-7702 authorization tuple, signed by the delegating account. -/
+structure Authorization where
+  chainId : UInt256
+  address : AccountAddress
+  nonce   : UInt256
+  yParity : UInt256
+  r       : ByteArray
+  s       : ByteArray
+deriving BEq, Repr
+
+/-- Type 4: EIP-7702 `SetCodeTransaction` (Prague). -/
+structure SetCodeTransaction extends DynamicFeeTransaction where
+  authorizationList : List Authorization
+deriving BEq, Repr
+
 inductive Transaction where
   | legacy  : LegacyTransaction → Transaction
   | access  : AccessListTransaction → Transaction
   | dynamic : DynamicFeeTransaction → Transaction
   | blob    : BlobTransaction → Transaction
+  | setCode : SetCodeTransaction → Transaction
 deriving BEq, Repr
 
 def Transaction.base : Transaction → Transaction.Base
@@ -125,18 +140,25 @@ def Transaction.base : Transaction → Transaction.Base
   | access t => t.toBase
   | dynamic t => t.toBase
   | blob t => t.toBase
+  | setCode t => t.toBase
 
 def Transaction.getAccessList : Transaction → List (AccountAddress × Array UInt256)
   | legacy _ => []
   | access t => t.accessList
   | dynamic t => t.accessList
   | blob t => t.accessList
+  | setCode t => t.accessList
 
 def Transaction.type : Transaction → UInt8
   | .legacy  _ => 0
   | .access  _ => 1
   | .dynamic _ => 2
   | .blob _ => 3
+  | .setCode _ => 4
+
+def Transaction.authorizationList : Transaction → List Authorization
+  | .setCode t => t.authorizationList
+  | _ => []
 
 def Transaction.toBlobs (t : ℕ × ByteArray) : Option (String × String) := do
   let rlpᵢ ← RLP (.𝔹 (BE t.1))

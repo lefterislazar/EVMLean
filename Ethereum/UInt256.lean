@@ -121,6 +121,10 @@ def shiftRight (a b : UInt256) : UInt256 :=
 -- def le (a b : UInt256) : Prop := a.1 ≤ b.1
 def log2 (a : UInt256) : UInt256 := ⟨Fin.log2 a.val⟩
 
+/-- Number of zero bits above the most significant set bit (EIP-7939). -/
+def clz (a : UInt256) : UInt256 :=
+  if a.toNat = 0 then .ofNat 256 else .ofNat (255 - Nat.log2 a.toNat)
+
 instance : Add UInt256 := ⟨UInt256.add⟩
 instance : Sub UInt256 := ⟨UInt256.sub⟩
 instance : Mul UInt256 := ⟨UInt256.mul⟩

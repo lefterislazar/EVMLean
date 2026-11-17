@@ -156,6 +156,11 @@ inductive CBLOp : Type where
     δ:2 ; α:1
   -/
   | protected SAR : CBLOp
+  /--
+    CLZ: count leading zero bits (EIP-7939, Osaka).
+    δ:1 ; α:1
+  -/
+  | protected CLZ : CBLOp
   deriving DecidableEq, Repr
 
 /--
@@ -604,6 +609,7 @@ abbrev BYTE    : Operation := .CompBit .BYTE
 abbrev SHL     : Operation := .CompBit .SHL
 abbrev SHR     : Operation := .CompBit .SHR
 abbrev SAR     : Operation := .CompBit .SAR
+abbrev CLZ     : Operation := .CompBit .CLZ
 
 abbrev KECCAK256  : Operation := .Keccak .KECCAK256
 

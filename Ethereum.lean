@@ -3,6 +3,8 @@ import Ethereum.MachineStateOps
 import Ethereum.Operations
 import Ethereum.Pretty
 import Ethereum.Semantics
+import Ethereum.Transaction
+import Ethereum.Block
 import Ethereum.State
 import Ethereum.StateOps
 import Ethereum.UInt256
@@ -10,6 +12,7 @@ import Ethereum.Wheels
 import Ethereum.EllipticCurves
 import Ethereum.PerformIO
 
+import Ethereum.Theory.PrecompileLemmas
 import Ethereum.Theory.ProgressLemmas
 import Ethereum.Theory.GasLemmas
 import Ethereum.Theory.NoOutOfFuel

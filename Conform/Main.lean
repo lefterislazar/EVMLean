@@ -1,225 +1,82 @@
-import Conform.TestRunner
+import Conform.Suites
 
-def TestsSubdir : System.FilePath := "BlockchainTests"
-def isTestFile (file : System.FilePath) : Bool := file.extension.option false (· == "json")
+/-!
+The `conform` executable, which `lake test -- [OPTION]...` runs with the
+fixtures that it fetches (see `lakefile.lean`).
+-/
 
-private def basicSuccess (name : System.FilePath)
-                         (result : Batteries.RBMap String Ethereum.Conform.TestResult compare) : IO Bool := do
-  if result.all (λ _ v ↦ v.isNone)
-  then IO.println s!"SUCCESS! - {name}"; pure true
-  else pure false
+namespace Ethereum
 
-private def success (result : Batteries.RBMap String Ethereum.Conform.TestResult compare) : Array String × Array String :=
-  let (succeeded, failed) := result.partition (λ _ v ↦ v.isNone)
-  (succeeded.keys, failed.keys)
+namespace Conform
 
-def logFile (phase : ℕ) : System.FilePath := s!"tests_{phase}.txt"
+def usage : String :=
+  "Usage: lake test -- [OPTION]...
+Run the conformance tests: the execution-spec-tests fixtures, or the legacy suite.
+`lake test` fetches the pinned fixtures of the suite, unless --fixtures is given.
 
-def liveFailureLog : System.FilePath := "failures_live.txt"
+  --legacy            run the legacy suite instead of the execution-spec-tests fixtures
+  --fixtures PATH     run the fixtures in PATH instead of fetching the pinned ones
+  --threads N         run on N threads (default: one per processor)
+  --dirs D1,D2,...    run only these execution-spec-tests directories, such as for_osaka
+  --filter S1|S2|...  run only the tests whose name contains one of these substrings
+  --perf              include the performance tests of the legacy suite
+  --timed             write the running time of every test to .cache/conform/timings.txt
+  --progress          log each test as it starts and finishes to .cache/conform/progress.txt
+  --help              show this help"
+
+/-- Fails unless `value`, given to `option`, is a value rather than the next option. -/
+def checkValue (option value : String) : Except String Unit :=
+  if value.startsWith "--" then throw s!"{option} needs a value" else pure ()
+
+/-- The options `args`, added to `options`. -/
+def Options.parse (options : Options) : List String → Except String Options
+  | [] => pure options
+  | "--legacy" :: args => parse { options with legacy := true } args
+  | "--fixtures" :: path :: args => do
+    checkValue "--fixtures" path
+    parse { options with fixtures := some path } args
+  | "--threads" :: n :: args => do
+    checkValue "--threads" n
+    let some n := n.toNat? | throw s!"--threads: not a number: {n}"
+    parse { options with threads := some n } args
+  | "--dirs" :: dirs :: args => do
+    checkValue "--dirs" dirs
+    parse { options with dirs := some (dirs.splitOn ",") } args
+  | "--filter" :: filter :: args => do
+    checkValue "--filter" filter
+    parse { options with filter := filter.splitOn "|" } args
+  | "--perf" :: args => parse { options with perf := true } args
+  | "--timed" :: args => parse { options with timed := true } args
+  | "--progress" :: args => parse { options with progress := true } args
+  | "--help" :: args => parse { options with help := true } args
+  | [option] =>
+    if option ∈ ["--fixtures", "--threads", "--dirs", "--filter"] then
+      throw s!"{option} needs a value"
+    else
+      throw s!"unknown option: {option}"
+  | arg :: _ => throw s!"unknown option: {arg}"
+
+/-- The options in `args`, checking that they fit the suite. -/
+def parseOptions (args : List String) : Except String Options := do
+  let options ← Options.parse {} args
+  if options.legacy ∧ options.dirs.isSome then
+    throw "--dirs selects execution-spec-tests directories; it does not apply to --legacy"
+  if ¬options.legacy ∧ options.perf then
+    throw "--perf includes the performance tests of the legacy suite; it needs --legacy"
+  return options
+
+end Conform
+
+end Ethereum
 
 open Ethereum.Conform in
-instance : ToString TestResult where
-  toString tr := tr.elim "Success." id
-
-open Ethereum.Conform in
-def log (testFile : System.FilePath) (testName : String) (result : TestResult) (phase : ℕ := 0) : IO Unit :=
-  IO.FS.withFile (logFile phase) .append λ h ↦ h.putStrLn s!"{testFile.fileName.get!}[{testName}] - {result}\n"
-
-def directoryBlacklist : List System.FilePath := []
-
-def fileBlacklist : List System.FilePath := []
-
-/--
-A unit of work: tests of one fixture file, run by one thread, which parses the
-file once. `cost` estimates the unit's running time, for scheduling.
--/
-structure WorkUnit where
-  path  : System.FilePath
-  names : Array String
-  cost  : ℕ
-
-/--
-Whether the fixture test `testname` is the test `name`. The `ethereum/tests`
-v17.2 refill also names tests by their filler path, as in
-`BlockchainTests/ValidBlocks/bcExploitTest/SuicideIssue.json::SuicideIssue_Cancun`.
--/
-def isTest (name testname : String) : Bool :=
-  testname == name || testname.endsWith ("::" ++ name)
-
-/-- Whether `path` lies in the directory `dir`, comparing path components. -/
-def isUnder (dir path : System.FilePath) : Bool :=
-  let parts (p : System.FilePath) := p.components.filter (· ≠ "")
-  (parts dir).isPrefixOf (parts path)
-
-/--
-Split the selected tests of each fixture file into work units. A large file is
-split into up to `threads` units, so that its tests spread over the threads; a
-unit's cost is its share of the file's size.
--/
-def workUnits (threads : ℕ) (files : Array (System.FilePath × ℕ × Array String))
-    (isFirst : WorkUnit → Bool := fun _ => false) : IO (Array WorkUnit) := do
-  let largeFile : ℕ := 4 * 1024 * 1024
-  let mut units := #[]
-  for (path, total, names) in files do
-    if names.isEmpty then continue
-    let size := (← path.metadata).byteSize.toNat
-    let pieces := if size > largeFile then min threads names.size else 1
-    let chunk := (names.size + pieces - 1) / pieces
-    for k in [0:pieces] do
-      let part := names.extract (k * chunk) ((k + 1) * chunk)
-      unless part.isEmpty do
-        units := units.push { path, names := part, cost := size * part.size / max total 1 }
-  -- The `isFirst` units go first, then the most expensive ones.
-  return units.qsort fun a b =>
-    if isFirst a != isFirst b then isFirst a else a.cost > b.cost
-
-/--
-Run the work units on `threads` threads. Each thread repeatedly takes the
-next unit from a shared queue, most expensive first, so that threads finish
-together.
--/
-def runWorkUnits (units : Array WorkUnit) (threads : ℕ) :
-    IO (Array Ethereum.Conform.TestId × Array (Ethereum.Conform.TestId × Ethereum.Conform.TestResult × ℕ)) := do
-  let next ← IO.mkRef 0
-  let worker : IO (Array Ethereum.Conform.TestId × Array (Ethereum.Conform.TestId × Ethereum.Conform.TestResult × ℕ)) := do
-    let mut discarded := #[]
-    let mut results := #[]
-    repeat
-      let i ← next.modifyGet fun i => (i, i + 1)
-      let some unit := units[i]? | break
-      let (d, r) ← Ethereum.Conform.processTests (unit.names.map (unit.path, ·))
-      discarded := discarded ++ d
-      results := results ++ r
-    return (discarded, results)
-  let mut tasks := #[]
-  for _ in [0:max threads 1] do
-    tasks := tasks.push (← IO.asTask worker .dedicated)
-  let mut discarded := #[]
-  let mut results := #[]
-  for task in tasks do
-    let (d, r) ← IO.ofExcept task.get
-    discarded := discarded ++ d
-    results := results ++ r
-  return (discarded, results)
-
-def testFiles (roots              : Array System.FilePath)
-              (directoryBlacklist : Array System.FilePath := #[])
-              (fileBlacklist      : Array System.FilePath := #[])
-              (testBlacklist      : Array String := #[])
-              (testWhitelist      : Array String := #[])
-              (slowDirectories    : Array System.FilePath := #[])
-              (slowTests          : Array String := #[])
-              (skipSlow           : Bool := false)
-              (phase              : ℕ)
-              (threads            : ℕ := 1) : IO (Nat × Array String) := do
-  let isSlowTest (testname : String) := slowTests.any (isTest · testname)
-  let isToBeTested (testname : String) : Bool :=
-    let whitelist := testWhitelist
-    let blacklist := testBlacklist ++ Ethereum.Conform.GlobalBlacklist
-    testname ∉ blacklist ∧ (whitelist.isEmpty ∨ testname ∈ whitelist) ∧
-      ¬(skipSlow ∧ isSlowTest testname)
-
-  let mut found := #[]
-  for root in roots do
-    found := found ++ Array.filter isTestFile (← System.FilePath.walkDir root)
-
-  let testFiles := found.filter fun p =>
-    p ∉ fileBlacklist ∧ ¬directoryBlacklist.any (isUnder · p) ∧
-      ¬(skipSlow ∧ slowDirectories.any (isUnder · p))
-  let testFiles := testFiles.filter fun p => p.components.all (· != ".meta")
-
-  let mut selected : Array (System.FilePath × ℕ × Array String) := #[]
-  for path in testFiles do
-    let json ← Lean.Json.fromFile path
-    match json.getObj? with
-    | .error _ => panic! "Malformed test json."
-    | .ok x =>
-        let names := x.toArray.filterMap fun (name, val) =>
-          let isCancun := match val.getObjVal? "network" >>= Lean.Json.getStr? with
-            | .ok network => network.startsWith "Cancun"
-            | .error _ => false
-          if isCancun && isToBeTested name then some name else none
-        selected := selected.push (path, x.size, names)
-
-  if ←System.FilePath.pathExists (logFile phase) then IO.FS.removeFile (logFile phase)
-
-  -- Slow tests start first, so that they do not finish last.
-  let units ← workUnits threads selected fun u =>
-    slowDirectories.any (isUnder · u.path) ∨ u.names.any isSlowTest
-  let scheduled := units.foldl (· + ·.names.size) 0
-  IO.println s!"Scheduled {scheduled} tests in {units.size} units on {threads} thread{if threads == 1 then "" else "s"}."
-  IO.println s!"Running..."
-  (← IO.getStdout).flush
-  let (_, results) ← runWorkUnits units threads
-
-  let mut numSuccess := 0
-  let mut failedTests : Array String := .empty
-  for ((file, test), res, _) in results do
-    log file test res phase
-    match res with
-    | none => numSuccess := numSuccess + 1
-    | some err =>
-      failedTests := failedTests.push s!"{file.fileName.get!}[{test}]"
-      IO.FS.withFile liveFailureLog .append fun h =>
-        h.putStrLn s!"{file.fileName.get!}[{test}] {err}"
-
-  -- `CONFORM_TIMED` writes the running time of every test, slowest first.
-  if (← IO.getEnv "CONFORM_TIMED").isSome then
-    let timings := results.qsort (·.2.2 > ·.2.2)
-    IO.FS.withFile s!"timings_{phase}.txt" .write fun h =>
-      for ((file, test), _, ms) in timings do
-        h.putStrLn s!"{ms.toFloat / 1000.0}s {file}[{test}]"
-  return (numSuccess, failedTests)
-
-def nproc : IO Nat := do
-  let out ← IO.Process.output {cmd := "nproc", stdin := .null}
-  return out.stdout.trimAscii.toString.toNat? |>.getD 1
-
 def main (args : List String) : IO UInt32 := do
-
-  let NumThreads : ℕ := args.head? <&> String.toNat! |>.getD (←nproc)
-
-  let printResults (result : ℕ × Array String) : IO (Array String) := do
-    let (success, failure) := result
-    IO.println s!"Total tests: {success + failure.size}"
-    IO.println s!"The post was NOT equal to the resulting state: {failure.size}"
-    IO.println s!"Succeeded: {success}"
-    let total := failure.size + success
-    IO.println s!"Success rate of: {if total = 0 then 100.0 else (success.toFloat / total.toFloat) * 100.0}"
-    IO.println s!"Failed tests:\n{failure}"
-    return failure
-
-  -- v17.2 keeps the refilled block tests in `BlockchainTests` and the
-  -- Cancun general-state corpus in the `legacytests` submodule.
-  let legacyRoot : System.FilePath :=
-    "EthereumTests/LegacyTests/Cancun/BlockchainTests/"
-  let perfDir : System.FilePath :=
-    "EthereumTests/LegacyTests/Cancun/BlockchainTests/GeneralStateTests/VMTests/vmPerformance"
-
-  if ←System.FilePath.pathExists liveFailureLog then IO.FS.removeFile liveFailureLog
-
-  /-
-    The performance tests take from a minute to several minutes each: the
-    `vmPerformance` directory and a few others. They run by default, first.
-    `CONFORM_SKIP_PERF=1` leaves them out.
-  -/
-  let perfTests : Array String :=
-    #["static_Call50000bytesContract50_2_d1g0v0_Cancun",
-      "static_Call50000bytesContract50_2_d0g0v0_Cancun",
-      "static_Call50000bytesContract50_3_d1g0v0_Cancun",
-      "static_Call50000_sha256_d0g0v0_Cancun",
-      "static_Call50000_sha256_d1g0v0_Cancun",
-      "CALLBlake2f_MaxRounds_d0g0v0_Cancun"]
-  let skipPerf := (← IO.getEnv "CONFORM_SKIP_PERF").isSome
-  IO.println <|
-    if skipPerf then "Conformance tests, without the performance tests."
-    else "Conformance tests, including the performance tests."
-  (← IO.getStdout).flush
-  let failed ← testFiles (roots := #["EthereumTests/BlockchainTests/", legacyRoot])
-                         (slowDirectories := #[perfDir])
-                         (slowTests := perfTests)
-                         (skipSlow := skipPerf)
-                         (phase := 1)
-                         (threads := NumThreads) >>= printResults
-
-  return if failed.isEmpty then 0 else 1
+  match parseOptions args with
+  | .error message =>
+    IO.eprintln s!"{message}\nRun `lake test -- --help` for the options."
+    return 2
+  | .ok options =>
+    if options.help then
+      IO.println usage
+      return 0
+    if options.legacy then runLegacy options else runEEST options

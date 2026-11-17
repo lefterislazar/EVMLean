@@ -11,8 +11,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: actions/setup-python@v5
         with:
@@ -32,11 +30,15 @@ jobs:
       - name: Check Keccak-256 vectors
         run: lake build Ethereum.SpongeHash.Keccak256Tests
 
-      - name: Run conformance tests (without the performance tests)
-        env:
-          CONFORM_SKIP_PERF: "1"
-        run: lake test -- "$(nproc)" 2> conformance-stderr.txt
+      - name: Restore the execution-spec-tests fixtures
+        uses: actions/cache@v4
+        with:
+          path: .cache/eest/fixtures-tests-v21.0.2.tar.gz
+          key: eest-fixtures-v21.0.2
+
+      - name: Run the fixture conformance tests
+        run: lake test 2> conformance-stderr.txt
 
       - name: Show failing conformance tests
         if: failure()
-        run: cat failures_live.txt || true
+        run: cat .cache/conform/failures.txt || true
