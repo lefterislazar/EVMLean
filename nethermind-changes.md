@@ -71,20 +71,20 @@ is contained primarily in `Ethereum/Wheels.lean`.
 
 The Keccak-256 operation used throughout the EVM semantics was moved from an
 opaque C FFI declaration to the transparent implementation in
-`Ethereum/SpongeHash/Keccak256.lean`. It implements the 24 rounds of
+`Ethereum/Crypto/Keccak256.lean`. It implements the 24 rounds of
 Keccak-f[1600] over a 25-lane `UInt64` state, the 1088-bit sponge rate,
 little-endian lane encoding, and Ethereum's legacy `0x01` padding suffix. Both
 single- and multi-block inputs are handled, including the final-rate-byte
 `0x81` padding case.
 
-The implementation exposes `Ethereum.Keccak256.round`,
-`Ethereum.Keccak256.permute`, and `Ethereum.Keccak256.referenceHash`;
+The implementation exposes `Ethereum.Crypto.Keccak256.round`,
+`Ethereum.Crypto.Keccak256.permute`, and `Ethereum.Crypto.Keccak256.referenceHash`;
 `Ethereum.KEC` is the name used by the executable semantics and replaces the
 former `ffi.KEC` name. The state and rate-block dimensions are represented by
 fixed-size vectors.
 
-`Ethereum.KEC` is `Ethereum.Keccak256.hash`, a second implementation over 25
-`Nat` lanes (`Ethereum.Keccak256.Lanes`) with the round written out lane by
+`Ethereum.KEC` is `Ethereum.Crypto.Keccak256.hash`, a second implementation over 25
+`Nat` lanes (`Ethereum.Crypto.Keccak256.Lanes`) with the round written out lane by
 lane and the padded input read as one number, so that the kernel evaluates
 concrete hashes with its GMP-backed `Nat` operations (about 20 ms per function
 selector instead of 3 s). `hash_eq_referenceHash` proves `hash` equal to

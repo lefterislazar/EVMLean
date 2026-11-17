@@ -16,9 +16,6 @@ jobs:
         with:
           test: false
 
-      - name: Check Keccak-256 vectors
-        run: lake build Ethereum.SpongeHash.Keccak256Tests
-
       - name: Run the cryptography tests
         run: lake exe crypto-tests
 

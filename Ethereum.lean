@@ -52,4 +52,4 @@ import Ethereum.State.Withdrawal
 import Ethereum.State.TransactionOps
 import Ethereum.State.TrieRoot
 
-import Ethereum.SpongeHash.Keccak256
+import Ethereum.Crypto.Keccak256
