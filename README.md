@@ -43,6 +43,12 @@ Ethereum/Semantics.lean
 Ethereum's Keccak-256 is implemented as transparent Lean in
 [`Ethereum/SpongeHash/Keccak256.lean`](Ethereum/SpongeHash/Keccak256.lean).
 
+`hash` computes on `Nat` lanes so that the kernel evaluates concrete hashes
+quickly, as `decide +kernel` proofs about function selectors and storage slots
+require. `referenceHash` computes the same function on `UInt64` lanes;
+`hash_eq_referenceHash` proves them equal and, as a `csimp` lemma, makes
+compiled code run `referenceHash`.
+
 The other cryptographic primitives use external implementations:
 
 - SHA-256 and the BLAKE2 compression function `F` are C functions linked
