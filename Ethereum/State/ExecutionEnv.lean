@@ -44,6 +44,10 @@ def basefee (e : ExecutionEnv) : UInt256 :=
 def ExecutionEnv.getBlobGasprice (e : ExecutionEnv) : UInt256 :=
   .ofNat (e.header.getBlobGasprice e.fork)
 
+/-- EIP-7843 (Amsterdam): the slot number of the block, from its header. -/
+def ExecutionEnv.slotNumber (e : ExecutionEnv) : UInt256 :=
+  e.header.slotNumber.option ⟨0⟩ (.ofNat ·.toNat)
+
 def blobhash (e : ExecutionEnv) (i : UInt256) : UInt256 :=
   e.blobVersionedHashes[i.toNat]?.option ⟨0⟩
     (.ofNat ∘ fromByteArrayBigEndian)

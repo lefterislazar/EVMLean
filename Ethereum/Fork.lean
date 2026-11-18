@@ -191,6 +191,7 @@ def bpo2 : ForkSpec := { osaka with blobSchedule := ⟨14, 21, 11684671⟩ }
     BPO2 blob schedule. -/
 def amsterdam : ForkSpec :=
   { bpo2 with
+    eip7843 := true
     eip8024 := true }
 
 end ForkSpec

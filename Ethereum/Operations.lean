@@ -305,6 +305,11 @@ inductive BOp : Type where
   | protected BASEFEE : BOp
   | protected BLOBHASH : BOp
   | protected BLOBBASEFEE : BOp
+  /--
+    SLOTNUM: the slot number of the block (EIP-7843, Amsterdam)
+    δ: 0 ; α: 1
+  -/
+  | protected SLOTNUM : BOp
   deriving DecidableEq, Repr
 
 /--
@@ -659,6 +664,7 @@ abbrev SELFBALANCE  : Operation := .Block .SELFBALANCE
 abbrev BASEFEE      : Operation := .Block .BASEFEE
 abbrev BLOBHASH     : Operation := .Block .BLOBHASH
 abbrev BLOBBASEFEE  : Operation := .Block .BLOBBASEFEE
+abbrev SLOTNUM      : Operation := .Block .SLOTNUM
 
 abbrev POP        : Operation    := .StackMemFlow .POP
 abbrev MLOAD      : Operation    := .StackMemFlow .MLOAD

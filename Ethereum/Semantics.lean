@@ -567,6 +567,13 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
       | .BASEFEE => executionEnvOp Ethereum.basefee evmStateCharged
       | .BLOBHASH => unaryExecutionEnvOp blobhash evmStateCharged
       | .BLOBBASEFEE => executionEnvOp Ethereum.ExecutionEnv.getBlobGasprice evmStateCharged
+      | .SLOTNUM =>
+        /- EIP-7843 (Amsterdam). Before Amsterdam `0x4b` is an invalid
+           instruction, rejected here as `CLZ` is. -/
+        if evmStateCharged.executionEnv.fork.spec.eip7843 then
+          executionEnvOp Ethereum.ExecutionEnv.slotNumber evmStateCharged
+        else
+          .error .InvalidInstruction
       | .POP =>
         match evmStateCharged.machineState.stack.pop with
           | some ⟨ s , _ ⟩ => .ok <| evmStateCharged.replaceStackAndIncrPC s

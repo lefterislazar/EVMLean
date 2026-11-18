@@ -1083,6 +1083,9 @@ private lemma step_block_accountMap_eq
   · have hm := executionEnvOp_accountMap_eq h; simpa using hm
   · have hm := unaryExecutionEnvOp_accountMap_eq h; simpa using hm
   · have hm := executionEnvOp_accountMap_eq h; simpa using hm
+  · split at h
+    · have hm := executionEnvOp_accountMap_eq h; simpa using hm
+    · contradiction
 
 private lemma step_log_accountMap_eq
     {op : Operation.LOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}

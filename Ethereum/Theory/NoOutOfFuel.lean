@@ -224,6 +224,7 @@ lemma step_no_OutOfFuel {g state} instr :
         simp at h
   | Block op =>
       cases op <;> intro h <;> simp [step] at h
+      all_goals (split at h <;> simp at h)
   | StackMemFlow op =>
       cases op <;> intro h <;>
         simp [step] at h <;>

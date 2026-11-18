@@ -963,6 +963,9 @@ lemma static_step_block_accountMap_eq
   · simpa using static_executionEnvOp_accountMap_eq h
   · simpa using static_unaryExecutionEnvOp_accountMap_eq h
   · simpa using static_executionEnvOp_accountMap_eq h
+  · split at h
+    · simpa using static_executionEnvOp_accountMap_eq h
+    · contradiction
 
 lemma static_step_log_accountMap_eq
     {op : Operation.LOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}

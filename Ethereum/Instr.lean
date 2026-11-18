@@ -70,6 +70,7 @@ def serializeBlockInstr : BOp → UInt8
   | .BASEFEE     => 0x48
   | .BLOBHASH    => 0x49
   | .BLOBBASEFEE => 0x4a
+  | .SLOTNUM => 0x4b
 
 def serializeStackMemFlowInstr : SMSFOp → UInt8
   | .POP      => 0x50
@@ -253,6 +254,7 @@ def δ : Operation → Option ℕ
   | .BASEFEE        => some 0
   | .BLOBHASH       => some 1
   | .BLOBBASEFEE    => some 0
+  | .SLOTNUM        => some 0
   | .POP            => some 1
   | .MLOAD          => some 1
   | .MSTORE         => some 2
@@ -377,6 +379,7 @@ def α : Operation → Option ℕ
   | .BASEFEE => some 1
   | .BLOBHASH => some 1
   | .BLOBBASEFEE => some 1
+  | .SLOTNUM => some 1
   | .POP => some 0
   | .MLOAD => some 1
   | .MSTORE => some 0
@@ -500,6 +503,7 @@ def parseInstr : UInt8 → Option (Operation)
   | 0x48 => some .BASEFEE
   | 0x49 => some .BLOBHASH
   | 0x4a => some .BLOBBASEFEE
+  | 0x4b => some .SLOTNUM
 
   | 0x50 => some .POP
   | 0x51 => some .MLOAD
