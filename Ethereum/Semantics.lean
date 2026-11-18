@@ -378,6 +378,17 @@ def sstoreStateGas (s : State) : Except EVM.ExecutionException State :=
   else .ok s
 
 /--
+EIP-7708 (Amsterdam): the logs of the frame of `s` after a `SELFDESTRUCT` to
+`r`, which logs the transfer of the balance to another account.
+-/
+def selfDestructLogs (s : State) (r : AccountAddress) : LogSeries :=
+  let Iₐ := s.executionEnv.codeOwner
+  let balance : UInt256 := s.accountMap.get? Iₐ |>.option ⟨0⟩ (·.balance)
+  if s.executionEnv.fork.spec.eip7708 ∧ r ≠ Iₐ ∧ balance ≠ ⟨0⟩ then
+    s.substate.logSeries.push (LogEntry.transfer Iₐ r balance)
+  else s.substate.logSeries
+
+/--
 EIP-8037 (Amsterdam): the state gas of `SELFDESTRUCT`: moving a balance to a
 dead account creates it.
 -/
@@ -493,14 +504,17 @@ def create
   let a₀ := creationAddress σStar Iₐ salt i
   let createsAccount : Bool :=
     I.fork.spec.eip8037 && σ_Iₐ.nonce.toNat < 2^64-1
-      && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024 && i.size ≤ 49152
+      && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024
+      && i.size ≤ I.fork.maxInitCodeSize
       && State.dead σ a₀
   let evmState ← chargeStateGas evmState (if createsAccount then StateGas.NEW_ACCOUNT else 0)
 
   let (a, evmState', g', z, o) : (AccountAddress × State × UInt256 × Bool × ByteArray) :=
     if σ_Iₐ.nonce.toNat ≥ 2^64-1 then
       (default, evmState, .ofNat (L evmState.machineState.gasAvailable.toNat), false, .empty)
-    else if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
+    else if hDepth :
+        value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024
+          ∧ i.size ≤ I.fork.maxInitCodeSize then
       let Λ :=
         Lambda
           I.fork
@@ -527,7 +541,8 @@ def create
 
   let x : UInt256 :=
     let balance := σ.get? Iₐ |>.option ⟨0⟩ (·.balance)
-    if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ i.size > 49152 then ⟨0⟩ else .ofNat a
+    if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ i.size > I.fork.maxInitCodeSize then ⟨0⟩
+    else .ofNat a
   let newReturnData : ByteArray := if z then .empty else o
   if evmState.machineState.gasAvailable.toNat + g'.toNat < L evmState.machineState.gasAvailable.toNat then
     .error .OutOfGass
@@ -795,6 +810,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
                         evmStateCharged.substate.selfDestructSet.insert Iₐ
                       accessedAccounts :=
                         evmStateCharged.substate.accessedAccounts.insert r
+                      logSeries := selfDestructLogs evmStateCharged r
                   }
                 let accountMap' :=
                   match evmStateCharged.lookupAccount Iₐ with
@@ -814,6 +830,9 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
                             evmStateCharged.accountMap.insert r
                               {σ_r with balance := σ_r.balance + σ_Iₐ.balance}
                                 |>.insert Iₐ {σ_Iₐ with balance := ⟨0⟩}
+                          else if evmStateCharged.executionEnv.fork.spec.eip8246 then
+                            -- EIP-8246 (Amsterdam): no ether is burnt.
+                            evmStateCharged.accountMap
                           else
                             -- if the target is the same as the contract calling `SELFDESTRUCT` that Ether will be burnt.
                             evmStateCharged.accountMap.insert r {σ_r with balance := ⟨0⟩}
@@ -832,6 +851,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
                   { evmStateCharged.substate with
                       accessedAccounts :=
                         evmStateCharged.substate.accessedAccounts.insert r
+                      logSeries := selfDestructLogs evmStateCharged r
                   }
                 let accountMap' :=
                   match evmStateCharged.lookupAccount Iₐ with
@@ -968,7 +988,8 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
           .error .StaticModeViolation
         else if (w = .SSTORE) ∧ evmState.machineState.gasAvailable.toNat ≤ GasConstants.Gcallstipend then
           .error .OutOfGass
-        else if w.isCreate ∧ evmState.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩ then
+        else if w.isCreate ∧
+            evmState.machineState.stack.getD 2 ⟨0⟩ > .ofNat evmState.executionEnv.fork.maxInitCodeSize then
           .error .OutOfGass
         else
           .ok (evmState, cost₂)
@@ -1152,6 +1173,11 @@ def Lambda
   match charged with
   | none => (a, σ, ⟨0⟩, {AStar with createdAccounts := A.createdAccounts}, false, .empty)
   | some (gₜ, AStarₜ) =>
+  -- EIP-7708 (Amsterdam): the endowment is logged in the creation's frame.
+  let AStarₜ :=
+    if fork.spec.eip7708 ∧ v ≠ ⟨0⟩ then
+      { AStarₜ with logSeries := AStarₜ.logSeries.push (LogEntry.transfer s a v) }
+    else AStarₜ
 
   let newAccount : Account :=
     { existentAccount with
@@ -1208,8 +1234,7 @@ def Lambda
           | .some ac => ac.code ≠ .empty ∨ ac.nonce ≠ ⟨0⟩
           | .none => false
         let F₂ : Bool := if fork.spec.eip8037 then deposit.isNone else gStarStar.toNat < c
-        let MAX_CODE_SIZE := 24576
-        let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
+        let F₃ : Bool := returnedData.size > fork.maxCodeSize
         let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
         pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
 
@@ -1284,6 +1309,13 @@ def Θ (fork : Fork)
   match charged with
   | none => (σ, ⟨0⟩, A, false, .empty)
   | some (gₜ, Aₜ) =>
+  /- EIP-7708 (Amsterdam): a transfer to another account is logged in the
+     callee's frame, before its own logs, and discarded with them when it
+     fails. -/
+  let Aₜ :=
+    if fork.spec.eip7708 ∧ v ≠ ⟨0⟩ ∧ s ≠ r then
+      { Aₜ with logSeries := Aₜ.logSeries.push (LogEntry.transfer s r v) }
+    else Aₜ
 
   -- (124) (125) (126)
   let σ'₁ :=
@@ -1461,6 +1493,22 @@ def applyAuthorizationsAmsterdam
   return (σ, accessed, gas, A)
 
 /--
+The accounts that destroyed themselves in the transaction (EIP-6780: those it
+created) are deleted at its end. From EIP-8246 (Amsterdam), their balance
+stays: their nonce, code and storage are cleared, and the account is deleted
+only if it is then empty.
+-/
+def destroyAccounts (fork : Fork) (A : Substate) (σ : AccountMap) : AccountMap :=
+  if fork.spec.eip8246 then
+    A.selfDestructSet.1.foldl (init := σ) fun σ a =>
+      match σ.get? a with
+      | none => σ
+      | some acc =>
+        let acc := { acc with nonce := ⟨0⟩, code := .empty, storage := default }
+        if acc.balance = ⟨0⟩ then σ.erase a else σ.insert a acc
+  else A.selfDestructSet.1.foldl Std.ExtTreeMap.erase σ
+
+/--
 The outcome of a transaction (`Υ`): the state, the substate, whether it
 succeeded, and its gas.
 -/
@@ -1586,7 +1634,7 @@ def ΥAmsterdam
   let σStar' :=
     if beneficiaryFee != UInt256.ofNat 0 then σStar.increaseBalance H.beneficiary beneficiaryFee
     else σStar
-  let σ' := A.selfDestructSet.1.foldl Std.ExtTreeMap.erase σStar'
+  let σ' := destroyAccounts fork A σStar'
   let deadAccounts := A.touchedAccounts.filter (State.dead σStar' ·)
   let σ' := deadAccounts.foldl Std.ExtTreeMap.erase σ'
   let σ' := σ'.map λ _ acc ↦ { acc with tstorage := .empty }
@@ -1732,7 +1780,7 @@ def Υ
     if beneficiaryFee != UInt256.ofNat 0 then
       σStar.increaseBalance H.beneficiary beneficiaryFee
     else σStar
-  let σ' := A.selfDestructSet.1.foldl Std.ExtTreeMap.erase σStar' -- (87)
+  let σ' := destroyAccounts fork A σStar' -- (87)
   let deadAccounts := A.touchedAccounts.filter (State.dead σStar' ·)
   let σ' := deadAccounts.foldl Std.ExtTreeMap.erase σ' -- (88)
   let σ' := σ'.map λ _ acc ↦ { acc with tstorage := .empty }

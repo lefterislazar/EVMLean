@@ -12,8 +12,6 @@ request contracts after the block's transactions.
 
 namespace Ethereum
 
-def SYSTEM_ADDRESS : AccountAddress := 0xfffffffffffffffffffffffffffffffffffffffe
-
 /-- EIP-4788 beacon block root contract (Cancun). -/
 def BEACON_ROOTS_ADDRESS : AccountAddress := 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02
 
@@ -28,6 +26,12 @@ def WITHDRAWAL_REQUEST_ADDRESS : AccountAddress := 0x00000961Ef480Eb55e80D19ad83
 
 /-- EIP-7251 consolidation request contract. -/
 def CONSOLIDATION_REQUEST_ADDRESS : AccountAddress := 0x0000BBdDc7CE488642fb579F8B00f3a590007251
+
+/-- EIP-8282 builder deposit request contract (Amsterdam). -/
+def BUILDER_DEPOSIT_REQUEST_ADDRESS : AccountAddress := 0x0000BFF46984E3725691FA540A8C7589300D8282
+
+/-- EIP-8282 builder exit request contract (Amsterdam). -/
+def BUILDER_EXIT_REQUEST_ADDRESS : AccountAddress := 0x000064D678505AD48F8CCB093BC65613800E8282
 
 /-- Gas given to system calls (EIP-4788, EIP-2935, EIP-7002, EIP-7251). -/
 def SYSTEM_TRANSACTION_GAS : ℕ := 30000000

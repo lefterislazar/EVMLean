@@ -299,7 +299,10 @@ theorem precompiled_Theta_accountMap_eq
   · left; rfl
   · rename_i gₜ Aₜ _
     right
-    refine ⟨gₜ, Aₜ,
+    refine ⟨gₜ,
+      (if fork.spec.eip7708 ∧ v ≠ ⟨0⟩ ∧ s ≠ r then
+        { Aₜ with logSeries := Aₜ.logSeries.push (LogEntry.transfer s r v) }
+      else Aₜ),
       { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
         code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
         blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork,
@@ -509,7 +512,7 @@ theorem Z_ok_eq_charged_cost {validJumps : Array UInt256} {instr : Operation}
     contradiction
   rw [if_neg (by simpa [charged] using hsstore)] at hZ
   by_cases hcreate :
-      instr.isCreate ∧ charged.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
+      instr.isCreate ∧ charged.machineState.stack.getD 2 ⟨0⟩ > .ofNat charged.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [charged] using hcreate)] at hZ
     contradiction
   rw [if_neg (by simpa [charged] using hcreate)] at hZ
@@ -1894,10 +1897,13 @@ theorem code_Theta_accountMap_eq
   · left; rfl
   · rename_i gₜ Aₜ _
     right
-    refine ⟨gₜ, Aₜ, ?_⟩
+    refine ⟨gₜ,
+      (if fork.spec.eip7708 ∧ v ≠ ⟨0⟩ ∧ s ≠ r then
+        { Aₜ with logSeries := Aₜ.logSeries.push (LogEntry.transfer s r v) }
+      else Aₜ), ?_⟩
     unfold thetaXiAccountMap thetaXiResult
     split <;> rename_i heq <;>
-      (have heq' : Ξ (sendEth r s v true σ) σ₀ gₜ Aₜ _ = _ := heq
+      (have heq' : Ξ (sendEth r s v true σ) σ₀ gₜ _ _ = _ := heq
        rw [heq'])
 
 theorem Theta_static_accountStorageStateEq

@@ -621,7 +621,7 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
   · by_cases hCreate :
         value ≤ (evmState.accountMap.get? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
           evmState.executionEnv.depth < 1024 ∧
-          (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
+          (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ evmState.executionEnv.fork.maxInitCodeSize
     · let lambdaRes := Lambda evmState.executionEnv.fork σStar es.σ₀ es.substate
         evmState.executionEnv.codeOwner evmState.executionEnv.sender
         (UInt256.ofNat (L es.machineState.gasAvailable.toNat))
@@ -1325,13 +1325,19 @@ private lemma step_system_consistent_except_owner_max_depth
                       htarget hacc
               | some targetAcc =>
                   by_cases hsame : target = sc.executionEnv.codeOwner
-                  · simp [hpop, hcreated, howner] at h
+                  · by_cases h8246 : sc.executionEnv.fork.spec.eip8246 = true
+                    · simp [hpop, hcreated, howner] at h
+                      rw [← h]
+                      simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
+                        target, htarget, howner, hsame, h8246]
+                      exact account_changes_consistent_rfl acc
+                    simp [hpop, hcreated, howner] at h
                     rw [← h]
                     have htargetAcc : ownerAcc = targetAcc := by
                       simpa [hsame, howner] using htarget
                     subst targetAcc
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      target, howner, hsame]
+                      target, howner, hsame, h8246]
                     have h₁ := account_changes_consistent_insert_ne
                       acc sc.executionEnv.codeOwner sc.accountMap
                       ({ownerAcc with balance := { val := 0 }}) hacc
@@ -1574,13 +1580,19 @@ private lemma step_system_consistent_except_owner_succ_depth
                       htarget hacc
               | some targetAcc =>
                   by_cases hsame : target = sc.executionEnv.codeOwner
-                  · simp [hpop, hcreated, howner] at h
+                  · by_cases h8246 : sc.executionEnv.fork.spec.eip8246 = true
+                    · simp [hpop, hcreated, howner] at h
+                      rw [← h]
+                      simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
+                        target, htarget, howner, hsame, h8246]
+                      exact account_changes_consistent_rfl acc
+                    simp [hpop, hcreated, howner] at h
                     rw [← h]
                     have htargetAcc : ownerAcc = targetAcc := by
                       simpa [hsame, howner] using htarget
                     subst targetAcc
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
-                      target, howner, hsame]
+                      target, howner, hsame, h8246]
                     have h₁ := account_changes_consistent_insert_ne
                       acc sc.executionEnv.codeOwner sc.accountMap
                       ({ownerAcc with balance := { val := 0 }}) hacc
@@ -1706,7 +1718,7 @@ theorem account_changes_consistent_of_Z
     contradiction
   rw [if_neg (by simpa [state₁] using hsstore)] at hZ
   by_cases hcreate :
-      op.isCreate ∧ state₁.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
+      op.isCreate ∧ state₁.machineState.stack.getD 2 ⟨0⟩ > .ofNat state₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [state₁] using hcreate)] at hZ
     contradiction
   rw [if_neg (by simpa [state₁] using hcreate)] at hZ
@@ -1780,7 +1792,7 @@ theorem Z_executionEnv_eq
     contradiction
   rw [if_neg (by simpa [state₁] using hsstore)] at hZ
   by_cases hcreate :
-      op.isCreate ∧ state₁.machineState.stack.getD 2 ⟨0⟩ > ⟨49152⟩
+      op.isCreate ∧ state₁.machineState.stack.getD 2 ⟨0⟩ > .ofNat state₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [state₁] using hcreate)] at hZ
     contradiction
   rw [if_neg (by simpa [state₁] using hcreate)] at hZ
@@ -2357,7 +2369,10 @@ private lemma precompiled_Theta_accountMap_eq
   · left; rfl
   · rename_i gₜ Aₜ _
     right
-    refine ⟨gₜ, Aₜ,
+    refine ⟨gₜ,
+      (if fork.spec.eip7708 ∧ v ≠ ⟨0⟩ ∧ s ≠ r then
+        { Aₜ with logSeries := Aₜ.logSeries.push (LogEntry.transfer s r v) }
+      else Aₜ),
       { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
         code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
         blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork,

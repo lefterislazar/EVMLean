@@ -246,9 +246,7 @@ def validateTransaction
 
   match T.base.recipient with
     | none => do
-      let MAX_CODE_SIZE := 24576
-      let MAX_INITCODE_SIZE := 2 * MAX_CODE_SIZE
-      if T.base.data.size > MAX_INITCODE_SIZE then
+      if T.base.data.size > fork.maxInitCodeSize then
         throw <| .TransactionException .INITCODE_SIZE_EXCEEDED
     | some _ => pure ()
 
@@ -342,7 +340,7 @@ def validateTransactionAmsterdam
   -- 2.
   if T.base.nonce.toNat ≥ 2 ^ 64 - 1 then
     throw <| .TransactionException .NONCE_IS_MAX
-  if T.base.recipient.isNone ∧ T.base.data.size > 2 * 24576 then
+  if T.base.recipient.isNone ∧ T.base.data.size > fork.maxInitCodeSize then
     throw <| .TransactionException .INITCODE_SIZE_EXCEEDED
   if gasLimit > GasConstants.TX_MAX_TOTAL_GAS_LIMIT then
     throw <| .TransactionException .GAS_LIMIT_EXCEEDS_MAXIMUM

@@ -14,27 +14,23 @@ the Amsterdam fixtures are not part of the default conformance run.
 
 | EIP | Change | Status |
 |---|---|---|
-| [8024] | `DUPN`, `SWAPN`, `EXCHANGE` | Implemented (flag `eip8024`)¹ |
-| [7843] | `SLOTNUM`, header `slotNumber` | Implemented (flag `eip7843`)¹ |
-| [7928] | Block-level access lists, header `blockAccessListHash` | Header field parsed; flag `eip7928` off |
+| [8024] | `DUPN`, `SWAPN`, `EXCHANGE` | Implemented (flag `eip8024`) |
+| [7843] | `SLOTNUM`, header `slotNumber` | Implemented (flag `eip7843`) |
 | [2780] | Resource-based intrinsic transaction gas | Implemented (flag `eip2780`) |
 | [7976] | Calldata floor cost | Implemented (flag `eip7976`) |
 | [7981] | Access list cost | Implemented (flag `eip7981`) |
 | [8037] | State creation gas: the state-gas dimension | Implemented (flag `eip8037`) |
 | [8038] | State-access gas cost update | Implemented (flag `eip8038`) |
 | [7778] | Block gas accounting without refunds | Implemented (flag `eip7778`) |
-| [7708] | ETH transfers emit a log | Planned |
-| [7954] | Maximum contract size `0x10000` | Planned: the limits become functions of the fork, also in the ~30 proof statements that restate them |
-| [8246] | `SELFDESTRUCT` no longer burns | Planned |
-| [8282] | Builder execution requests | Planned |
+| [7708] | ETH transfers emit a log | Implemented (flag `eip7708`) |
+| [7954] | Maximum contract size `0x10000` | Implemented (flag `eip7954`) |
+| [8246] | `SELFDESTRUCT` no longer burns | Implemented (flag `eip8246`) |
+| [8282] | Builder execution requests | Implemented (flag `eip8282`); checked by the blockchain tests only, after EIP-7928 |
+| [7928] | Block-level access lists, header `blockAccessListHash` | Header field parsed; flag `eip7928` off |
 | [7997] | Deterministic factory contract | Not in EELS at `tests@v21.0.2`: nothing to model yet |
 
-¹ The fixtures cannot check these fully yet: all but one of the state tests
-of each exceed the old `2^24` transaction gas cap, which EIP-8037 lifts. In
-the remaining one, `test_stack_access_opcodes_mainnet` and
-`test_slotnum_mainnet`, the stored results match; only the sender's fee
-differs, by the gas of the EIPs below. The EIP-8024 immediate decoders also
-agree with EELS on all 256 immediates.
+All 16,908 Amsterdam state-test cases pass. The blockchain tests need
+EIP-7928: every Amsterdam header commits to the block's access list.
 
 ## Forks
 
@@ -59,11 +55,9 @@ lake test -- --dirs for_amsterdam,for_bpo2toamsterdamattime15k
 ```
 
 The state-test runner (`Conform/Run.lean`, `runStateCase`) passes all 40,162
-state-test cases of Cancun, Prague and Osaka; the blockchain tests of the
-earlier forks (47,436 cases) all pass. Before the gas changes, 1,593 of the
-16,908 Amsterdam state-test cases passed; with the gas meter, 11,421 pass. Of
-the others, 5,348 have the expected post-state and differ only in the
-transfer logs of EIP-7708, and the rest need EIP-8246 or EIP-7954.
+state-test cases of Cancun, Prague and Osaka, and all 16,908 of Amsterdam;
+the blockchain tests of the earlier forks (47,436 cases) all pass. Before the
+gas changes, 1,593 Amsterdam cases passed; with the gas meter alone, 11,421.
 
 ## The gas meter (EIP-8037, with 2780, 7976, 7981 and 8038)
 
@@ -188,14 +182,19 @@ bounds memory with `frameGas`.
 ## The other EIPs
 
 - **EIP-7843**: opcode `0x4B`, gas 2, pushes the header's slot number.
-- **EIP-7954**: `MAX_CODE_SIZE` `0x10000`, `MAX_INIT_CODE_SIZE` `0x20000`.
-- **EIP-8246**: a contract created and destroyed in the same transaction keeps
-  its balance; at the end of the transaction its nonce, code and storage are
-  cleared, and the account is deleted if it is then empty.
+- **EIP-7954**: the largest code `0x10000` and init code `0x20000`, as
+  `Fork.maxCodeSize` and `Fork.maxInitCodeSize`.
+- **EIP-8246**: a `SELFDESTRUCT` to itself no longer burns the balance. A
+  contract created and destroyed in the same transaction keeps its balance:
+  at the end of the transaction its nonce, code and storage are cleared, and
+  the account is deleted if it is then empty (`destroyAccounts`).
 - **EIP-7708**: a value transfer from one account to another in `CALL`,
   `CREATE`, `CREATE2`, the transaction itself, and `SELFDESTRUCT` to another
-  account, logs `Transfer(from, to, value)` from `0xff…fe`, before the
-  callee's own logs. Nothing is logged for zero, `CALLCODE`, `DELEGATECALL`,
+  account, logs `Transfer(from, to, value)` from `0xff…fe`
+  (`LogEntry.transfer`). `Θ` and `Lambda` add the log to the substate the
+  callee starts with, so it precedes the callee's own logs and is discarded
+  with them when the callee fails. Nothing is logged for zero, `CALLCODE`
+  (sender and recipient are the same), `DELEGATECALL` (no transfer),
   withdrawals or fees.
 - **EIP-8282**: two more checked system calls after the consolidation
   requests, to `0x0000BFF4…8282` (request type 3) and `0x000064D6…8282`

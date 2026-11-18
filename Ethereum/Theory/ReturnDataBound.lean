@@ -231,7 +231,7 @@ lemma Z_stack_active_eq {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [state₁] using hsstore)] at h
   by_cases hcreate :
-      w.isCreate ∧ state₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+      w.isCreate ∧ state₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > .ofNat state₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [state₁] using hcreate)] at h
     contradiction
   rw [if_neg (by simpa [state₁] using hcreate)] at h
@@ -304,7 +304,7 @@ lemma Z_gasAvailable_eq {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [state₁] using hsstore)] at h
   by_cases hcreate :
-      w.isCreate ∧ state₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+      w.isCreate ∧ state₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > .ofNat state₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [state₁] using hcreate)] at h
     contradiction
   rw [if_neg (by simpa [state₁] using hcreate)] at h
@@ -2543,8 +2543,7 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
               | .some ac => ac.code ≠ ByteArray.empty ∨ ac.nonce ≠ (⟨0⟩ : UInt256)
               | .none => false
             let F₂ : Bool := if fork.spec.eip8037 then deposit.isNone else gStarStar.toNat < c
-            let MAX_CODE_SIZE := 24576
-            let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
+            let F₃ : Bool := returnedData.size > fork.maxCodeSize
             let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
             pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
           let σ' : AccountMap :=
@@ -2591,8 +2590,7 @@ lemma Lambda_Xi_tuple_match_output_size_lt_uint256
               | .some ac => ac.code ≠ ByteArray.empty ∨ ac.nonce ≠ (⟨0⟩ : UInt256)
               | .none => false
             let F₂ : Bool := if fork.spec.eip8037 then deposit.isNone else gStarStar.toNat < c
-            let MAX_CODE_SIZE := 24576
-            let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
+            let F₃ : Bool := returnedData.size > fork.maxCodeSize
             let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
             pure (F₀ ∨ F₂ ∨ F₃ ∨ F₄)
           let σ' : AccountMap :=
@@ -2656,7 +2654,8 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
     split
     · simp [maxReturnDataSizeByGas]
     · rename_i g' o hxi
-      exact Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit hxi
+      exact Xi_revert_output_size_le_maxReturnDataSizeByGas
+        (by split_ifs <;> exact hb) (by split_ifs <;> exact hfit) hxi
     · simp [maxReturnDataSizeByGas]
 
 lemma lambda_projection_output_size_lt_uint256
@@ -2827,9 +2826,11 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
     split
     · simp [maxReturnDataSizeByGas]
     · rename_i g' o hxi
-      exact Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit hxi
+      exact Xi_revert_output_size_le_maxReturnDataSizeByGas
+        (by split_ifs <;> exact hb) (by split_ifs <;> exact hfit) hxi
     · rename_i hxi
-      exact Xi_success_output_size_le_maxReturnDataSizeByGas hb hfit hxi
+      exact Xi_success_output_size_le_maxReturnDataSizeByGas
+        (by split_ifs <;> exact hb) (by split_ifs <;> exact hfit) hxi
 
 lemma theta_code_projection_output_size_lt_uint256
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)

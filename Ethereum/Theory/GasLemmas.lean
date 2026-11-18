@@ -1654,7 +1654,8 @@ theorem Z_cost_le {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [evmState₁] using hsstore)] at h
   by_cases hcreate :
-      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) >
+        UInt256.ofNat evmState₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [evmState₁] using hcreate)] at h
     contradiction
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
@@ -1729,7 +1730,8 @@ theorem Z_cost_eq_C' {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [evmState₁] using hsstore)] at h
   by_cases hcreate :
-      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) >
+        UInt256.ofNat evmState₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [evmState₁] using hcreate)] at h
     contradiction
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
@@ -1805,7 +1807,8 @@ theorem Z_cost_pos_of_continues {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [evmState₁] using hsstore)] at h
   by_cases hcreate :
-      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) >
+        UInt256.ofNat evmState₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [evmState₁] using hcreate)] at h
     contradiction
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
@@ -1880,7 +1883,8 @@ theorem Z_ok_state {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [evmState₁] using hsstore)] at h
   by_cases hcreate :
-      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) > ⟨49152⟩
+      w.isCreate ∧ evmState₁.machineState.stack[2]?.getD (⟨0⟩ : UInt256) >
+        UInt256.ofNat evmState₁.executionEnv.fork.maxInitCodeSize
   · rw [if_pos (by simpa [evmState₁] using hcreate)] at h
     contradiction
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
@@ -2456,22 +2460,26 @@ theorem Theta_gas_spill_of_lt {n : ℕ} (ih : ∀ m, m < n → ChildGasBound m)
       · simp only [Option.some.injEq, Prod.mk.injEq] at hch
         obtain ⟨rfl, rfl⟩ := hch
         exact ⟨le_refl _, le_refl _⟩
+    -- EIP-7708: the transfer log changes only the log series.
+    have hsp : ∀ (P : Prop) [Decidable P] (l : LogSeries),
+        (if P then { Aₜ with logSeries := l } else Aₜ).stateGasSpilled = Aₜ.stateGasSpilled := by
+      intros; split <;> rfl
     split
     · rename_i pc
       refine theta_result_bound (le_trans (precompile_dispatch_gas_le _ _ _ _ _) (by omega)) ?_
       refine (precompile_dispatch_substate _ _ _ _ _).elim (fun hA => Or.inr ?_) (fun hA => Or.inl hA)
-      rw [hA]
+      rw [hA, hsp]
       refine ⟨hT.2, le_trans (Nat.add_le_add_right (precompile_dispatch_gas_le _ _ _ _ _) _) ?_⟩
       omega
     · split
       · exact theta_result_bound (by simp) (Or.inl rfl)
       · rename_i g' o' hXi
-        have hX := Xi_gas_spill_of_children (by simpa using hT.2) (by simpa using hchild) hXi
-        simp only [XiResultBound] at hX
+        have hX := Xi_gas_spill_of_children (by simpa [hsp] using hT.2) (by simpa using hchild) hXi
+        simp only [XiResultBound, hsp] at hX
         exact theta_result_bound (by dsimp only; omega) (Or.inl rfl)
       · rename_i σ'' g' A'' o' hXi
-        have hX := Xi_gas_spill_of_children (by simpa using hT.2) (by simpa using hchild) hXi
-        simp only [XiResultBound] at hX
+        have hX := Xi_gas_spill_of_children (by simpa [hsp] using hT.2) (by simpa using hchild) hXi
+        simp only [XiResultBound, hsp] at hX
         refine theta_result_bound (by dsimp only; omega) (Or.inr ⟨hX.1, by dsimp only; omega⟩)
 
 /-- The result of a successful creation, from its code's result `(gSS, ASS)`
@@ -2532,16 +2540,20 @@ theorem Lambda_gas_spill_of_lt {n : ℕ} (ih : ∀ m, m < n → ChildGasBound m)
       · simp only [Option.some.injEq, Prod.mk.injEq] at hch
         obtain ⟨rfl, rfl⟩ := hch
         simp
+    -- EIP-7708: the transfer log changes only the log series.
+    have hsp : ∀ (P : Prop) [Decidable P] (l : LogSeries),
+        (if P then { Aₜ with logSeries := l } else Aₜ).stateGasSpilled = Aₜ.stateGasSpilled := by
+      intros; split <;> rfl
     split
     · simp
     · rename_i g' o' hXi
-      have hX := Xi_gas_spill_of_children (by simpa using hT.2) (by simpa using hchild) hXi
-      simp only [XiResultBound] at hX
+      have hX := Xi_gas_spill_of_children (by simpa [hsp] using hT.2) (by simpa using hchild) hXi
+      simp only [XiResultBound, hsp] at hX
       simp
       omega
     · rename_i σSS gSS ASS out hXi
-      have hX := Xi_gas_spill_of_children (by simpa using hT.2) (by simpa using hchild) hXi
-      simp only [XiResultBound] at hX
+      have hX := Xi_gas_spill_of_children (by simpa [hsp] using hT.2) (by simpa using hchild) hXi
+      simp only [XiResultBound, hsp] at hX
       dsimp only
       refine lambda_success_bound _ _ _ _ (by simp) hX hT.1 ?_
       intro q hq

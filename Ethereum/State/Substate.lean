@@ -34,6 +34,22 @@ def LogEntry.to𝕋 : LogEntry → 𝕋
 
 abbrev LogSeries := Array LogEntry
 
+/-- The system address: the sender of the system calls, and the address of
+    the transfer logs (EIP-7708). -/
+def SYSTEM_ADDRESS : AccountAddress := 0xfffffffffffffffffffffffffffffffffffffffe
+
+/-- `keccak256("Transfer(address,address,uint256)")`, the topic of an ERC-20
+    transfer. -/
+def TRANSFER_TOPIC : UInt256 :=
+  .ofNat 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+
+/-- EIP-7708 (Amsterdam): the log of a transfer of `v` wei from `s` to `r`,
+    an ERC-20 `Transfer` from the system address. -/
+def LogEntry.transfer (s r : AccountAddress) (v : UInt256) : LogEntry :=
+  { address := SYSTEM_ADDRESS
+    topics := #[TRANSFER_TOPIC, .ofNat s.val, .ofNat r.val]
+    data := v.toByteArray }
+
 def LogSeries.to𝕋 (logSeries : LogSeries) : 𝕋 :=
   .𝕃 (logSeries.toList.map LogEntry.to𝕋)
 

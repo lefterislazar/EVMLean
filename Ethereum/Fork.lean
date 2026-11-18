@@ -139,10 +139,14 @@ structure ForkSpec where
   /-- EIP-7778: the block counts gas before refunds, execution and state gas
       separately. -/
   eip7778 : Bool := false
+  /-- EIP-7708: transfers of ether emit a log. -/
+  eip7708 : Bool := false
   /-- EIP-7843: the slot number in the header, and the `SLOTNUM` instruction. -/
   eip7843 : Bool := false
   /-- EIP-7928: block-level access lists, committed to in the header. -/
   eip7928 : Bool := false
+  /-- EIP-7954: larger maximum code and init code sizes. -/
+  eip7954 : Bool := false
   /-- EIP-7976: the calldata floor counts every byte at a higher price. -/
   eip7976 : Bool := false
   /-- EIP-7981: the access list adds to the calldata floor. -/
@@ -154,6 +158,10 @@ structure ForkSpec where
   eip8037 : Bool := false
   /-- EIP-8038: the repricing of state access. -/
   eip8038 : Bool := false
+  /-- EIP-8246: `SELFDESTRUCT` no longer burns ether. -/
+  eip8246 : Bool := false
+  /-- EIP-8282: builder deposit and exit requests. -/
+  eip8282 : Bool := false
   /-- The blob schedule. Its changes (EIP-7691 in Prague, the BPO forks of
       EIP-7892) need no flag. -/
   blobSchedule : BlobSchedule
@@ -165,8 +173,8 @@ namespace ForkSpec
 def flags (s : ForkSpec) : List Bool :=
   [ s.eip2537, s.eip2935, s.eip7623, s.eip7685, s.eip7702
   , s.eip7594, s.eip7823, s.eip7825, s.eip7883, s.eip7918, s.eip7934, s.eip7939, s.eip7951
-  , s.eip2780, s.eip7778, s.eip7843, s.eip7928, s.eip7976, s.eip7981, s.eip8024, s.eip8037
-  , s.eip8038 ]
+  , s.eip2780, s.eip7708, s.eip7778, s.eip7843, s.eip7928, s.eip7954, s.eip7976, s.eip7981
+  , s.eip8024, s.eip8037, s.eip8038, s.eip8246, s.eip8282 ]
 
 /-- Every EIP enabled in `a` is enabled in `b`. -/
 def Extends (b a : ForkSpec) : Prop :=
@@ -207,13 +215,17 @@ def bpo2 : ForkSpec := { osaka with blobSchedule := ⟨14, 21, 11684671⟩ }
 def amsterdam : ForkSpec :=
   { bpo2 with
     eip2780 := true
+    eip7708 := true
     eip7778 := true
     eip7843 := true
+    eip7954 := true
     eip7976 := true
     eip7981 := true
     eip8024 := true
     eip8037 := true
-    eip8038 := true }
+    eip8038 := true
+    eip8246 := true
+    eip8282 := true }
 
 end ForkSpec
 
@@ -227,6 +239,16 @@ def spec : Fork → ForkSpec
   | .bpo1 => .bpo1
   | .bpo2 => .bpo2
   | .amsterdam => .amsterdam
+
+/-- EIP-170, raised by EIP-7954 (Amsterdam): the largest code a contract can
+    have. -/
+def maxCodeSize (fork : Fork) : Nat :=
+  if fork.spec.eip7954 then 0x10000 else 0x6000
+
+/-- EIP-3860, raised by EIP-7954 (Amsterdam): the largest init code of a
+    creation. -/
+def maxInitCodeSize (fork : Fork) : Nat :=
+  if fork.spec.eip7954 then 0x20000 else 2 * 0x6000
 
 /-- A later fork enables every EIP of an earlier one. -/
 theorem spec_monotone {a b : Fork} (h : a ≤ b) : b.spec.Extends a.spec := by

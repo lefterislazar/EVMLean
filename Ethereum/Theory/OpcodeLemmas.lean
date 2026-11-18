@@ -4678,7 +4678,7 @@ theorem step_create : ∀ (s : State),
         if gasAvailable'.toNat < gasCost then .error .OutOfGass
         else if s.machineState.stack.length - 3 + 1 > 1024 then .error .StackOverflow
         else if ¬ s.executionEnv.perm then .error .StaticModeViolation
-        else if size > ⟨49152⟩ then .error .OutOfGass
+        else if size > .ofNat s.executionEnv.fork.maxInitCodeSize then .error .OutOfGass
         else
         let createState :=
           {s with
@@ -4695,7 +4695,7 @@ theorem step_create : ∀ (s : State),
         let a₀ := creationAddress σStar Iₐ none initCode
         let createsAccount : Bool :=
           createState.executionEnv.fork.spec.eip8037 && σ_Iₐ.nonce.toNat < 2^64 - 1
-            && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024 && initCode.size ≤ 49152
+            && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024 && initCode.size ≤ createState.executionEnv.fork.maxInitCodeSize
             && State.dead σ a₀
         match chargeStateGas createState (if createsAccount then StateGas.NEW_ACCOUNT else 0) with
         | .error e => .error e
@@ -4704,7 +4704,7 @@ theorem step_create : ∀ (s : State),
           if σ_Iₐ.nonce.toNat ≥ 2^64 - 1 then
             (0, chargedState, UInt256.ofNat (L chargedState.machineState.gasAvailable.toNat), false, ByteArray.empty)
           else
-            if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
+            if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ createState.executionEnv.fork.maxInitCodeSize then
               let (a, σ', g', A', z, o) :=
                 Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar chargedState.σ₀ chargedState.substate
                   Iₐ Iₒ (UInt256.ofNat (L chargedState.machineState.gasAvailable.toNat))
@@ -4716,7 +4716,7 @@ theorem step_create : ∀ (s : State),
               (0, chargedState, UInt256.ofNat (L chargedState.machineState.gasAvailable.toNat), false, ByteArray.empty)
         let (a, state', g', z, o) := createResult
         let balance := σ.get? Iₐ |>.option ⟨0⟩ (·.balance)
-        let x : UInt256 := if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ initCode.size > 49152 then ⟨0⟩ else UInt256.ofNat a
+        let x : UInt256 := if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ initCode.size > createState.executionEnv.fork.maxInitCodeSize then ⟨0⟩ else UInt256.ofNat a
         let newReturnData : ByteArray := if z then .empty else o
         if chargedState.machineState.gasAvailable.toNat + g'.toNat < L chargedState.machineState.gasAvailable.toNat then .error .OutOfGass
         else
@@ -4808,7 +4808,7 @@ theorem step_create : ∀ (s : State),
                 cases hp : s.executionEnv.perm with
                 | false => exact False.elim (hperm hp)
                 | true => rfl
-              by_cases hsize : size > (⟨49152⟩ : UInt256)
+              by_cases hsize : size > (.ofNat s.executionEnv.fork.maxInitCodeSize : UInt256)
               · simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
                   hmem', hgas', hgas'', hoverflow, hoverflow', hperm, hperm_true, hsize, C', hstack, hnot_underflow,
                   Operation.isCreate, α]
@@ -4820,7 +4820,8 @@ theorem step_create : ∀ (s : State),
                 have hdepth_eq {hDepth : value ≤
                     (((createState.accountMap).get? createState.executionEnv.codeOwner).option ⟨0⟩ fun x => x.balance) ∧
                     createState.executionEnv.depth < 1024 ∧
-                    (createState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152} :
+                    (createState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤
+                      createState.executionEnv.fork.maxInitCodeSize} :
                     (⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ : Fin 1025) =
                       createState.executionEnv.depth + 1 := by
                   ext
@@ -4871,7 +4872,7 @@ theorem step_create2 : ∀ (s : State),
         if gasAvailable'.toNat < gasCost then .error .OutOfGass
         else if s.machineState.stack.length - 4 + 1 > 1024 then .error .StackOverflow
         else if ¬ s.executionEnv.perm then .error .StaticModeViolation
-        else if size > ⟨49152⟩ then .error .OutOfGass
+        else if size > .ofNat s.executionEnv.fork.maxInitCodeSize then .error .OutOfGass
         else
         let createState :=
           {s with
@@ -4889,7 +4890,7 @@ theorem step_create2 : ∀ (s : State),
         let a₀ := creationAddress σStar Iₐ (some ζ) initCode
         let createsAccount : Bool :=
           createState.executionEnv.fork.spec.eip8037 && σ_Iₐ.nonce.toNat < 2^64 - 1
-            && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024 && initCode.size ≤ 49152
+            && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024 && initCode.size ≤ createState.executionEnv.fork.maxInitCodeSize
             && State.dead σ a₀
         match chargeStateGas createState (if createsAccount then StateGas.NEW_ACCOUNT else 0) with
         | .error e => .error e
@@ -4898,7 +4899,7 @@ theorem step_create2 : ∀ (s : State),
           if σ_Iₐ.nonce.toNat ≥ 2^64 - 1 then
             (0, chargedState, UInt256.ofNat (L chargedState.machineState.gasAvailable.toNat), false, ByteArray.empty)
           else
-            if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
+            if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ createState.executionEnv.fork.maxInitCodeSize then
               let (a, σ', g', A', z, o) :=
                 Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar chargedState.σ₀ chargedState.substate
                   Iₐ Iₒ (UInt256.ofNat (L chargedState.machineState.gasAvailable.toNat))
@@ -4910,7 +4911,7 @@ theorem step_create2 : ∀ (s : State),
               (0, chargedState, UInt256.ofNat (L chargedState.machineState.gasAvailable.toNat), false, ByteArray.empty)
         let (a, state', g', z, o) := createResult
         let balance := σ.get? Iₐ |>.option ⟨0⟩ (·.balance)
-        let x : UInt256 := if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ initCode.size > 49152 then ⟨0⟩ else UInt256.ofNat a
+        let x : UInt256 := if z = false ∨ Iₑ = 1024 ∨ value > balance ∨ initCode.size > createState.executionEnv.fork.maxInitCodeSize then ⟨0⟩ else UInt256.ofNat a
         let newReturnData : ByteArray := if z then .empty else o
         if chargedState.machineState.gasAvailable.toNat + g'.toNat < L chargedState.machineState.gasAvailable.toNat then .error .OutOfGass
         else
@@ -5004,7 +5005,7 @@ theorem step_create2 : ∀ (s : State),
                 cases hp : s.executionEnv.perm with
                 | false => exact False.elim (hperm hp)
                 | true => rfl
-              by_cases hsize : size > (⟨49152⟩ : UInt256)
+              by_cases hsize : size > (.ofNat s.executionEnv.fork.maxInitCodeSize : UInt256)
               · simp [gasAvailable', gasCost, memoryExpansionCost, memoryExpansionCost.μᵢ',
                   hmem', hgas', hgas'', hoverflow, hoverflow', hperm, hperm_true, hsize, C', hstack, hnot_underflow,
                   Operation.isCreate, α]
@@ -5016,7 +5017,8 @@ theorem step_create2 : ∀ (s : State),
                 have hdepth_eq {hDepth : value ≤
                     (((createState.accountMap).get? createState.executionEnv.codeOwner).option ⟨0⟩ fun x => x.balance) ∧
                     createState.executionEnv.depth < 1024 ∧
-                    (createState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152} :
+                    (createState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤
+                      createState.executionEnv.fork.maxInitCodeSize} :
                     (⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ : Fin 1025) =
                       createState.executionEnv.depth + 1 := by
                   ext
@@ -5078,10 +5080,13 @@ theorem step_selfdestruct : ∀ (s : State),
           if sdState.substate.createdAccounts.contains Iₐ then
             {chargedState.substate with
               selfDestructSet := sdState.substate.selfDestructSet.insert Iₐ
-              accessedAccounts := sdState.substate.accessedAccounts.insert r}
+              accessedAccounts := sdState.substate.accessedAccounts.insert r
+              -- EIP-7708: the transfer of the balance is logged.
+              logSeries := selfDestructLogs chargedState r}
           else
             {chargedState.substate with
-              accessedAccounts := sdState.substate.accessedAccounts.insert r}
+              accessedAccounts := sdState.substate.accessedAccounts.insert r
+              logSeries := selfDestructLogs chargedState r}
         let accountMap :=
           if sdState.substate.createdAccounts.contains Iₐ then
             match sdState.accountMap.get? Iₐ with
@@ -5097,6 +5102,8 @@ theorem step_selfdestruct : ∀ (s : State),
                 if r ≠ Iₐ then
                   sdState.accountMap.insert r {targetAcc with balance := targetAcc.balance + selfAcc.balance}
                     |>.insert Iₐ {selfAcc with balance := ⟨0⟩}
+                -- EIP-8246: no ether is burnt.
+                else if sdState.executionEnv.fork.spec.eip8246 then sdState.accountMap
                 else
                   sdState.accountMap.insert r {targetAcc with balance := ⟨0⟩}
                     |>.insert Iₐ {selfAcc with balance := ⟨0⟩}

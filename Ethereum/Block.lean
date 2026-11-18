@@ -263,7 +263,16 @@ def applyBody
       executeSystemCall fork s header WITHDRAWAL_REQUEST_ADDRESS .empty true
     let (s, consolidationRequests) ←
       executeSystemCall fork s header CONSOLIDATION_REQUEST_ADDRESS .empty true
-    pure (s, [(0, deposits), (1, withdrawalRequests), (2, consolidationRequests)])
+    let requests := [(0, deposits), (1, withdrawalRequests), (2, consolidationRequests)]
+    -- EIP-8282 (Amsterdam): builder deposit and exit requests.
+    if fork.spec.eip8282 then
+      let (s, builderDeposits) ←
+        executeSystemCall fork s header BUILDER_DEPOSIT_REQUEST_ADDRESS .empty true
+      let (s, builderExits) ←
+        executeSystemCall fork s header BUILDER_EXIT_REQUEST_ADDRESS .empty true
+      pure (s, requests ++ [(3, builderDeposits), (4, builderExits)])
+    else
+      pure (s, requests)
   else
     pure (s, [])
 
