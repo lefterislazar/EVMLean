@@ -105,6 +105,11 @@ def validateHeader
   -- EIP-7685: Prague headers, and only those, commit to the requests.
   if fork.spec.eip7685 != header.requestsHash.isSome then
     throw <| .BlockException .INVALID_REQUESTS
+  -- EIP-7928 and EIP-7843 (Amsterdam) append the access list hash and the slot
+  -- number. A header with other fields than its fork's does not decode.
+  if fork.spec.eip7928 != header.blockAccessListHash.isSome
+      ∨ fork.spec.eip7843 != header.slotNumber.isSome then
+    throw <| .BlockException .RLP_STRUCTURES_ENCODING
   /-
     Cancun `validate_header` rejects a block before applying its transactions
     when the header's gas used exceeds its gas limit (`GAS_USED_OVERFLOW`).

@@ -351,103 +351,61 @@ def deserializeBlock
     | _ =>
       dbg_trace "RLP error: parseTransactions"
       throw <| .BlockException .RLP_STRUCTURES_ENCODING
+  /-- The fields of a header up to `parentBeaconBlockRoot`, which every
+      header from Cancun on has. -/
+  parseCancunHeader : List ByteArray → Option BlockHeader
+    | [ parentHash, uncleHash, coinbase, stateRoot, transactionsTrie, receiptTrie
+      , bloom, difficulty, number, gasLimit, gasUsed, timestamp, extraData, mixHash
+      , nonce, baseFeePerGas, withdrawalsRoot, blobGasUsed, excessBlobGas
+      , parentBeaconBlockRoot ] =>
+      some {
+        parentHash := .ofNat <| fromByteArrayBigEndian parentHash
+        ommersHash := .ofNat <| fromByteArrayBigEndian uncleHash
+        beneficiary := .ofNat <| fromByteArrayBigEndian coinbase
+        stateRoot := .ofNat <| fromByteArrayBigEndian stateRoot
+        transRoot := transactionsTrie
+        receiptRoot := receiptTrie
+        logsBloom := bloom
+        difficulty := fromByteArrayBigEndian difficulty
+        number := fromByteArrayBigEndian number
+        gasLimit := fromByteArrayBigEndian gasLimit
+        gasUsed := fromByteArrayBigEndian gasUsed
+        timestamp := fromByteArrayBigEndian timestamp
+        extraData
+        nonce := .ofNat <| fromByteArrayBigEndian nonce
+        prevRandao := .ofNat <| fromByteArrayBigEndian mixHash
+        baseFeePerGas := fromByteArrayBigEndian baseFeePerGas
+        parentBeaconBlockRoot
+        withdrawalsRoot
+        blobGasUsed := .ofNat <| fromByteArrayBigEndian blobGasUsed
+        excessBlobGas := .ofNat <| fromByteArrayBigEndian excessBlobGas
+      }
+    | _ => none
+
+  /--
+  A header: the Cancun fields, then the fields that later forks append. Prague
+  appends `requestsHash` (EIP-7685), and Amsterdam `blockAccessListHash`
+  (EIP-7928) and `slotNumber` (EIP-7843). Which fields a block's fork requires
+  is checked by `validateHeader`.
+  -/
   parseHeader : 𝕋 → Except EVM.Exception BlockHeader
-    | .𝕃
-      [ .𝔹 parentHash
-      , .𝔹 uncleHash
-      , .𝔹 coinbase
-      , .𝔹 stateRoot
-      , .𝔹 transactionsTrie
-      , .𝔹 receiptTrie
-      , .𝔹 bloom
-      , .𝔹 difficulty
-      , .𝔹 number
-      , .𝔹 gasLimit
-      , .𝔹 gasUsed
-      , .𝔹 timestamp
-      , .𝔹 extraData
-      , .𝔹 mixHash
-      , .𝔹 nonce
-      , .𝔹 baseFeePerGas
-      , .𝔹 withdrawalsRoot
-      , .𝔹 blobGasUsed
-      , .𝔹 excessBlobGas
-      , .𝔹 parentBeaconBlockRoot
-      , .𝔹 requestsHash
-      ]
-      => do
-        if requestsHash.size ≠ 32 then
-          throw <| .BlockException .RLP_STRUCTURES_ENCODING
-        pure <|
-        BlockHeader.mk
-          (.ofNat <| fromByteArrayBigEndian parentHash)
-          (.ofNat <| fromByteArrayBigEndian uncleHash)
-          (.ofNat <| fromByteArrayBigEndian coinbase)
-          (.ofNat <| fromByteArrayBigEndian stateRoot)
-          transactionsTrie
-          receiptTrie
-          bloom
-          (fromByteArrayBigEndian difficulty)
-          (fromByteArrayBigEndian number)
-          (fromByteArrayBigEndian gasLimit)
-          (fromByteArrayBigEndian gasUsed)
-          (fromByteArrayBigEndian timestamp)
-          extraData
-          (.ofNat <| fromByteArrayBigEndian nonce)
-          (.ofNat <| fromByteArrayBigEndian mixHash)
-          (fromByteArrayBigEndian baseFeePerGas)
-          parentBeaconBlockRoot
-          withdrawalsRoot
-          (.ofNat <| fromByteArrayBigEndian blobGasUsed)
-          (.ofNat <| fromByteArrayBigEndian excessBlobGas)
-          (some requestsHash)
-    | .𝕃
-      [ .𝔹 parentHash
-      , .𝔹 uncleHash
-      , .𝔹 coinbase
-      , .𝔹 stateRoot
-      , .𝔹 transactionsTrie
-      , .𝔹 receiptTrie
-      , .𝔹 bloom
-      , .𝔹 difficulty
-      , .𝔹 number
-      , .𝔹 gasLimit
-      , .𝔹 gasUsed
-      , .𝔹 timestamp
-      , .𝔹 extraData
-      , .𝔹 mixHash
-      , .𝔹 nonce
-      , .𝔹 baseFeePerGas
-      , .𝔹 withdrawalsRoot
-      , .𝔹 blobGasUsed
-      , .𝔹 excessBlobGas
-      , .𝔹 parentBeaconBlockRoot
-      ]
-      => pure <|
-        BlockHeader.mk
-          (.ofNat <| fromByteArrayBigEndian parentHash)
-          (.ofNat <| fromByteArrayBigEndian uncleHash)
-          (.ofNat <| fromByteArrayBigEndian coinbase)
-          (.ofNat <| fromByteArrayBigEndian stateRoot)
-          transactionsTrie
-          receiptTrie
-          bloom
-          (fromByteArrayBigEndian difficulty)
-          (fromByteArrayBigEndian number)
-          (fromByteArrayBigEndian gasLimit)
-          (fromByteArrayBigEndian gasUsed)
-          (fromByteArrayBigEndian timestamp)
-          extraData
-          (.ofNat <| fromByteArrayBigEndian nonce)
-          (.ofNat <| fromByteArrayBigEndian mixHash)
-          (fromByteArrayBigEndian baseFeePerGas)
-          parentBeaconBlockRoot
-          withdrawalsRoot
-          (.ofNat <| fromByteArrayBigEndian blobGasUsed)
-          (.ofNat <| fromByteArrayBigEndian excessBlobGas)
-          none
-    | _ =>
-      dbg_trace "Block header has wrong RLP structure"
-      throw <| .BlockException .RLP_STRUCTURES_ENCODING
+    | .𝕃 fields => do
+      let malformed : EVM.Exception := .BlockException .RLP_STRUCTURES_ENCODING
+      let some fields := fields.mapM (fun | .𝔹 b => some b | .𝕃 _ => none) | throw malformed
+      let some header := parseCancunHeader (fields.take 20) | throw malformed
+      let hash32 (b : ByteArray) : Except EVM.Exception ByteArray :=
+        if b.size = 32 then pure b else throw malformed
+      match fields.drop 20 with
+      | [] => pure header
+      | [requestsHash] =>
+        pure { header with requestsHash := some (← hash32 requestsHash) }
+      | [requestsHash, blockAccessListHash, slotNumber] =>
+        pure { header with
+          requestsHash := some (← hash32 requestsHash)
+          blockAccessListHash := some (← hash32 blockAccessListHash)
+          slotNumber := some (← validateUInt64 slotNumber
+            (.BlockException .RLP_INVALID_FIELD_OVERFLOW_64)) }
+      | _ => throw malformed
+    | .𝔹 _ => throw <| .BlockException .RLP_STRUCTURES_ENCODING
 
 end Ethereum

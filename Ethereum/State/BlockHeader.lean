@@ -26,6 +26,8 @@ namespace Ethereum
 `withdrawalsRoot` (EIP-4895)
 `parentBeaconBlockRoot` (EIP-4788)
 `requestsHash` (EIP-7685, Prague)
+`blockAccessListHash` (EIP-7928, Amsterdam)
+`slotNumber` (EIP-7843, Amsterdam)
 -/
 structure BlockHeader where
   parentHash    : UInt256
@@ -52,6 +54,12 @@ structure BlockHeader where
   /-- EIP-7685 commitment to the block's execution-layer requests. Present
       exactly on Prague and later headers. -/
   requestsHash    : Option ByteArray := none
+  /-- EIP-7928 commitment to the block's access list. Present on Amsterdam
+      and later headers. -/
+  blockAccessListHash : Option ByteArray := none
+  /-- EIP-7843 slot number of the block, from the consensus layer. Present on
+      Amsterdam and later headers. -/
+  slotNumber      : Option UInt64 := none
 deriving DecidableEq, Inhabited, Repr, BEq
 
 def prettyDifference (h₁ h₂ : BlockHeader) : String := Id.run do
@@ -77,6 +85,8 @@ def prettyDifference (h₁ h₂ : BlockHeader) : String := Id.run do
   if h₁.blobGasUsed != h₂.blobGasUsed then result := result ++ "different blobGasUsed\n"
   if h₁.excessBlobGas != h₂.excessBlobGas then result := result ++ "different excessBlobGas\n"
   if h₁.requestsHash != h₂.requestsHash then result := result ++ "different requestsHash\n"
+  if h₁.blockAccessListHash != h₂.blockAccessListHash then result := result ++ "different blockAccessListHash\n"
+  if h₁.slotNumber != h₂.slotNumber then result := result ++ "different slotNumber\n"
 
   result
 

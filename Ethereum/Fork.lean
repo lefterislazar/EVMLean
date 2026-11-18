@@ -12,7 +12,10 @@ that introduced it in `Fork.spec`, the `ForkSpec` of the fork, for example
 EIPs a fork enables. `Fork.spec_monotone` checks that a later fork never
 disables an EIP enabled by an earlier one.
 
-Only the forks from Cancun onward are modelled.
+Only the forks from Cancun onward are modelled. Amsterdam (Glamsterdam,
+EIP-7773) is being implemented: `ForkSpec.amsterdam` enables the Amsterdam
+EIPs that the model implements so far, and `docs/glamsterdam.md` tracks the
+others.
 -/
 
 namespace Ethereum
@@ -26,8 +29,7 @@ inductive Fork where
       their blob schedule. -/
   | bpo1
   | bpo2
-  | bpo3
-  | bpo4
+  | amsterdam
 deriving BEq, DecidableEq, Inhabited, Repr
 
 namespace Fork
@@ -39,8 +41,7 @@ def rank : Fork → Nat
   | .osaka => 2
   | .bpo1 => 3
   | .bpo2 => 4
-  | .bpo3 => 5
-  | .bpo4 => 6
+  | .amsterdam => 5
 
 instance : LE Fork := ⟨fun a b => a.rank ≤ b.rank⟩
 instance : LT Fork := ⟨fun a b => a.rank < b.rank⟩
@@ -52,7 +53,7 @@ theorem le_def {a b : Fork} : a ≤ b ↔ a.rank ≤ b.rank := Iff.rfl
 
 @[simp] theorem cancun_le (f : Fork) : Fork.cancun ≤ f := Nat.zero_le _
 
-def all : List Fork := [.cancun, .prague, .osaka, .bpo1, .bpo2, .bpo3, .bpo4]
+def all : List Fork := [.cancun, .prague, .osaka, .bpo1, .bpo2, .amsterdam]
 
 /-- The fork names used by the `ethereum/execution-spec-tests` fixtures. -/
 def name : Fork → String
@@ -61,8 +62,7 @@ def name : Fork → String
   | .osaka => "Osaka"
   | .bpo1 => "BPO1"
   | .bpo2 => "BPO2"
-  | .bpo3 => "BPO3"
-  | .bpo4 => "BPO4"
+  | .amsterdam => "Amsterdam"
 
 end Fork
 
@@ -133,6 +133,11 @@ structure ForkSpec where
   eip7939 : Bool := false
   /-- EIP-7951: the secp256r1 verifier precompile at `0x100`. -/
   eip7951 : Bool := false
+  -- Amsterdam
+  /-- EIP-7843: the slot number in the header, and the `SLOTNUM` instruction. -/
+  eip7843 : Bool := false
+  /-- EIP-7928: block-level access lists, committed to in the header. -/
+  eip7928 : Bool := false
   /-- The blob schedule. Its changes (EIP-7691 in Prague, the BPO forks of
       EIP-7892) need no flag. -/
   blobSchedule : BlobSchedule
@@ -143,7 +148,8 @@ namespace ForkSpec
 /-- The EIP flags of a spec. Keep in sync with the fields of `ForkSpec`. -/
 def flags (s : ForkSpec) : List Bool :=
   [ s.eip2537, s.eip2935, s.eip7623, s.eip7685, s.eip7702
-  , s.eip7594, s.eip7823, s.eip7825, s.eip7883, s.eip7918, s.eip7934, s.eip7939, s.eip7951 ]
+  , s.eip7594, s.eip7823, s.eip7825, s.eip7883, s.eip7918, s.eip7934, s.eip7939, s.eip7951
+  , s.eip7843, s.eip7928 ]
 
 /-- Every EIP enabled in `a` is enabled in `b`. -/
 def Extends (b a : ForkSpec) : Prop :=
@@ -175,22 +181,26 @@ def osaka : ForkSpec :=
     eip7939 := true
     eip7951 := true }
 
+/-- The BPO forks (EIP-7892): Osaka with the mainnet blob schedules. -/
+def bpo1 : ForkSpec := { osaka with blobSchedule := ⟨10, 15, 8346193⟩ }
+def bpo2 : ForkSpec := { osaka with blobSchedule := ⟨14, 21, 11684671⟩ }
+
+/-- Amsterdam (EIP-7773), with the EIPs implemented so far. It keeps the
+    BPO2 blob schedule. -/
+def amsterdam : ForkSpec := bpo2
+
 end ForkSpec
 
 namespace Fork
 
-/-- The rules of each fork. The BPO forks (EIP-7892) are Osaka with another
-    blob schedule. BPO1 and BPO2 are the mainnet values. BPO3 and BPO4 are
-    test-only forks, with the values used by the `execution-spec-tests`
-    fixtures. -/
+/-- The rules of each fork. -/
 def spec : Fork → ForkSpec
   | .cancun => .cancun
   | .prague => .prague
   | .osaka => .osaka
-  | .bpo1 => { ForkSpec.osaka with blobSchedule := ⟨10, 15, 8346193⟩ }
-  | .bpo2 => { ForkSpec.osaka with blobSchedule := ⟨14, 21, 11684671⟩ }
-  | .bpo3 => { ForkSpec.osaka with blobSchedule := ⟨21, 32, 20609697⟩ }
-  | .bpo4 => { ForkSpec.osaka with blobSchedule := ⟨14, 21, 13739630⟩ }
+  | .bpo1 => .bpo1
+  | .bpo2 => .bpo2
+  | .amsterdam => .amsterdam
 
 /-- A later fork enables every EIP of an earlier one. -/
 theorem spec_monotone {a b : Fork} (h : a ≤ b) : b.spec.Extends a.spec := by

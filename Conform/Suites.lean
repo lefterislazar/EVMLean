@@ -38,16 +38,26 @@ def eestDirectories : Array System.FilePath :=
     "for_osaka", "for_osakatobpo1attime15k", "for_bpo1", "for_bpo1tobpo2attime15k", "for_bpo2"]
 
 /--
+The fixture directories of the networks whose implementation is in progress
+(Amsterdam, see `docs/glamsterdam.md`). They run only when `--dirs` names
+them.
+-/
+def eestInProgressDirectories : Array System.FilePath :=
+  #["for_bpo2toamsterdamattime15k", "for_amsterdam"]
+
+/--
 Run the `execution-spec-tests` blockchain fixtures with `options`, in the
 directories `--dirs`, by default all those of `eestDirectories`.
 -/
 def runEEST (options : Options) : IO UInt32 := do
   let some fixtures ← fixturesDirectory options | return 1
+  let known := eestDirectories ++ eestInProgressDirectories
   if let some dirs := options.dirs then
-    if let some dir := dirs.find? (· ∉ eestDirectories.map toString) then
-      IO.eprintln s!"--dirs: {dir} is not one of {", ".intercalate (eestDirectories.map toString).toList}"
+    if let some dir := dirs.find? (· ∉ known.map toString) then
+      IO.eprintln s!"--dirs: {dir} is not one of {", ".intercalate (known.map toString).toList}"
       return 2
-  let roots ← eestDirectories.filterMapM λ d ↦ do
+  let candidates := if options.dirs.isSome then known else eestDirectories
+  let roots ← candidates.filterMapM λ d ↦ do
     let root := fixtures / d
     let wanted := options.dirs.all (·.contains d.toString)
     pure <| if wanted ∧ (← root.pathExists) then some root else none
