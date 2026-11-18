@@ -17,12 +17,12 @@ the Amsterdam fixtures are not part of the default conformance run.
 | [8024] | `DUPN`, `SWAPN`, `EXCHANGE` | Implemented (flag `eip8024`)¹ |
 | [7843] | `SLOTNUM`, header `slotNumber` | Implemented (flag `eip7843`)¹ |
 | [7928] | Block-level access lists, header `blockAccessListHash` | Header field parsed; flag `eip7928` off |
-| [2780] | Resource-based intrinsic transaction gas | Planned, with the gas meter |
-| [7976] | Calldata floor cost | Planned, with the gas meter |
-| [7981] | Access list cost | Planned, with the gas meter |
-| [8037] | State creation gas: the state-gas dimension | Planned: the gas meter |
-| [8038] | State-access gas cost update | Planned, with the gas meter |
-| [7778] | Block gas accounting without refunds | Planned, after the gas meter |
+| [2780] | Resource-based intrinsic transaction gas | Implemented (flag `eip2780`) |
+| [7976] | Calldata floor cost | Implemented (flag `eip7976`) |
+| [7981] | Access list cost | Implemented (flag `eip7981`) |
+| [8037] | State creation gas: the state-gas dimension | Implemented (flag `eip8037`) |
+| [8038] | State-access gas cost update | Implemented (flag `eip8038`) |
+| [7778] | Block gas accounting without refunds | Implemented (flag `eip7778`) |
 | [7708] | ETH transfers emit a log | Planned |
 | [7954] | Maximum contract size `0x10000` | Planned: the limits become functions of the fork, also in the ~30 proof statements that restate them |
 | [8246] | `SELFDESTRUCT` no longer burns | Planned |
@@ -58,19 +58,17 @@ lake test -- --state-tests --dirs for_amsterdam
 lake test -- --dirs for_amsterdam,for_bpo2toamsterdamattime15k
 ```
 
-The state-test runner (`Conform/Run.lean`, `runStateCase`) passes all 40,153
-state-test cases of Cancun, Prague and Osaka. With no Amsterdam gas changes
-yet, 1,593 of the 16,908 Amsterdam state-test cases pass. Most failures are
-`GAS_LIMIT_EXCEEDS_MAXIMUM`: Amsterdam transactions may exceed the EIP-7825
-cap of `2^24` gas, which EIP-8037 applies to execution gas only. Most of the
-others are `INTRINSIC_GAS_TOO_LOW` (EIP-2780, 7976 and 7981) and post-states
-that the gas changes of EIP-8037 and 8038 explain.
+The state-test runner (`Conform/Run.lean`, `runStateCase`) passes all 40,162
+state-test cases of Cancun, Prague and Osaka; the blockchain tests of the
+earlier forks (47,436 cases) all pass. Before the gas changes, 1,593 of the
+16,908 Amsterdam state-test cases passed; with the gas meter, 11,421 pass. Of
+the others, 5,348 have the expected post-state and differ only in the
+transfer logs of EIP-7708, and the rest need EIP-8246 or EIP-7954.
 
 ## The gas meter (EIP-8037, with 2780, 7976, 7981 and 8038)
 
 These five EIPs are entangled in EELS, and nearly every Amsterdam test depends
-on all of them. They change how gas flows through frames, so they are one
-step, designed before it is written.
+on all of them. They change how gas flows through frames.
 
 ### What EELS does
 
@@ -111,30 +109,81 @@ step, designed before it is written.
 
 ### In the model
 
-Gas is a single `UInt256` (`MachineState.gasAvailable`) threaded through `Ξ`,
-`Θ`, `Lambda` and `Υ`, and `Ethereum/Theory` proves facts about it
-(`GasLemmas`, `NoOutOfFuel` and the frame lemmas). A single counter cannot
-express EIP-8037 even with an empty reservoir: a reverted child gets its
-spill back, and state credits bypass the refund cap. The plan:
+The execution gas stays a single counter (`MachineState.gasAvailable`)
+threaded through `Ξ`, `Θ`, `Lambda` and `Υ`. The rest of the EELS meter is
+placed where the model already gives it the right lifetime, so that `Θ` and
+`Lambda` keep their signatures:
 
-1. A `GasMeter` structure in `MachineState`, with the EELS fields and
-   operations (`chargeGas`, `chargeStateGas`, `restoreStateGas`,
-   `creditStateGasRefund`, `repayStateGasSpill`, ...) as functions with their
-   own lemmas. Before Amsterdam, every state charge is zero, so the meter
-   reduces to the current counter; the existing lemmas are restated through
-   it.
-2. Frames: `Θ` and `Lambda` take and return a meter. The child drains the
-   parent's reservoir, and the parent incorporates the child as EELS does,
-   distinguishing success, revert and exceptional halt.
-3. The charge sites, each under its flag: `SSTORE`, `CALL` with value to a
-   new account, `CREATE` and `CREATE2`, the code deposit, `SELFDESTRUCT`, the
-   top-level creation and value transfer, and the EIP-7702 authorizations
-   (`set_delegation`, `commit_state_gas`).
-4. `Υ`: the intrinsic cost, the split, and settlement; then the block counters
-   of EIP-7778 in `Ethereum/Block.lean`.
+- **The reservoir and the spill** are in the substate
+  (`Substate.stateGasReservoir`, `Substate.stateGasSpilled`). A child frame
+  receives the substate, so it receives the whole reservoir, and a failed
+  child returns its caller's substate, which is EELS's rollback to the
+  baseline (`restore_state_gas`). The spill is cumulative over the
+  transaction's frames; a frame records its value at entry
+  (`ExecutionEnv.stateGasSpillBaseline`), and its own spill is the excess.
+- **The operations** are those of `vm/gas.py`, on the execution gas and the
+  substate (`Ethereum/StateGas.lean`: `charge`, `credit`, `repaySpill`), and on
+  a frame's state (`chargeStateGas`, `creditStateGas`, `repayStateGasSpill` in
+  `Ethereum/Semantics.lean`). A charge that the reservoir and the execution
+  gas do not cover is an exceptional halt.
+- **Frames**: a reverted frame returns its execution gas and its own spill
+  (`revertGas`). After a child that succeeded, the caller repays its spill
+  from the reservoir. `CALL` with value to a dead account and `CREATE` at a
+  dead address charge `NEW_ACCOUNT` before the callee's gas is computed (the
+  call's gas cap subtracts the spill, `CcallStateSpill`), and credit it back
+  when no account was created; a colliding creation keeps it, as in EELS.
+- **The charge sites**: `SSTORE` (`sstoreStateGas`: `STORAGE_SET` on the
+  first set of a slot that was zero, credited back when it is cleared again),
+  `SELFDESTRUCT` to a dead account, the code deposit in `Lambda` (hashing in
+  execution gas, 1530 per byte in state gas), and the transaction's top frame:
+  `Θ` and `Lambda` at depth 0 charge what EELS's `create_evm` does (the
+  created account or recipient, a delegation's access).
+- **Execution prices** (EIP-8038, and EIP-8037's removal of the old creation
+  charges) are in the cost functions of `Ethereum/Gas.lean`, each under its
+  flag: `Gcoldaccount`, `Csstore`, `Cselfdestruct`, `Cxfer`, `Cnew`,
+  `Ccreate`, `Ccoderead`; the refunds in `State.sstore`.
+- **The transaction** (`ΥAmsterdam`): the intrinsic cost (`intrinsicCost`,
+  EIP-2780, 7976, 7981), the split into execution grant and reservoir, the
+  authorizations charging the meter (`applyAuthorizationsAmsterdam`), whose
+  charges survive a failure of the frame, a failure before the frame runs
+  (the delegations undone, the execution gas spent, the reservoir whole), and
+  settlement. `validateTransactionAmsterdam` has EELS's checks and their
+  order. The block counts execution and state gas (EIP-7778,
+  `executionGasUsedInBlock`, `stateGasUsedInBlock`), and the header's
+  `gasUsed` is their maximum.
 
-The state tests check each step: the `GAS_LIMIT_EXCEEDS_MAXIMUM` and
-`INTRINSIC_GAS_TOO_LOW` failures go first, then the gas-cost mismatches.
+Each EIP's rule is under its own flag, following the split of the EIPs:
+EIP-8038 reprices execution gas (cold account access, `ACCOUNT_WRITE`,
+`STORAGE_WRITE`, `CREATE_ACCESS`, the clear refund, the code read), and
+EIP-8037 moves `GAS_CREATE`, `GAS_NEW_ACCOUNT`, `GAS_STORAGE_SET` and the code
+deposit into state gas. EIP-8037 requires EIP-8038 and EIP-2780, and the
+model defines the meter only with all three.
+
+A system call runs its contract as a transaction's top frame, with a
+reservoir for 16 storage slots (`StateGas.SYSTEM_RESERVOIR`), as EELS's
+`process_unchecked_system_transaction`.
+
+One ordering differs from EELS without changing any outcome: `SSTORE` checks
+its execution cost before crediting `STORAGE_SET`, where EELS credits first.
+Both need more than the 2300 stipend, which exceeds that cost whenever a
+credit happens.
+
+### The proofs
+
+A frame's gas can now increase: a revert returns its spill, an `SSTORE` that
+clears a slot set from spilled gas credits it back, and a parent repays its
+spill after a successful child. What never increases is the frame's gas
+together with its own spill, `frameGas` (`Ethereum/Theory/GasLemmas.lean`):
+state charges, credits and repayments move gas between the two, and every
+step that continues spends some of it. Inside a frame the spill never falls
+below its value at entry. The gas theorems are restated with it:
+`Xstep_gas_decreases_of_continues` and the fuel bound of `NoOutOfFuel` speak
+of `frameGas`, and a call's bound needs its callee's, so `childGasBound`
+proves by induction on the depth that `Θ` and `Lambda` return at most the
+gas and spill they were given (`Theta_gas_le` keeps its statement). `Ξ` gives
+`X` one more step of fuel than the frame's gas counting the spill of its
+entry charges, which it can get back. `memoryPaidByGas` (`ReturnDataBound`)
+bounds memory with `frameGas`.
 
 ## The other EIPs
 

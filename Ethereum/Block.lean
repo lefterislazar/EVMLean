@@ -38,7 +38,9 @@ def executeSystemCall
     Θ fork
       s.accountMap
       s.accountMap
-      default
+      -- EIP-8037 (Amsterdam): the call's state charges draw from a reservoir.
+      { (default : Substate) with
+          stateGasReservoir := if fork.spec.eip8037 then StateGas.SYSTEM_RESERVOIR else 0 }
       SYSTEM_ADDRESS
       SYSTEM_ADDRESS
       contract
@@ -144,7 +146,12 @@ def validateBlock
       throw <| .TransactionException .TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
     pure blobSum
 
-  if state.totalGasUsedInBlock ≠ block.blockHeader.gasUsed then
+  -- EIP-7778 (Amsterdam): the block's gas is the larger of the execution and
+  -- the state gas its transactions used, before refunds.
+  let gasUsed :=
+    if fork.spec.eip7778 then max state.executionGasUsedInBlock state.stateGasUsedInBlock
+    else state.totalGasUsedInBlock
+  if gasUsed ≠ block.blockHeader.gasUsed then
     throw <| .BlockException .INVALID_GAS_USED
   if block.blockHeader.timestamp ≤ parentHeader.timestamp then
     throw <| .BlockException .INVALID_BLOCK_TIMESTAMP_OLDER_THAN_PARENT
@@ -216,7 +223,13 @@ def applyBody
 := do
   let header := block.blockHeader
   -- Receipts and logs are per block.
-  let s₀ := { s₀ with totalGasUsedInBlock := 0, transactionReceipts := .empty, substate := default }
+  let s₀ :=
+    { s₀ with
+      totalGasUsedInBlock := 0
+      executionGasUsedInBlock := 0
+      stateGasUsedInBlock := 0
+      transactionReceipts := .empty
+      substate := default }
   -- EIP-4788 beacon block root
   let (s, _) ←
     executeSystemCall fork s₀ header BEACON_ROOTS_ADDRESS header.parentBeaconBlockRoot false

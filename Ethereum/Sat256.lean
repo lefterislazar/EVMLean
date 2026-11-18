@@ -21,6 +21,10 @@ def toNat (a : Sat256) : ℕ := a.val
 
 def ofUInt256 (a : UInt256) : Sat256 := ⟨a.val.val, a.val.isLt⟩
 
+/-- `n`, saturated at the largest value. -/
+def ofNat (n : ℕ) : Sat256 :=
+  ⟨min n (UInt256.size - 1), Nat.lt_of_le_of_lt (Nat.min_le_right _ _) (by simp [UInt256.size])⟩
+
 instance : Sub Sat256 := ⟨Sat256.sub⟩
 
 instance : LT Sat256 where

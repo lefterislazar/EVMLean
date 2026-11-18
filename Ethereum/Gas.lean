@@ -4,6 +4,7 @@ import Ethereum.State
 import Ethereum.StateOps
 import Ethereum.MachineStateOps
 import Ethereum.GasConstants
+import Ethereum.StateGas
 
 namespace Ethereum
 
@@ -107,8 +108,16 @@ def Csstore (s : State) : ℕ :=
       | some acc => acc.storage.getD storeAddr ⟨0⟩
   let v := σ_Iₐ.getD storeAddr ⟨0⟩
   let v' := μₛ[1]!
+  let warm := s.substate.accessedStorageKeys.contains (Iₐ, storeAddr)
+  if s.executionEnv.fork.spec.eip8038 then
+    /- EIP-8038 (Amsterdam): the access, warm or cold, and a write when the
+       slot moves away from its value at the start of the transaction. Setting
+       a slot from zero costs state gas (EIP-8037), charged by `SSTORE`. -/
+    (if warm then Gwarmaccess else Gcoldsload)
+      + if v₀ = v ∧ v ≠ v' then GasConstants.Gstoragewrite else 0
+  else
   let loadComponent :=
-    if s.substate.accessedStorageKeys.contains (Iₐ, storeAddr) then
+    if warm then
       0
     else
       Gcoldsload
@@ -122,13 +131,17 @@ def Ctstore : ℕ :=
   let storeComponent := Gwarmaccess
   loadComponent + storeComponent
 
+/-- The cold account access cost, repriced by EIP-8038 (Amsterdam). -/
+def Gcoldaccount (fork : Fork) : ℕ :=
+  if fork.spec.eip8038 then GasConstants.GcoldaccountaccessAmsterdam else Gcoldaccountaccess
+
 /--
 (328)
 -/
-def Caccess (a : AccountAddress) (A : Substate) : ℕ :=
+def Caccess (fork : Fork) (a : AccountAddress) (A : Substate) : ℕ :=
   if A.accessedAccounts.contains a
   then Gwarmaccess
-  else Gcoldaccountaccess
+  else Gcoldaccount fork
 
 /--
 CHECK -
@@ -140,10 +153,15 @@ We take `EVM.State`.
 def Cselfdestruct (s : State) : ℕ :=
   let r := AccountAddress.ofUInt256 s.machineState.stack[0]!
   let { substate.accessedAccounts := Aₐ, accountMap := σ, executionEnv.codeOwner := Iₐ, .. } := s
-  let c_cold := if Aₐ.contains r then 0 else Gcoldaccountaccess
+  let fork := s.executionEnv.fork
+  let c_cold := if Aₐ.contains r then 0 else Gcoldaccount fork
+  /- Moving a balance to a dead account creates it: `Gnewaccount`, until
+     EIP-8037 (Amsterdam) charges it in state gas; and from EIP-8038
+     (Amsterdam), the write of the account. -/
   let c_new :=
     if State.dead σ r ∧ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ≠ ⟨0⟩ then
-      Gnewaccount
+      (if fork.spec.eip8037 then 0 else Gnewaccount)
+        + if fork.spec.eip8038 then GasConstants.Gaccountwrite else 0
     else 0
   Gselfdestruct + c_cold + c_new
 
@@ -163,11 +181,34 @@ def Ctload : ℕ :=
 -/
 def L (n : ℕ) : ℕ := n - (n / 64)
 
-def Cnew (t : AccountAddress) (val : UInt256) (σ : AccountMap) : ℕ :=
-  if Ethereum.State.dead σ t && val != ⟨0⟩ then Gnewaccount else 0
+/--
+A call that moves value to a dead account creates it: `Gnewaccount`, until
+EIP-8037 (Amsterdam) charges it in state gas (`callCreatesAccount`).
+-/
+def Cnew (fork : Fork) (t : AccountAddress) (val : UInt256) (σ : AccountMap) : ℕ :=
+  if fork.spec.eip8037 then 0
+  else if Ethereum.State.dead σ t && val != ⟨0⟩ then Gnewaccount else 0
 
-def Cxfer (val : UInt256) : ℕ :=
-  if val != ⟨0⟩ then Gcallvalue else 0
+/-- A call that moves value: from EIP-8038 (Amsterdam), the write of the
+    recipient's account and the stipend. -/
+def Cxfer (fork : Fork) (val : UInt256) : ℕ :=
+  if val != ⟨0⟩ then
+    if fork.spec.eip8038 then GasConstants.GcallvalueAmsterdam else Gcallvalue
+  else 0
+
+/-- EIP-8037 (Amsterdam): a call that moves value to the dead account `t`
+    creates it, and is charged `StateGas.NEW_ACCOUNT` in state gas. -/
+def callCreatesAccount (fork : Fork) (t : AccountAddress) (val : UInt256) (σ : AccountMap) : Bool :=
+  fork.spec.eip8037 && Ethereum.State.dead σ t && val != ⟨0⟩
+
+/--
+EIP-8037 (Amsterdam): the execution gas that the state charge of a call that
+creates its recipient spends, where the reservoir does not cover it. The call
+charges it before it gives gas to the callee, so the callee's gas is capped
+from what is left.
+-/
+def CcallStateSpill (fork : Fork) (t : AccountAddress) (val : UInt256) (σ : AccountMap) (A : Substate) : ℕ :=
+  if callCreatesAccount fork t val σ then StateGas.NEW_ACCOUNT - A.stateGasReservoir else 0
 
 /--
 EIP-7702 (Prague): the access cost of the delegation target when the callee
@@ -177,16 +218,17 @@ self-delegation finds its target warm.
 def Cdelegation (fork : Fork) (t : AccountAddress) (σ : AccountMap) (A : Substate) : ℕ :=
   if fork.spec.eip7702 then
     match delegationTarget? (σ.get? t |>.option .empty (·.code)) with
-    | some target => if target = t then Gwarmaccess else Caccess target A
+    | some target => if target = t then Gwarmaccess else Caccess fork target A
     | none => 0
   else 0
 
 def Cextra (fork : Fork) (t r : AccountAddress) (val : UInt256) (σ : AccountMap) (A : Substate) : ℕ :=
-  Caccess t A + Cdelegation fork t σ A + Cxfer val + Cnew r val σ
+  Caccess fork t A + Cdelegation fork t σ A + Cxfer fork val + Cnew fork r val σ
 
 def Cgascap (fork : Fork) (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) :=
-  if μ.gasAvailable.toNat >= Cextra fork t r val σ A then
-    min (L <| (μ.gasAvailable.subNat $ Cextra fork t r val σ A).toNat) g.toNat
+  let c := Cextra fork t r val σ A + CcallStateSpill fork r val σ A
+  if μ.gasAvailable.toNat >= c then
+    min (L <| (μ.gasAvailable.subNat c).toNat) g.toNat
   else
     g.toNat
 
@@ -200,6 +242,19 @@ NB Assumes.machineState.stack coherence.
 -/
 def Ccall (fork : Fork) (t r : AccountAddress) (val g : UInt256) (σ : AccountMap) (μ : MachineState) (A : Substate) : ℕ :=
   Cgascap fork t r val g σ μ A + Cextra fork t r val σ A
+
+/--
+The cost of `CREATE` and `CREATE2` before their init code: from EIP-8037
+(Amsterdam), the access and write of the new account (EIP-8038); its creation
+is charged in state gas.
+-/
+def Ccreate (fork : Fork) : ℕ :=
+  if fork.spec.eip8037 then GasConstants.Gcreateaccess else Gcreate
+
+/-- EIP-8038 (Amsterdam): `EXTCODESIZE` and `EXTCODECOPY` read the code as
+    well as the account. -/
+def Ccoderead (fork : Fork) : ℕ :=
+  if fork.spec.eip8038 then Gwarmaccess else 0
 
 /--
 (65)
@@ -242,6 +297,58 @@ def calldataFloorGas (fork : Fork) (T : Transaction) : ℕ :=
     GasConstants.Gtransaction + GasConstants.Gfloorpertoken * tokens
   else 0
 
+/-- The intrinsic cost of a transaction from Amsterdam: the execution gas
+    charged before execution, and the floor, the least gas it pays. -/
+structure IntrinsicCost where
+  execution : ℕ
+  floor     : ℕ
+
+/--
+The intrinsic cost of `T` from `sender` from Amsterdam: EIP-2780's cost by
+the resources the transaction uses, with the parts of EIP-7976, EIP-7981 and
+EIP-8038 that the execution specs compute with it (`calculate_intrinsic_cost`).
+
+- The base cost, and the recipient's: a creation accesses and writes a new
+  account, a call to another account accesses it and, when value moves, writes
+  it, and a self-transfer costs neither. The state gas of a new account is
+  charged at the top frame (EIP-8037).
+- The calldata, the init code of a creation, the access list (EIP-8038), its
+  data surcharge (EIP-7981), and the authorizations.
+
+The floor is the base and recipient cost, 64 gas per calldata byte
+(EIP-7976), and the access list surcharge.
+-/
+def intrinsicCost (T : Transaction) (sender : AccountAddress) : IntrinsicCost :=
+  let tokens := T.base.data.foldl (λ acc b ↦ acc + if b == 0 then 1 else 4) 0
+  let recipient : ℕ :=
+    match T.base.recipient with
+    | none => GasConstants.Gcreateaccess
+    | some target =>
+      if target = sender then 0
+      else
+        GasConstants.GcoldaccountaccessAmsterdam
+          + if T.base.value != ⟨0⟩ then GasConstants.Gtxvalue else 0
+  let initCode := if T.base.recipient.isNone then R T.base.data.size else 0
+  let accessList :=
+    T.getAccessList.foldl
+      (λ acc (_, s) ↦
+        acc + GasConstants.GaccesslistaddressAmsterdam
+          + s.size * GasConstants.GaccessliststorageAmsterdam)
+      0
+  let accessListTokens :=
+    T.getAccessList.foldl
+      (λ acc (_, s) ↦
+        acc + GasConstants.Gaccesslistaddresstokens
+          + s.size * GasConstants.Gaccessliststoragetokens)
+      0
+  let accessListData := accessListTokens * GasConstants.GfloorpertokenAmsterdam
+  let base := GasConstants.GtxbaseAmsterdam + recipient
+  { execution :=
+      base + initCode + GasConstants.Gtxdatazero * tokens + accessList + accessListData
+        + GasConstants.GauthexecutionAmsterdam * T.authorizationList.length
+    floor :=
+      base + T.base.data.size * 4 * GasConstants.GfloorpertokenAmsterdam + accessListData }
+
 /--
 H.1. Gas Cost - the third summand.
 
@@ -255,15 +362,16 @@ def C' (s : State) (instr : Operation) : ℕ :=
     | .SSTORE => Csstore s
     | .TSTORE => Ctstore
     | .EXP => let μ₁ := μₛ[1]!; if μ₁ == ⟨0⟩ then Gexp else Gexp + Gexpbyte * (1 + Nat.log 256 μ₁.toNat) -- TODO(check) I think this floors by itself. cf. H.1. YP.
-    | .EXTCODECOPY => Caccess (AccountAddress.ofUInt256 μₛ[0]!) A + Gcopy * ((μₛ[3]!.toNat + 31) / 32)
+    | .EXTCODECOPY => Caccess I.fork (AccountAddress.ofUInt256 μₛ[0]!) A + Ccoderead I.fork + Gcopy * ((μₛ[3]!.toNat + 31) / 32)
+    | .EXTCODESIZE => Caccess I.fork (AccountAddress.ofUInt256 μₛ[0]!) A + Ccoderead I.fork
     | .LOG0 => Glog + Glogdata * μₛ[1]!.toNat
     | .LOG1 => Glog + Glogdata * μₛ[1]!.toNat +     Glogtopic
     | .LOG2 => Glog + Glogdata * μₛ[1]!.toNat + 2 * Glogtopic
     | .LOG3 => Glog + Glogdata * μₛ[1]!.toNat + 3 * Glogtopic
     | .LOG4 => Glog + Glogdata * μₛ[1]!.toNat + 4 * Glogtopic
     | .SELFDESTRUCT => Cselfdestruct s
-    | .CREATE => Gcreate + R μₛ[2]!.toNat
-    | .CREATE2 => let μ₂ := μₛ[2]!; Gcreate + Gkeccak256word * ((μ₂.toNat + 31) / 32) + R μ₂.toNat
+    | .CREATE => Ccreate I.fork + R μₛ[2]!.toNat
+    | .CREATE2 => let μ₂ := μₛ[2]!; Ccreate I.fork + Gkeccak256word * ((μ₂.toNat + 31) / 32) + R μ₂.toNat
     | .KECCAK256 => Gkeccak256 + Gkeccak256word * ((μₛ[1]!.toNat + 31) / 32)
     | .JUMPDEST => Gjumpdest
     | .SLOAD => Csload μₛ A I
@@ -281,7 +389,7 @@ def C' (s : State) (instr : Operation) : ℕ :=
     | .BLOBHASH => HASH_OPCODE_GAS
     | w =>
       if w ∈ Wcopy then Gverylow + Gcopy * ((μₛ[2]!.toNat + 31) / 32) else
-      if w ∈ Wextaccount then Caccess (AccountAddress.ofUInt256 μₛ[0]!) A else
+      if w ∈ Wextaccount then Caccess I.fork (AccountAddress.ofUInt256 μₛ[0]!) A else
       if w ∈ Wzero then Gzero else
       if w ∈ Wbase then Gbase else
       if w ∈ Wverylow then Gverylow else

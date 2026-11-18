@@ -134,12 +134,26 @@ structure ForkSpec where
   /-- EIP-7951: the secp256r1 verifier precompile at `0x100`. -/
   eip7951 : Bool := false
   -- Amsterdam
+  /-- EIP-2780: the intrinsic gas of a transaction by the resources it uses. -/
+  eip2780 : Bool := false
+  /-- EIP-7778: the block counts gas before refunds, execution and state gas
+      separately. -/
+  eip7778 : Bool := false
   /-- EIP-7843: the slot number in the header, and the `SLOTNUM` instruction. -/
   eip7843 : Bool := false
   /-- EIP-7928: block-level access lists, committed to in the header. -/
   eip7928 : Bool := false
+  /-- EIP-7976: the calldata floor counts every byte at a higher price. -/
+  eip7976 : Bool := false
+  /-- EIP-7981: the access list adds to the calldata floor. -/
+  eip7981 : Bool := false
   /-- EIP-8024: the `DUPN`, `SWAPN` and `EXCHANGE` instructions. -/
   eip8024 : Bool := false
+  /-- EIP-8037: state gas, the second gas dimension that state creation is
+      charged in (`Ethereum/StateGas.lean`). -/
+  eip8037 : Bool := false
+  /-- EIP-8038: the repricing of state access. -/
+  eip8038 : Bool := false
   /-- The blob schedule. Its changes (EIP-7691 in Prague, the BPO forks of
       EIP-7892) need no flag. -/
   blobSchedule : BlobSchedule
@@ -151,7 +165,8 @@ namespace ForkSpec
 def flags (s : ForkSpec) : List Bool :=
   [ s.eip2537, s.eip2935, s.eip7623, s.eip7685, s.eip7702
   , s.eip7594, s.eip7823, s.eip7825, s.eip7883, s.eip7918, s.eip7934, s.eip7939, s.eip7951
-  , s.eip7843, s.eip7928, s.eip8024 ]
+  , s.eip2780, s.eip7778, s.eip7843, s.eip7928, s.eip7976, s.eip7981, s.eip8024, s.eip8037
+  , s.eip8038 ]
 
 /-- Every EIP enabled in `a` is enabled in `b`. -/
 def Extends (b a : ForkSpec) : Prop :=
@@ -191,8 +206,14 @@ def bpo2 : ForkSpec := { osaka with blobSchedule := ⟨14, 21, 11684671⟩ }
     BPO2 blob schedule. -/
 def amsterdam : ForkSpec :=
   { bpo2 with
+    eip2780 := true
+    eip7778 := true
     eip7843 := true
-    eip8024 := true }
+    eip7976 := true
+    eip7981 := true
+    eip8024 := true
+    eip8037 := true
+    eip8038 := true }
 
 end ForkSpec
 

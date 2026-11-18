@@ -31,6 +31,11 @@ structure State where
   substate            : Substate
   executionEnv        : ExecutionEnv
   machineState        : MachineState
+  /-- EIP-7778 (Amsterdam): the execution gas the block's transactions used,
+      before refunds. `totalGasUsedInBlock` is the gas they paid for. -/
+  executionGasUsedInBlock : ℕ := 0
+  /-- EIP-7778 (Amsterdam): the state gas the block's transactions used. -/
+  stateGasUsedInBlock : ℕ := 0
 deriving Inhabited
 
 inductive ExecutionResult (S : Type) where

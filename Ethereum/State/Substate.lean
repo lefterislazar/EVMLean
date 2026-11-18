@@ -55,6 +55,15 @@ structure Substate where
   accessedStorageKeys : Batteries.RBSet (AccountAddress × UInt256) Substate.storageKeysCmp
   logSeries           : LogSeries
   createdAccounts     : Batteries.RBSet AccountAddress compare
+  /-- EIP-8037 (Amsterdam): the state-gas reservoir, which state charges
+      draw from before the execution gas. A child frame receives it whole,
+      and a failed one gives back the reservoir it received. -/
+  stateGasReservoir   : ℕ := 0
+  /-- EIP-8037 (Amsterdam): the execution gas spent on state charges once the
+      reservoir was empty, over the transaction's frames. A frame's own spill
+      is this minus its value at the frame's entry
+      (`ExecutionEnv.stateGasSpillBaseline`). -/
+  stateGasSpilled     : ℕ := 0
   deriving BEq, Inhabited, Repr
 
 /--

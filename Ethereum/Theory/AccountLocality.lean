@@ -1,4 +1,5 @@
 import Ethereum.Semantics
+import Ethereum.Theory.StateGasLemmas
 import Ethereum.Theory.PrecompileLemmas
 import Ethereum.Wheels
 import Batteries.Data.RBMap.Lemmas
@@ -478,6 +479,10 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   unfold call at h
+  simp only [bind, Except.bind] at h
+  split at h
+  · contradiction
+  rename_i pc hpc
   simp at h
   split at h
   · rename_i hcall
@@ -486,7 +491,7 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
     simp
     let θ := Θ (fork := evmState.executionEnv.fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
       evmState.accountMap evmState.σ₀
-      (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+      (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) pc.2)
       (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
       (AccountAddress.ofUInt256 recipient)
       (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
@@ -498,7 +503,7 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
       (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission
     exact ihTheta
       _ evmState.accountMap evmState.σ₀
-      (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+      (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) pc.2)
       (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
       (AccountAddress.ofUInt256 recipient)
       (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
@@ -527,6 +532,9 @@ private lemma account_changes_consistent_of_call_recipient_own_code_succ_depth
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   subst acc
   unfold call at h
+  simp only [bind, Except.bind] at h
+  split at h
+  · contradiction
   simp at h
   split at h
   · rcases h with ⟨_, hstate⟩
@@ -548,13 +556,35 @@ private lemma create_accountMap_eq_at_max_depth
     (h : create value offset size salt evmState = .ok (x, result)) :
     result.accountMap = evmState.accountMap := by
   unfold create at h
-  simp [hdepth, bind, Except.bind, pure, Except.pure] at h
+  simp only [bind, Except.bind] at h
+  split at h
+  · contradiction
+  rename_i es hes
+  have hsb := chargeStateGas_sameButGas hes
+  simp [hdepth, pure, Except.pure] at h
   repeat' (split at h <;> try simp at h)
   all_goals
     try contradiction
     rcases h with ⟨_, hstate⟩
     have hm := congrArg State.accountMap hstate
-    simpa using hm.symm
+    simpa [hsb.accountMap] using hm.symm
+
+private lemma call_accountMap_eq_at_max_depth
+    {gasCost : Nat}
+    {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
+    {permission : Bool} {evmState state' : State}
+    (hdepth : evmState.executionEnv.depth = 1024)
+    (h : call gasCost gas source recipient t value value'
+        inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
+    state'.accountMap = evmState.accountMap := by
+  unfold call at h
+  simp only [bind, Except.bind] at h
+  split at h
+  · contradiction
+  simp [hdepth] at h
+  rcases h with ⟨_, hstate⟩
+  rw [← hstate]
+  simp
 
 private lemma account_changes_consistent_of_create_except_owner_succ_depth
     {n : Nat} {value offset size x : UInt256} {salt : Option ByteArray}
@@ -573,23 +603,28 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
   let σStar := evmState.accountMap.insert evmState.executionEnv.codeOwner
     {owner with nonce := owner.nonce + ⟨1⟩}
   unfold create at h
+  simp only [bind, Except.bind] at h
+  split at h
+  · contradiction
+  rename_i es hes
+  have hsb := chargeStateGas_sameButGas hes
   by_cases hnonce : owner.nonce.toNat ≥ 2^64 - 1
-  · simp [bind, Except.bind, pure, Except.pure] at h
+  · simp [pure, Except.pure] at h
     repeat' (split at h <;> try simp at h)
     all_goals
       first
       | contradiction
       | rcases h with ⟨_, hstate⟩
         rw [← hstate]
-        simp
+        simp [hsb.accountMap]
         exact account_changes_consistent_rfl acc
   · by_cases hCreate :
         value ≤ (evmState.accountMap.get? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
           evmState.executionEnv.depth < 1024 ∧
           (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
-    · let lambdaRes := Lambda evmState.executionEnv.fork σStar evmState.σ₀ evmState.substate
+    · let lambdaRes := Lambda evmState.executionEnv.fork σStar es.σ₀ es.substate
         evmState.executionEnv.codeOwner evmState.executionEnv.sender
-        (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
+        (UInt256.ofNat (L es.machineState.gasAvailable.toNat))
         (UInt256.ofNat evmState.executionEnv.gasPrice) value
         (evmState.machineState.memory.readWithPadding offset.toNat size.toNat)
         ⟨evmState.executionEnv.depth.val + 1, Nat.succ_lt_succ hCreate.2.1⟩
@@ -604,9 +639,9 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
         simp
         omega
       have hrec : account_changes_consistent acc σStar lambdaRes.2.1 :=
-        ihLambda _ σStar evmState.σ₀ evmState.substate
+        ihLambda _ σStar es.σ₀ es.substate
           evmState.executionEnv.codeOwner evmState.executionEnv.sender
-          (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
+          (UInt256.ofNat (L es.machineState.gasAvailable.toNat))
           (UInt256.ofNat evmState.executionEnv.gasPrice) value
           (evmState.machineState.memory.readWithPadding offset.toNat size.toNat)
           ⟨evmState.executionEnv.depth.val + 1, Nat.succ_lt_succ hCreate.2.1⟩
@@ -614,7 +649,7 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
           evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks
           evmState.executionEnv.perm lambdaRes.1 lambdaRes.2.1 lambdaRes.2.2.1 lambdaRes.2.2.2.1
           lambdaRes.2.2.2.2.1 lambdaRes.2.2.2.2.2 hmeasure rfl
-      simp [hCreate, bind, Except.bind, pure, Except.pure] at h
+      simp [hCreate, pure, Except.pure] at h
       repeat' (split at h <;> try simp at h)
       all_goals
         first
@@ -622,14 +657,14 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
         | rcases h with ⟨_, hstate⟩
           rw [← hstate]
           simpa [lambdaRes, σStar, owner] using account_changes_consistent_trans hpre hrec
-    · simp [hCreate, bind, Except.bind, pure, Except.pure] at h
+    · simp [hCreate, pure, Except.pure] at h
       repeat' (split at h <;> try simp at h)
       all_goals
         first
         | contradiction
         | rcases h with ⟨_, hstate⟩
           rw [← hstate]
-          simp
+          simp [hsb.accountMap]
           exact account_changes_consistent_rfl acc
 
 private lemma lambda_create_not_failed_bool
@@ -1126,10 +1161,17 @@ private lemma step_stackmemflow_consistent_except_owner
           Ethereum.State.lookupAccount])
       h
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
-  · have hloc := binaryStateOp_account_changes_consistent
-      (op := Ethereum.State.sstore) (acc := acc)
-      (hop := fun a b => sstore_account_changes_consistent_ne a b (by simpa using hacc))
+  · simp only [bind, Except.bind] at h
+    split at h
+    · contradiction
+    rename_i sc hsc
+    have hsb := sstoreStateGas_sameButGas hsc
+    have hloc := binaryStateOp_account_changes_consistent
+      (op := Ethereum.State.sstore) (state := sc) (acc := acc)
+      (hop := fun a b => sstore_account_changes_consistent_ne a b
+        (by rw [hsb.executionEnv]; simpa using hacc))
       h
+    rw [hsb.accountMap] at hloc
     simpa using hloc
   · have hm := binaryMachineStateOp_accountMap_eq h
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
@@ -1180,27 +1222,42 @@ private lemma step_system_consistent_except_owner_max_depth
     rw [← h]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
-  · simp [step, call, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
+  · simp [step, bind, Except.bind] at h
+    split at h
+    · contradiction
+    split at h
+    · contradiction
+    rename_i _ _ vCall hCall
+    have hm := call_accountMap_eq_at_max_depth (by simp [hdepth]) hCall
     injection h with hstate
     rw [← hstate]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-    exact account_changes_consistent_rfl acc
-  · simp [step, call, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
+  · simp [step, bind, Except.bind] at h
+    split at h
+    · contradiction
+    split at h
+    · contradiction
+    rename_i _ _ vCall hCall
+    have hm := call_accountMap_eq_at_max_depth (by simp [hdepth]) hCall
     injection h with hstate
     rw [← hstate]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-    exact account_changes_consistent_rfl acc
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step] at h
     have hm := binaryMachineStateOp_accountMap_eq h
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
-  · simp [step, call, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
+  · simp [step, bind, Except.bind] at h
+    split at h
+    · contradiction
+    split at h
+    · contradiction
+    rename_i _ _ vCall hCall
+    have hm := call_accountMap_eq_at_max_depth (by simp [hdepth]) hCall
     injection h with hstate
     rw [← hstate]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-    exact account_changes_consistent_rfl acc
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step, bind, Except.bind] at h
     repeat (first | simp at h | split at h)
     rename_i _ _ _ _ vCreate hCreate
@@ -1209,32 +1266,47 @@ private lemma step_system_consistent_except_owner_max_depth
     rw [← h]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
-  · simp [step, call, hdepth, bind, Except.bind] at h
-    repeat split at h <;> try contradiction
+  · simp [step, bind, Except.bind] at h
+    split at h
+    · contradiction
+    split at h
+    · contradiction
+    rename_i _ _ vCall hCall
+    have hm := call_accountMap_eq_at_max_depth (by simp [hdepth]) hCall
     injection h with hstate
     rw [← hstate]
     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-    exact account_changes_consistent_rfl acc
+    exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step] at h
     have hm := binaryMachineStateOp_accountMap_eq h
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step] at h
   · simp [step, Ethereum.State.lookupAccount] at h
-    cases hpop : state.machineState.stack.pop with
+    simp only [bind, Except.bind] at h
+    split at h
+    · contradiction
+    rename_i sc hsc
+    have hsb := chargeStateGas_sameButGas hsc
+    have hA : sc.accountMap = state.accountMap := by simpa using hsb.accountMap
+    have hE : sc.executionEnv = state.executionEnv := by simpa using hsb.executionEnv
+    rw [← hA]
+    rw [← hE] at hacc
+    clear hsb hsc hA hE
+    cases hpop : sc.machineState.stack.pop with
     | none =>
         simp [hpop] at h
     | some popped =>
         rcases popped with ⟨stack, targetWord⟩
         let target : AccountAddress := AccountAddress.ofUInt256 targetWord
-        by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
-        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
+        by_cases hcreated : sc.executionEnv.codeOwner ∈ sc.substate.createdAccounts
+        · cases howner : sc.accountMap.get? sc.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.get? target with
+              cases htarget : sc.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1247,12 +1319,12 @@ private lemma step_system_consistent_except_owner_max_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget]
                     exact account_changes_consistent_insert_fresh_then_insert_ne
-                      acc target state.executionEnv.codeOwner state.accountMap
+                      acc target sc.executionEnv.codeOwner sc.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
                       ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
-                  by_cases hsame : target = state.executionEnv.codeOwner
+                  by_cases hsame : target = sc.executionEnv.codeOwner
                   · simp [hpop, hcreated, howner] at h
                     rw [← h]
                     have htargetAcc : ownerAcc = targetAcc := by
@@ -1261,11 +1333,11 @@ private lemma step_system_consistent_except_owner_max_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, howner, hsame]
                     have h₁ := account_changes_consistent_insert_ne
-                      acc state.executionEnv.codeOwner state.accountMap
+                      acc sc.executionEnv.codeOwner sc.accountMap
                       ({ownerAcc with balance := { val := 0 }}) hacc
                     have h₂ := account_changes_consistent_insert_ne
-                      acc state.executionEnv.codeOwner
-                      (state.accountMap.insert state.executionEnv.codeOwner
+                      acc sc.executionEnv.codeOwner
+                      (sc.accountMap.insert sc.executionEnv.codeOwner
                         {ownerAcc with balance := { val := 0 }})
                       ({ownerAcc with balance := { val := 0 }}) hacc
                     exact account_changes_consistent_trans h₁ h₂
@@ -1274,19 +1346,19 @@ private lemma step_system_consistent_except_owner_max_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
-                      acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
+                      acc target sc.executionEnv.codeOwner ownerAcc.balance true sc.accountMap
                     rw [sendEth_true_get?_some_get?_some_ne
-                      target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
+                      target sc.executionEnv.codeOwner ownerAcc.balance sc.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
-        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
+        · cases howner : sc.accountMap.get? sc.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.get? target with
+              cases htarget : sc.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1299,12 +1371,12 @@ private lemma step_system_consistent_except_owner_max_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget]
                     exact account_changes_consistent_insert_fresh_then_insert_ne
-                      acc target state.executionEnv.codeOwner state.accountMap
+                      acc target sc.executionEnv.codeOwner sc.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
                       ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
-                  by_cases hsame : target = state.executionEnv.codeOwner
+                  by_cases hsame : target = sc.executionEnv.codeOwner
                   · simp [hpop, hcreated, howner] at h
                     rw [← h]
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -1315,9 +1387,9 @@ private lemma step_system_consistent_except_owner_max_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
-                      acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
+                      acc target sc.executionEnv.codeOwner ownerAcc.balance true sc.accountMap
                     rw [sendEth_true_get?_some_get?_some_ne
-                      target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
+                      target sc.executionEnv.codeOwner ownerAcc.balance sc.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
 
@@ -1459,21 +1531,31 @@ private lemma step_system_consistent_except_owner_succ_depth
     exact account_changes_consistent_of_accountMap_eq acc (by simpa using hm)
   · simp [step] at h
   · simp [step, Ethereum.State.lookupAccount] at h
-    cases hpop : state.machineState.stack.pop with
+    simp only [bind, Except.bind] at h
+    split at h
+    · contradiction
+    rename_i sc hsc
+    have hsb := chargeStateGas_sameButGas hsc
+    have hA : sc.accountMap = state.accountMap := by simpa using hsb.accountMap
+    have hE : sc.executionEnv = state.executionEnv := by simpa using hsb.executionEnv
+    rw [← hA]
+    rw [← hE] at hacc
+    clear hsb hsc hA hE
+    cases hpop : sc.machineState.stack.pop with
     | none =>
         simp [hpop] at h
     | some popped =>
         rcases popped with ⟨stack, targetWord⟩
         let target : AccountAddress := AccountAddress.ofUInt256 targetWord
-        by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
-        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
+        by_cases hcreated : sc.executionEnv.codeOwner ∈ sc.substate.createdAccounts
+        · cases howner : sc.accountMap.get? sc.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.get? target with
+              cases htarget : sc.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1486,12 +1568,12 @@ private lemma step_system_consistent_except_owner_succ_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget]
                     exact account_changes_consistent_insert_fresh_then_insert_ne
-                      acc target state.executionEnv.codeOwner state.accountMap
+                      acc target sc.executionEnv.codeOwner sc.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
                       ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
-                  by_cases hsame : target = state.executionEnv.codeOwner
+                  by_cases hsame : target = sc.executionEnv.codeOwner
                   · simp [hpop, hcreated, howner] at h
                     rw [← h]
                     have htargetAcc : ownerAcc = targetAcc := by
@@ -1500,11 +1582,11 @@ private lemma step_system_consistent_except_owner_succ_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, howner, hsame]
                     have h₁ := account_changes_consistent_insert_ne
-                      acc state.executionEnv.codeOwner state.accountMap
+                      acc sc.executionEnv.codeOwner sc.accountMap
                       ({ownerAcc with balance := { val := 0 }}) hacc
                     have h₂ := account_changes_consistent_insert_ne
-                      acc state.executionEnv.codeOwner
-                      (state.accountMap.insert state.executionEnv.codeOwner
+                      acc sc.executionEnv.codeOwner
+                      (sc.accountMap.insert sc.executionEnv.codeOwner
                         {ownerAcc with balance := { val := 0 }})
                       ({ownerAcc with balance := { val := 0 }}) hacc
                     exact account_changes_consistent_trans h₁ h₂
@@ -1513,19 +1595,19 @@ private lemma step_system_consistent_except_owner_succ_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
-                      acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
+                      acc target sc.executionEnv.codeOwner ownerAcc.balance true sc.accountMap
                     rw [sendEth_true_get?_some_get?_some_ne
-                      target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
+                      target sc.executionEnv.codeOwner ownerAcc.balance sc.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
-        · cases howner : state.accountMap.get? state.executionEnv.codeOwner with
+        · cases howner : sc.accountMap.get? sc.executionEnv.codeOwner with
           | none =>
               simp [hpop, hcreated, howner] at h
               rw [← h]
               simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
               exact account_changes_consistent_rfl acc
           | some ownerAcc =>
-              cases htarget : state.accountMap.get? target with
+              cases htarget : sc.accountMap.get? target with
               | none =>
                   by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
                   · simp [hpop, hcreated, howner, hzero] at h
@@ -1538,12 +1620,12 @@ private lemma step_system_consistent_except_owner_succ_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget]
                     exact account_changes_consistent_insert_fresh_then_insert_ne
-                      acc target state.executionEnv.codeOwner state.accountMap
+                      acc target sc.executionEnv.codeOwner sc.accountMap
                       ({(default : Account) with balance := ownerAcc.balance})
                       ({ownerAcc with balance := { val := 0 }})
                       htarget hacc
               | some targetAcc =>
-                  by_cases hsame : target = state.executionEnv.codeOwner
+                  by_cases hsame : target = sc.executionEnv.codeOwner
                   · simp [hpop, hcreated, howner] at h
                     rw [← h]
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
@@ -1554,9 +1636,9 @@ private lemma step_system_consistent_except_owner_succ_depth
                     simp [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
                       target, htarget, hsame]
                     have hpre := account_changes_consistent_sendEth_prelude
-                      acc target state.executionEnv.codeOwner ownerAcc.balance true state.accountMap
+                      acc target sc.executionEnv.codeOwner ownerAcc.balance true sc.accountMap
                     rw [sendEth_true_get?_some_get?_some_ne
-                      target state.executionEnv.codeOwner ownerAcc.balance state.accountMap
+                      target sc.executionEnv.codeOwner ownerAcc.balance sc.accountMap
                       targetAcc ownerAcc htarget howner hsame] at hpre
                     simpa using hpre
 
@@ -2041,7 +2123,7 @@ theorem account_changes_consistent_except_owner_of_X_max_depth :
                 simpa [hstate] using hstepLoc
               | revert =>
                 change
-                  Except.ok (ExecutionResult.revert state₁.machineState.gasAvailable.toUInt256 out) =
+                  Except.ok (ExecutionResult.revert (revertGas state₁) out) =
                     Except.ok (ExecutionResult.success state' o) at hX
                 injection hX with hres
                 cases hres
@@ -2118,7 +2200,7 @@ theorem account_changes_consistent_except_owner_of_X_succ_depth :
                 simpa [hstate] using hstepLoc
               | revert =>
                 change
-                  Except.ok (ExecutionResult.revert state₁.machineState.gasAvailable.toUInt256 out) =
+                  Except.ok (ExecutionResult.revert (revertGas state₁) out) =
                     Except.ok (ExecutionResult.success state' o) at hX
                 injection hX with hres
                 cases hres
@@ -2139,7 +2221,7 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
       executionEnv := I,
       substate := A,
       machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g } } with hfresh
-  change Except.bind (X (g.toNat + 1) (D_J I.code 0) freshState)
+  change Except.bind (X (g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (D_J I.code 0) freshState)
       (fun result =>
         match result with
         | ExecutionResult.success evmState' o =>
@@ -2148,7 +2230,7 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
                 evmState'.machineState.gasAvailable.toUInt256, evmState'.substate) o)
         | ExecutionResult.revert g' o => Except.ok (ExecutionResult.revert g' o)) =
         Except.ok (ExecutionResult.success (σ', g', A') o) at hXi
-  cases hX : X (g.toNat + 1) (D_J I.code 0) freshState with
+  cases hX : X (g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (D_J I.code 0) freshState with
   | error err =>
       simp [hX, Except.bind] at hXi
   | ok res =>
@@ -2160,7 +2242,7 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
           rcases hXi with ⟨⟨hσ, hg, hA⟩, ho⟩
           rw [← hσ]
           have hloc := account_changes_consistent_except_owner_of_X_max_depth
-            (f := g.toNat + 1) (validJumps := D_J I.code 0)
+            (f := g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (validJumps := D_J I.code 0)
             freshState evmState' out (by simpa [hfresh] using hdepth) hX acc
             (by simpa [hfresh] using hacc)
           simpa [hfresh] using hloc
@@ -2196,7 +2278,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
       executionEnv := I,
       substate := A,
       machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g } } with hfresh
-  change Except.bind (X (g.toNat + 1) (D_J I.code 0) freshState)
+  change Except.bind (X (g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (D_J I.code 0) freshState)
       (fun result =>
         match result with
         | ExecutionResult.success evmState' o =>
@@ -2205,7 +2287,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
                 evmState'.machineState.gasAvailable.toUInt256, evmState'.substate) o)
         | ExecutionResult.revert g' o => Except.ok (ExecutionResult.revert g' o)) =
         Except.ok (ExecutionResult.success (σ', g', A') o) at hXi
-  cases hX : X (g.toNat + 1) (D_J I.code 0) freshState with
+  cases hX : X (g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (D_J I.code 0) freshState with
   | error err =>
       simp [hX, Except.bind] at hXi
   | ok res =>
@@ -2217,7 +2299,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
           rcases hXi with ⟨⟨hσ, hg, hA⟩, ho⟩
           rw [← hσ]
           have hloc := account_changes_consistent_except_owner_of_X_succ_depth
-            (f := g.toNat + 1) (n := n) (validJumps := D_J I.code 0)
+            (f := g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (n := n) (validJumps := D_J I.code 0)
             (state := freshState) evmState' out acc
             (by simpa [hfresh] using hdepth)
             (by simpa [hfresh] using ihTheta)
@@ -2263,18 +2345,26 @@ private lemma precompiled_Theta_accountMap_eq
     (blocks : ProcessedBlocks)
     (w : Bool) :
     (Θ fork σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 =
-      (let σ₁ := sendEth r s v true σ
-       let I : ExecutionEnv :=
-        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
-          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-       let result : AccountMap × UInt256 × Substate × ByteArray :=
-        Ξ_PRECOMPILE pc σ₁ g A I
-       if result.1 == ∅ then σ else result.1) := by
-  unfold Θ sendEth
-  simp
-  rfl
+        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ ∨
+    ∃ (gₜ : UInt256) (Aₜ : Substate) (I : ExecutionEnv),
+      (Θ fork σ σ₀ A s o r
+          (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 =
+        (if (Ξ_PRECOMPILE pc (sendEth r s v true σ) gₜ Aₜ I).1 == ∅ then σ
+         else (Ξ_PRECOMPILE pc (sendEth r s v true σ) gₜ Aₜ I).1) := by
+  unfold Θ
+  dsimp only
+  split
+  · left; rfl
+  · rename_i gₜ Aₜ _
+    right
+    refine ⟨gₜ, Aₜ,
+      { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+        code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+        blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork,
+        stateGasSpillBaseline := A.stateGasSpilled }, ?_⟩
+    unfold sendEth
+    simp
+    rfl
 
 private lemma Xstep_invalid : ∀ (s : State),
     let I_b := s.executionEnv.code
@@ -2326,15 +2416,13 @@ theorem account_changes_consistent_of_precompiled_Theta :
       (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ' := by
     simpa using hσ_proj
   rw [← hσ]
-  rw [precompiled_Theta_accountMap_eq]
-  exact account_changes_consistent_if_empty_or_sendEth_prelude acc r s v σ _
-    (by
-      let σ₁ := sendEth r s v true σ
-      let I : ExecutionEnv :=
-        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
-          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-      simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
+  rcases precompiled_Theta_accountMap_eq (fork := fork) σ σ₀ A s o r pc g p v v' d e H
+      blobVersionedHashes blocks w with hθ | ⟨gₜ, Aₜ, I, hθ⟩
+  · rw [hθ]
+    exact account_changes_consistent_rfl acc
+  · rw [hθ]
+    exact account_changes_consistent_if_empty_or_sendEth_prelude acc r s v σ _
+      (precompiled_result_accountMap_empty_or_self pc _ gₜ Aₜ I)
 
 theorem account_changes_consistent_except_owner_of_precompiled_Theta :
     ∀ σ' g' A' z o',
@@ -2349,16 +2437,51 @@ theorem account_changes_consistent_except_owner_of_precompiled_Theta :
       (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).1 = σ' := by
     simpa using hσ_proj
   rw [← hσ]
-  rw [precompiled_Theta_accountMap_eq]
-  exact account_changes_consistent_if_empty_or_sendEth_prelude acc r s v σ _
-    (by
-      let σ₁ := sendEth r s v true σ
-      let I : ExecutionEnv :=
-        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
-          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-      simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
+  rcases precompiled_Theta_accountMap_eq (fork := fork) σ σ₀ A s o r pc g p v v' d e H
+      blobVersionedHashes blocks w with hθ | ⟨gₜ, Aₜ, I, hθ⟩
+  · rw [hθ]
+    exact account_changes_consistent_rfl acc
+  · rw [hθ]
+    exact account_changes_consistent_if_empty_or_sendEth_prelude acc r s v σ _
+      (precompiled_result_accountMap_empty_or_self pc _ gₜ Aₜ I)
 
+
+private lemma ite_eq_cases {α : Type} {c : Prop} [Decidable c] {a b x : α}
+    (h : (if c then a else b) = x) : a = x ∨ b = x := by
+  by_cases hc : c
+  · left; simpa [hc] using h
+  · right; simpa [hc] using h
+
+private lemma ite_eq_cases' {α : Type} {c : Prop} [Decidable c] {a b x : α}
+    (h : (if c then a else b) = x) : (c ∧ a = x) ∨ (¬c ∧ b = x) := by
+  by_cases hc : c
+  · left; exact ⟨hc, by simpa [hc] using h⟩
+  · right; exact ⟨hc, by simpa [hc] using h⟩
+
+private lemma creationCollision_of_not_dead {σ : AccountMap} {a : AccountAddress} {ac : Account}
+    (hfind : σ.get? a = some ac) (hcode : ac.code = .empty) (hnonce : ac.nonce = ⟨0⟩)
+    (hdead : ¬ account_dead σ a) : creationCollision σ a = true := by
+  have hstorage : ¬ (ac.storage == default) = true := by
+    intro hs
+    apply hdead
+    simp only [account_dead, hfind]
+    exact ⟨hnonce, by simp [hcode], hs⟩
+  have hgetD : σ.getD a default = ac := by
+    simp [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?, hfind]
+  simp only [creationCollision, hgetD, bne]
+  simp [hstorage]
+
+private lemma Xi_invalid_code_ne_success (σ σ₀ : AccountMap) (g : UInt256) (A : Substate)
+    (I : ExecutionEnv) (hI : I.code = ⟨#[0xfe]⟩)
+    (result : AccountMap × UInt256 × Substate) (out : ByteArray) :
+    Ξ σ σ₀ g A I ≠ .ok (.success result out) := by
+  have hIeq : I = { I with code := ⟨#[0xfe]⟩ } := by
+    cases I
+    simp only at hI
+    subst hI
+    rfl
+  rw [hIeq]
+  exact Xi_invalid_singleton_ne_success σ σ₀ g A I result out
 
 theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
     ∀ a c σ' g' A' z o' e,
@@ -2433,7 +2556,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           · rename_i σStarStar gStarStar AStarStar returnedData
             simp at hLambda
             rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
-            split_ifs at hσ with hfinal
+            rcases ite_eq_cases hσ with hσ | hσ
             · rw [← hσ]
               exact account_changes_consistent_rfl acc
             · rw [← hσ]
@@ -2461,60 +2584,34 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
             have he_eq : e = 1024 := by omega
             subst e
             unfold Lambda at hLambda
-            simp [account_dead] at hLambda hdead
-            repeat split at hLambda <;> try contradiction
-            all_goals
-                simp at hLambda
-                rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
-                rw [← hσ]
-                first
-                | exact account_changes_consistent_rfl acc
-                | split_ifs with hfinal
-                  · exact account_changes_consistent_rfl acc
-                  · simp [ha] at hdead hfinal
-                    rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Std.ExtTreeMap.get? σ acc with
-                    | none =>
-                        simp [hfind] at hdead
-                    | some ac =>
-                        simp [hfind] at hdead hfinal
-                        have hstorage_ne_default : ac.storage ≠ (default : Storage) :=
-                          hdead hfinal.1.2 hfinal.1.1
-                        have hstorage_bne : (ac.storage != ∅) = true := by
-                          simpa [bne, show (default : Storage) = ∅ from rfl] using
-                            hstorage_ne_default
-                        let σStarCollision : AccountMap :=
-                          match Std.ExtTreeMap.get? σ s with
-                          | none => σ
-                          | some senderAcc =>
-                            (Std.ExtTreeMap.insert σ s
-                                  { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
-                                    storage := senderAcc.storage, code := senderAcc.code,
-                                    tstorage := senderAcc.tstorage }).insert
-                              acc
-                              { nonce := ac.nonce + { val := 1 },
-                                balance := v + ac.balance,
-                                storage := ac.storage, code := ac.code, tstorage := ac.tstorage }
-                        exact False.elim
-                          (Xi_invalid_singleton_ne_success
-
-
-                            (σ := σStarCollision)
-                            (σ₀ := σ₀)
-                            (g := g)
-                            (A := A.addAccessedAccount acc)
-                            (I :=
-                              { codeOwner := acc, sender := o, source := s, weiValue := v,
-                                calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
-                                header := H, depth := 1024, perm := w,
-                                blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork })
-                            (result := (σStarStar, gStarStar, AStarStar))
-                            (out := returnedData)
-                            (by
-                              dsimp [σStarCollision]
-                              simpa [Std.ExtTreeMap.getD_eq_getD_getElem?,
-                                ← Std.ExtTreeMap.get?_eq_getElem?, ha, hfind, hfinal.1.1, hfinal.1.2,
-                                hstorage_bne, hstorage_ne_default] using hXi))
+            simp at hLambda
+            split at hLambda <;> rename_i hXi
+            · simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rw [← hσ]
+              exact account_changes_consistent_rfl acc
+            · simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rw [← hσ]
+              exact account_changes_consistent_rfl acc
+            · rename_i σStarStar gStarStar AStarStar returnedData
+              simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rcases ite_eq_cases' hσ with ⟨_, hσ⟩ | ⟨hfinal, _⟩
+              · rw [← hσ]
+                exact account_changes_consistent_rfl acc
+              · exfalso
+                have hF0 := fun h => hfinal (Or.inl h)
+                rw [ha] at hF0
+                cases hfind : σ.get? acc with
+                | none => exact hdead (by simp [account_dead, hfind])
+                | some ac =>
+                  rw [hfind] at hF0
+                  simp at hF0
+                  have hcol : creationCollision σ (creationAddress σ s ζ i) = true := by
+                    rw [ha]
+                    exact creationCollision_of_not_dead hfind hF0.1 hF0.2 hdead
+                  exact Xi_invalid_code_ne_success _ _ _ _ _ (by simp [hcol]) _ _ hXi
   | succ n' ih =>
       constructor
       · intro hTheta acc hacc_ne_r
@@ -2528,6 +2625,11 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
         | Code code =>
             unfold Θ at hTheta
             simp [hc] at hTheta
+            split at hTheta
+            · simp at hTheta
+              rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
+              rw [← hσ]
+              exact account_changes_consistent_rfl acc
             split at hTheta <;> rename_i hXi
             · simp at hTheta
               rcases hTheta with ⟨hσ, hg, hA, hz, ho⟩
@@ -2576,6 +2678,11 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
         by_cases hacc_ne_a : acc ≠ a
         · unfold Lambda at hLambda
           simp at hLambda
+          split at hLambda
+          · simp at hLambda
+            rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+            rw [← hσ]
+            exact account_changes_consistent_rfl acc
           split at hLambda <;> rename_i hXi
           · simp at hLambda
             rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
@@ -2588,7 +2695,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           · rename_i σStarStar gStarStar AStarStar returnedData
             simp at hLambda
             rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
-            split_ifs at hσ with hfinal
+            rcases ite_eq_cases hσ with hσ | hσ
             · rw [← hσ]
               exact account_changes_consistent_rfl acc
             · rw [← hσ]
@@ -2635,60 +2742,39 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
           · exact account_changes_consistent_init_dead hdead
           ·
             unfold Lambda at hLambda
-            simp [account_dead] at hLambda hdead
-            repeat split at hLambda <;> try contradiction
-            all_goals
-                simp at hLambda
-                rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
-                rw [← hσ]
-                first
-                | exact account_changes_consistent_rfl acc
-                | split_ifs with hfinal
-                  · exact account_changes_consistent_rfl acc
-                  · simp [ha] at hdead hfinal
-                    rename_i xResult σStarStar gStarStar AStarStar returnedData hXi
-                    cases hfind : Std.ExtTreeMap.get? σ acc with
-                    | none =>
-                        simp [hfind] at hdead
-                    | some ac =>
-                        simp [hfind] at hdead hfinal
-                        have hstorage_ne_default : ac.storage ≠ (default : Storage) :=
-                          hdead hfinal.1.2 hfinal.1.1
-                        have hstorage_bne : (ac.storage != ∅) = true := by
-                          simpa [bne, show (default : Storage) = ∅ from rfl] using
-                            hstorage_ne_default
-                        let σStarCollision : AccountMap :=
-                          match Std.ExtTreeMap.get? σ s with
-                          | none => σ
-                          | some senderAcc =>
-                            (Std.ExtTreeMap.insert σ s
-                                  { nonce := senderAcc.nonce, balance := senderAcc.balance - v,
-                                    storage := senderAcc.storage, code := senderAcc.code,
-                                    tstorage := senderAcc.tstorage }).insert
-                              acc
-                              { nonce := ac.nonce + { val := 1 },
-                                balance := v + ac.balance,
-                                storage := ac.storage, code := ac.code, tstorage := ac.tstorage }
-                        exact False.elim
-                          (Xi_invalid_singleton_ne_success
-
-
-                            (σ := σStarCollision)
-                            (σ₀ := σ₀)
-                            (g := g)
-                            (A := A.addAccessedAccount acc)
-                            (I :=
-                              { codeOwner := acc, sender := o, source := s, weiValue := v,
-                                calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
-                                header := H, depth := e, perm := w,
-                                blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork })
-                            (result := (σStarStar, gStarStar, AStarStar))
-                            (out := returnedData)
-                            (by
-                              dsimp [σStarCollision]
-                              simpa [Std.ExtTreeMap.getD_eq_getD_getElem?,
-                                ← Std.ExtTreeMap.get?_eq_getElem?, ha, hfind, hfinal.1.1, hfinal.1.2,
-                                hstorage_bne, hstorage_ne_default] using hXi))
+            simp at hLambda
+            split at hLambda
+            · simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rw [← hσ]
+              exact account_changes_consistent_rfl acc
+            split at hLambda <;> rename_i hXi
+            · simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rw [← hσ]
+              exact account_changes_consistent_rfl acc
+            · simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rw [← hσ]
+              exact account_changes_consistent_rfl acc
+            · rename_i σStarStar gStarStar AStarStar returnedData
+              simp at hLambda
+              rcases hLambda with ⟨ha, hσ, hg, hA, hz, ho⟩
+              rcases ite_eq_cases' hσ with ⟨_, hσ⟩ | ⟨hfinal, _⟩
+              · rw [← hσ]
+                exact account_changes_consistent_rfl acc
+              · exfalso
+                have hF0 := fun h => hfinal (Or.inl h)
+                rw [ha] at hF0
+                cases hfind : σ.get? acc with
+                | none => exact hdead (by simp [account_dead, hfind])
+                | some ac =>
+                  rw [hfind] at hF0
+                  simp at hF0
+                  have hcol : creationCollision σ (creationAddress σ s ζ i) = true := by
+                    rw [ha]
+                    exact creationCollision_of_not_dead hfind hF0.1 hF0.2 hdead
+                  exact Xi_invalid_code_ne_success _ _ _ _ _ (by simp [hcol]) _ _ hXi
 
 theorem account_changes_consistent_of_Theta :
     ∀ σ' g' A' z o' e,

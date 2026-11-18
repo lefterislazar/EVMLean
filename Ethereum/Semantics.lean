@@ -15,6 +15,7 @@ import Ethereum.State.AccountOps
 import Ethereum.State.ExecutionEnv
 import Ethereum.State.Substate
 import Ethereum.State.TransactionOps
+import Ethereum.StateGas
 
 import Ethereum.Exception
 import Ethereum.Gas
@@ -230,6 +231,163 @@ def callSubstate (fork : Fork) (σ : AccountMap) (t : AccountAddress) (A : Subst
     | none => A
   else A
 
+/--
+The gas a reverting frame returns to its caller: its execution gas, and from
+EIP-8037 (Amsterdam) its own spill, the execution gas it spent on state that
+the revert undoes (`restore_state_gas`).
+-/
+def revertGas (s : State) : UInt256 :=
+  .ofNat <| s.machineState.gasAvailable.toNat
+    + StateGas.ownSpill s.substate s.executionEnv.stateGasSpillBaseline
+
+/--
+EIP-8037 and EIP-2780 (Amsterdam): the costs of a transaction's top frame
+that depend on the state, which the execution specs charge as they build it
+(`create_evm`). A value transfer to the recipient `r` when it is not alive
+creates it: `NEW_ACCOUNT` in state gas. A recipient that delegates its code
+accesses the delegate, warm or cold, which warms it. `none` when the gas does
+not cover them.
+-/
+def topFrameCallCharges
+    (σ : AccountMap) (A : Substate) (gas : ℕ) (r : AccountAddress) (v : UInt256) :
+    Option (ℕ × Substate) := do
+  let (gas, A) ←
+    if v != ⟨0⟩ ∧ State.dead σ r then StateGas.charge gas A StateGas.NEW_ACCOUNT
+    else some (gas, A)
+  match delegationTarget? (σ.get? r |>.option .empty (·.code)) with
+  | some d =>
+    let cost :=
+      if A.accessedAccounts.contains d then GasConstants.Gwarmaccess
+      else GasConstants.GcoldaccountaccessAmsterdam
+    if gas < cost then none
+    some (gas - cost, A.addAccessedAccount d)
+  | none => some (gas, A)
+
+/-- (96) The preimage of the address of a contract that `s` creates with
+    nonce `n`, init code `i` and, for `CREATE2`, the salt `ζ`. -/
+def L_A (s : AccountAddress) (n : UInt256) (ζ : Option ByteArray) (i : ByteArray) :
+    ByteArray
+  :=
+    let ⟨s,hs⟩ := s.toByteArrayWithSizeProof
+    let ⟨n',hn⟩ := BEwithSizeProof n.val
+    let hn₃₃ : n'.size ≤ 32 + 1 := by
+      have h_lt : (n.val < UInt256.size) := by exact n.1.2
+      apply Nat.le_of_lt at h_lt
+      apply Nat.log_mono_right (b := 2) at h_lt
+      rw [← Nat.log2_eq_log_two] at h_lt
+      apply Nat.div_le_div_right (c := 8) at h_lt
+      simp [UInt256.size] at h_lt
+      simp [Nat.log, Nat.log.go] at h_lt
+      apply Nat.add_le_add_right (k := 1) at h_lt
+      exact le_trans hn h_lt
+    match ζ with
+      | none   =>
+        RLP_bounded (.𝕃 [.𝔹 s, .𝔹 n'])
+          (by simp [𝕋.rlpBound, 𝕋.rlpBoundList, hs]; omega)
+      | some ζ => BE 255 ++ s ++ ζ ++ KEC i
+
+/-- (94) (95) The address of the contract that `s` creates in `σ`, where its
+    nonce has already been incremented for the creation. -/
+def creationAddress (σ : AccountMap) (s : AccountAddress) (ζ : Option ByteArray) (i : ByteArray) :
+    AccountAddress :=
+  let n : UInt256 := (σ.get? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
+  (KEC (L_A s n ζ i)).extract 12 32 /- 160 bits = 20 bytes -/
+    |> fromByteArrayBigEndian |> Fin.ofNat _
+
+/--
+EIP-7610: a creation at `a` collides when the account there has a nonzero
+nonce, a nonzero code length, or non-empty storage.
+-/
+def creationCollision (σ : AccountMap) (a : AccountAddress) : Bool :=
+  let existentAccount := σ.getD a default
+  existentAccount.nonce ≠ ⟨0⟩
+    || existentAccount.code.size ≠ 0
+    || existentAccount.storage != default
+
+/--
+EIP-8037 (Amsterdam): charges `amount` of state gas to the frame of `s`
+(`charge_state_gas`), from the reservoir and then from its execution gas. Out
+of gas when they do not cover it.
+-/
+def chargeStateGas (s : State) (amount : ℕ) : Except EVM.ExecutionException State :=
+  if amount = 0 then .ok s else
+  match StateGas.charge s.machineState.gasAvailable.toNat s.substate amount with
+  | none => .error .OutOfGass
+  | some (g, A) => .ok { s with machineState.gasAvailable := .ofNat g, substate := A }
+
+/--
+EIP-8037 (Amsterdam): credits back to the frame of `s` `amount` of state gas
+that it charged for state that was not created (`credit_state_gas_refund`).
+-/
+def creditStateGas (s : State) (amount : ℕ) : State :=
+  let (g, A) :=
+    StateGas.credit s.machineState.gasAvailable.toNat s.substate
+      s.executionEnv.stateGasSpillBaseline amount
+  { s with machineState.gasAvailable := .ofNat g, substate := A }
+
+/--
+EIP-8037 (Amsterdam): after a child frame returned successfully, the frame of
+`s` repays its spill from the reservoir the child returned
+(`repay_state_gas_spill`).
+-/
+def repayStateGasSpill (s : State) : State :=
+  let (g, A) :=
+    StateGas.repaySpill s.machineState.gasAvailable.toNat s.substate
+      s.executionEnv.stateGasSpillBaseline
+  { s with machineState.gasAvailable := .ofNat g, substate := A }
+
+/--
+EIP-8037 (Amsterdam): the state charge of a call that creates its recipient
+(`createsAccount`), on the execution gas `gas` left after the cost of the
+call: the execution gas that it spills, and the substate.
+-/
+def callStateCharge (createsAccount : Bool) (gas : ℕ) (A : Substate) :
+    Except EVM.ExecutionException (ℕ × Substate) :=
+  if createsAccount then
+    match StateGas.charge gas A StateGas.NEW_ACCOUNT with
+    | none => .error .OutOfGass
+    | some (g, A) => .ok (gas - g, A)
+  else .ok (0, A)
+
+/--
+EIP-8037 (Amsterdam): the state gas of a frame `s` once its child, a call or
+a creation, returned. After a child that succeeded, the frame repays its spill
+from the reservoir (`incorporate_child`). After one that failed, the
+`NEW_ACCOUNT` that the frame charged for the account the child would have
+created, if it did (`charged`), is credited back.
+-/
+def settleChildStateGas (fork : Fork) (succeeded charged : Bool) (s : State) : State :=
+  if fork.spec.eip8037 ∧ succeeded then repayStateGasSpill s
+  else if charged then creditStateGas s StateGas.NEW_ACCOUNT
+  else s
+
+/--
+EIP-8037 (Amsterdam): the state gas of `SSTORE`, before it stores. Setting a
+slot that was zero at the start of the transaction, and still is, creates it:
+`STORAGE_SET`. Clearing such a slot again credits that back.
+-/
+def sstoreStateGas (s : State) : Except EVM.ExecutionException State :=
+  if ¬s.executionEnv.fork.spec.eip8037 then .ok s else
+  let Iₐ := s.executionEnv.codeOwner
+  let key := s.machineState.stack[0]!
+  let v' := s.machineState.stack[1]!
+  let v₀ : UInt256 := s.σ₀.get? Iₐ |>.option ⟨0⟩ (·.storage.getD key ⟨0⟩)
+  let v : UInt256 := s.accountMap.get? Iₐ |>.option ⟨0⟩ (·.storage.getD key ⟨0⟩)
+  if v₀ = ⟨0⟩ ∧ v = ⟨0⟩ ∧ v' ≠ ⟨0⟩ then chargeStateGas s StateGas.STORAGE_SET
+  else if v₀ = ⟨0⟩ ∧ v ≠ ⟨0⟩ ∧ v' = ⟨0⟩ then .ok (creditStateGas s StateGas.STORAGE_SET)
+  else .ok s
+
+/--
+EIP-8037 (Amsterdam): the state gas of `SELFDESTRUCT`: moving a balance to a
+dead account creates it.
+-/
+def selfDestructStateGas (s : State) : ℕ :=
+  let r := AccountAddress.ofUInt256 s.machineState.stack[0]!
+  let balance : UInt256 := s.accountMap.get? s.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)
+  if s.executionEnv.fork.spec.eip8037 ∧ State.dead s.accountMap r ∧ balance ≠ ⟨0⟩ then
+    StateGas.NEW_ACCOUNT
+  else 0
+
 mutual
 
 def call
@@ -251,7 +409,15 @@ def call
       -- let evmState := evmState.subtractGas gasCost -- {evmState with machineState.gasAvailable := evmState.machineState.gasAvailable - gasCost}
       -- m[μs[3] . . . (μs[3] + μs[4] − 1)]
       let i := evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-      let A' := callSubstate fork σ t evmState.substate
+      /- EIP-8037 (Amsterdam): a call that moves value to a dead account
+         creates it, in state gas. It is charged after the cost of the call
+         and before the callee's gas, which is capped from what is left
+         (`Cgascap`); `spill` is the execution gas it spends. -/
+      let createsAccount := callCreatesAccount fork recipient value σ
+      let (spill, A₀) ←
+        callStateCharge createsAccount (evmState.machineState.gasAvailable.toNat - gasCost)
+          evmState.substate
+      let A' := callSubstate fork σ t A₀
       let (σ', g', A', z, o) :=
         if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
             Θ (fork := fork)
@@ -291,7 +457,7 @@ def call
       let μ'incomplete : MachineState :=
         { μ'ₘ with
             returnData   := μ'ₒ
-            gasAvailable := evmState.machineState.gasAvailable.subNat (gasCost - g'.toNat)
+            gasAvailable := evmState.machineState.gasAvailable.subNat (gasCost + spill - g'.toNat)
             activeWords :=
               let m : ℕ:= MachineState.M evmState.machineState.activeWords.toNat inOffset.toNat inSize.toNat
               .ofNat <| MachineState.M m outOffset.toNat outSize.toNat
@@ -302,7 +468,7 @@ def call
       let result := {
         result with machineState := μ'incomplete
       }
-      .ok (x, result)
+      .ok (x, settleChildStateGas fork z createsAccount result)
   termination_by (1024 - evmState.executionEnv.depth.val, 0, 0)
   decreasing_by
     omega
@@ -321,6 +487,15 @@ def create
   let σ := evmState.accountMap
   let σ_Iₐ : Account := σ.get? Iₐ |>.getD default
   let σStar := σ.insert Iₐ {σ_Iₐ with nonce := σ_Iₐ.nonce + ⟨1⟩}
+  /- EIP-8037 (Amsterdam): a creation that may proceed at an address whose
+     account is dead creates it, in state gas, charged before the gas of the
+     init code is withheld. A colliding creation keeps the charge. -/
+  let a₀ := creationAddress σStar Iₐ salt i
+  let createsAccount : Bool :=
+    I.fork.spec.eip8037 && σ_Iₐ.nonce.toNat < 2^64-1
+      && value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) && Iₑ < 1024 && i.size ≤ 49152
+      && State.dead σ a₀
+  let evmState ← chargeStateGas evmState (if createsAccount then StateGas.NEW_ACCOUNT else 0)
 
   let (a, evmState', g', z, o) : (AccountAddress × State × UInt256 × Bool × ByteArray) :=
     if σ_Iₐ.nonce.toNat ≥ 2^64-1 then
@@ -362,14 +537,12 @@ def create
       machineState.returnData := newReturnData
       machineState.gasAvailable := evmState.machineState.gasAvailable.subNat (L evmState.machineState.gasAvailable.toNat - g'.toNat)
     }
-  .ok (x, evmState')
+  -- EIP-8037 (Amsterdam): a colliding creation keeps the `NEW_ACCOUNT` charge.
+  .ok (x, settleChildStateGas I.fork z (createsAccount && !creationCollision σStar a₀) evmState')
   termination_by (1024 - evmState.executionEnv.depth.val, 0, 0)
   decreasing_by
     apply Prod.Lex.left
-    have hDepth_lt : evmState.executionEnv.depth.val < 1024 := by
-      simpa [Iₑ, I] using hDepth.2.1
-    change 1024 - (evmState.executionEnv.depth.val + 1) < 1024 - evmState.executionEnv.depth.val
-    exact Nat.sub_lt_sub_left hDepth_lt (Nat.lt_succ_self _)
+    exact Nat.sub_lt_sub_left hDepth.2.1 (Nat.lt_succ_self _)
 
 def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
   : EVM.Transformer
@@ -591,7 +764,8 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
       | .MSTORE8 => binaryMachineStateOp MachineState.mstore8 evmStateCharged
       | .SLOAD =>
         unaryStateOp Ethereum.State.sload evmStateCharged
-      | .SSTORE =>
+      | .SSTORE => do
+        let evmStateCharged ← sstoreStateGas evmStateCharged
         binaryStateOp Ethereum.State.sstore evmStateCharged
       | .TLOAD => unaryStateOp Ethereum.State.tload evmStateCharged
       | .TSTORE => binaryStateOp Ethereum.State.tstore evmStateCharged
@@ -607,7 +781,8 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
       | .LOG4 => log4Op evmStateCharged
       | .RETURN => binaryMachineStateOp MachineState.evmReturn evmStateCharged
       | .REVERT => binaryMachineStateOp MachineState.evmRevert evmStateCharged
-      | .SELFDESTRUCT =>
+      | .SELFDESTRUCT => do
+          let evmStateCharged ← chargeStateGas evmStateCharged (selfDestructStateGas evmStateCharged)
           match evmStateCharged.machineState.stack.pop with
             | some ⟨ s , μ₁ ⟩ =>
               let Iₐ := evmStateCharged.executionEnv.codeOwner
@@ -861,7 +1036,7 @@ def X (fuel : ℕ) (validJumps : Array UInt256) (evmState : State)
       match ret with -- The YP does this in a weird way.
         | none => X f validJumps {evmState' with executionEnv.depth := evmState.executionEnv.depth}
         | some ⟨.revert, o⟩ =>
-          .ok <| .revert evmState'.machineState.gasAvailable.toUInt256 o
+          .ok <| .revert (revertGas evmState') o
         | some ⟨.success, o⟩ =>
           .ok <| .success evmState' o
           termination_by (1024 - evmState.executionEnv.depth.val, 3, fuel)
@@ -898,7 +1073,11 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
             substate := A
             machineState.gasAvailable := .ofUInt256 g
         }
-      let result ← X (UInt256.toNat g + 1) (D_J I.code 0) freshEvmState
+      /- The fuel exceeds the frame's gas, counting the execution gas that its
+         state charges at entry spilled (EIP-8037), which it can get back:
+         every step that continues spends some of it. -/
+      let result ← X (UInt256.toNat g + StateGas.ownSpill A I.stateGasSpillBaseline + 1)
+        (D_J I.code 0) freshEvmState
       match result with
         | .success evmState' o =>
           let finalGas := evmState'.machineState.gasAvailable
@@ -939,11 +1118,7 @@ def Lambda
   -- EIP-3860 (includes EIP-170)
   -- https://eips.ethereum.org/EIPS/eip-3860
 
-  let n : UInt256 := (σ.get? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
-  let lₐ := L_A s n ζ i
-  let a : AccountAddress := -- (94) (95)
-    (KEC lₐ).extract 12 32 /- 160 bits = 20 bytes -/
-      |> fromByteArrayBigEndian |> Fin.ofNat _
+  let a : AccountAddress := creationAddress σ s ζ i -- (94) (95)
 
   -- A* (97)
   let AStar := A.addAccessedAccount a
@@ -958,15 +1133,25 @@ def Lambda
     a nonzero code length, or non-empty storage, then the creation MUST throw
     as if the first byte in the init code were an invalid opcode.
   -/
+  let collision : Bool := creationCollision σ a
   let (i, createdAccounts) :=
-    if
-      existentAccount.nonce ≠ ⟨0⟩
-        || existentAccount.code.size ≠ 0
-        || existentAccount.storage != default
-    then
+    if collision then
       (⟨#[0xfe]⟩, A.createdAccounts)
     else (i, A.createdAccounts.insert a)
   let AStar := { AStar with createdAccounts := createdAccounts }
+
+  -- EIP-8037 (Amsterdam): the frame of a creation transaction (depth 0)
+  -- creates an account that was empty before the transaction: `NEW_ACCOUNT`
+  -- in state gas. A colliding creation fails anyway. When the gas does not
+  -- cover it, the frame fails.
+  let charged : Option (UInt256 × Substate) :=
+    if fork.spec.eip8037 ∧ e.val = 0 ∧ ¬collision
+        ∧ (σ₀.get? a |>.option true Account.emptyAccount) then
+      (StateGas.charge g.toNat AStar StateGas.NEW_ACCOUNT).map fun (g, A) => (.ofNat g, A)
+    else some (g, AStar)
+  match charged with
+  | none => (a, σ, ⟨0⟩, {AStar with createdAccounts := A.createdAccounts}, false, .empty)
+  | some (gₜ, AStarₜ) =>
 
   let newAccount : Account :=
     { existentAccount with
@@ -996,8 +1181,9 @@ def Lambda
     , blobVersionedHashes := blobVersionedHashes
     , blocks := blocks
     , fork := fork
+    , stateGasSpillBaseline := A.stateGasSpilled
     }
-  match Ξ σStar σ₀ g AStar exEnv with
+  match Ξ σStar σ₀ gₜ AStarₜ exEnv with
     | .error _ =>
       -- if e == .OutOfFuel then throw .OutOfFuel
       (a, σ, ⟨0⟩, {AStar with createdAccounts := A.createdAccounts}, false, .empty)
@@ -1006,13 +1192,22 @@ def Lambda
     | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
       -- The code-deposit cost (113)
       let c := GasConstants.Gcodedeposit * returnedData.size
+      /- EIP-8037 (Amsterdam): the code deposit hashes the code, in execution
+         gas, and stores it, in state gas per byte (`process_create`); `none`
+         when the gas does not cover them. -/
+      let deposit : Option (ℕ × Substate) :=
+        let hashing := GasConstants.Gkeccak256word * ((returnedData.size + 31) / 32)
+        if gStarStar.toNat < hashing then none
+        else
+          StateGas.charge (gStarStar.toNat - hashing) AStarStar
+            (StateGas.COST_PER_STATE_BYTE * returnedData.size)
 
       let F : Bool := Id.run do -- (118)
         let F₀ : Bool :=
           match σ.get? a with
           | .some ac => ac.code ≠ .empty ∨ ac.nonce ≠ ⟨0⟩
           | .none => false
-        let F₂ : Bool := gStarStar.toNat < c
+        let F₂ : Bool := if fork.spec.eip8037 then deposit.isNone else gStarStar.toNat < c
         let MAX_CODE_SIZE := 24576
         let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
         let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
@@ -1024,10 +1219,12 @@ def Lambda
           σStarStar.insert a {newAccount' with code := returnedData}
 
       -- (114)
-      let g' := if F then 0 else gStarStar.toNat - c
+      let g' := if F then 0 else
+        if fork.spec.eip8037 then deposit.option 0 (·.1) else gStarStar.toNat - c
 
       -- (116)
-      let A' := if F then AStar else AStarStar
+      let A' := if F then AStar else
+        if fork.spec.eip8037 then deposit.option AStarStar (·.2) else AStarStar
       -- (117)
       let z := not F
       (a, σ', .ofNat g', A', z, .empty) -- (93)
@@ -1036,27 +1233,6 @@ def Lambda
         apply Prod.Lex.right
         apply Prod.Lex.left
         omega
- where
-  L_A (s : AccountAddress) (n : UInt256) (ζ : Option ByteArray) (i : ByteArray) :
-    ByteArray
-  := -- (96)
-    let ⟨s,hs⟩ := s.toByteArrayWithSizeProof
-    let ⟨n',hn⟩ := BEwithSizeProof n.val
-    let hn₃₃ : n'.size ≤ 32 + 1 := by
-      have h_lt : (n.val < UInt256.size) := by exact n.1.2
-      apply Nat.le_of_lt at h_lt
-      apply Nat.log_mono_right (b := 2) at h_lt
-      rw [← Nat.log2_eq_log_two] at h_lt
-      apply Nat.div_le_div_right (c := 8) at h_lt
-      simp [UInt256.size] at h_lt
-      simp [Nat.log, Nat.log.go] at h_lt
-      apply Nat.add_le_add_right (k := 1) at h_lt
-      exact le_trans hn h_lt
-    match ζ with
-      | none   =>
-        RLP_bounded (.𝕃 [.𝔹 s, .𝔹 n'])
-          (by simp [𝕋.rlpBound, 𝕋.rlpBoundList, hs]; omega)
-      | some ζ => BE 255 ++ s ++ ζ ++ KEC i
 
 /--
 Message cal
@@ -1099,6 +1275,15 @@ def Θ (fork : Fork)
         :
       (AccountMap × UInt256 × Substate × Bool × ByteArray)
 :=
+  -- EIP-8037 (Amsterdam): the top frame (depth 0) first charges its costs
+  -- that depend on the state; when the gas does not cover them, it fails.
+  let charged : Option (UInt256 × Substate) :=
+    if fork.spec.eip8037 ∧ e.val = 0 then
+      (topFrameCallCharges σ A g.toNat r v).map fun (g, A) => (.ofNat g, A)
+    else some (g, A)
+  match charged with
+  | none => (σ, ⟨0⟩, A, false, .empty)
+  | some (gₜ, Aₜ) =>
 
   -- (124) (125) (126)
   let σ'₁ :=
@@ -1137,6 +1322,7 @@ def Θ (fork : Fork)
       blobVersionedHashes := blobVersionedHashes
       blocks := blocks
       fork := fork
+      stateGasSpillBaseline := A.stateGasSpilled
     }
 
   -- Equation (131)
@@ -1144,9 +1330,9 @@ def Θ (fork : Fork)
   let (σ'', g', A'', out) :=
     match c with
       | ToExecute.Precompiled p =>
-        Ξ_PRECOMPILE p σ₁ g A I
+        Ξ_PRECOMPILE p σ₁ gₜ Aₜ I
       | ToExecute.Code _ =>
-        match Ξ σ₁ σ₀ g A I with
+        match Ξ σ₁ σ₀ gₜ Aₜ I with
           | .error _ =>
             -- Cannot techically happen
             -- if e == .OutOfFuel then throw .OutOfFuel
@@ -1226,6 +1412,186 @@ def applyAuthorizations
           if auth.address = 0 then .empty else delegationDesignation auth.address
         (σ.insert authority { account with nonce := account.nonce + ⟨1⟩, code }, accessed, refund)
 
+/--
+EIP-7702 from Amsterdam: applies the authorization list as `applyAuthorizations`
+does, charging the transaction's meter as the execution specs' `set_delegation`
+(EIP-8037, EIP-8038). An authority without an account is created, in state gas;
+a write to an authority whose account the transaction does not otherwise pay to
+write (`paidWrites`) costs `ACCOUNT_WRITE`; and a delegation that the authority
+did not have before the transaction (`σPre`) costs `AUTH_BASE` in state gas,
+once per authority. The refund of Prague is gone. Returns the state, the
+authorities to warm, the execution gas and the meter, or `none` when the gas
+does not cover the charges.
+-/
+def applyAuthorizationsAmsterdam
+    (chainId : ℕ) (auths : List Authorization) (σPre σ : AccountMap)
+    (paidWrites : Batteries.RBSet AccountAddress compare) (gas : ℕ) (A : Substate) :
+    Option (AccountMap × Batteries.RBSet AccountAddress compare × ℕ × Substate) := do
+  let mut σ := σ
+  let mut accessed : Batteries.RBSet AccountAddress compare := ∅
+  let mut paid := paidWrites
+  let mut delegated : Batteries.RBSet AccountAddress compare := ∅
+  let mut gas := gas
+  let mut A := A
+  for auth in auths do
+    let some authority := authorizationAuthority? chainId auth | continue
+    accessed := accessed.insert authority
+    let account := σ.get? authority |>.getD default
+    if (account.code.size ≠ 0 ∧ ¬isDelegationDesignation account.code)
+        ∨ account.nonce ≠ auth.nonce then
+      continue
+    if (σ.get? authority).isNone then
+      let (g, A') ← StateGas.charge gas A StateGas.NEW_ACCOUNT
+      gas := g
+      A := A'
+    if ¬paid.contains authority then
+      guard (GasConstants.Gaccountwrite ≤ gas)
+      gas := gas - GasConstants.Gaccountwrite
+      paid := paid.insert authority
+    let mut code := ByteArray.empty
+    if auth.address ≠ 0 then
+      let delegatedBefore := isDelegationDesignation (σPre.get? authority |>.option .empty (·.code))
+      if ¬delegatedBefore ∧ ¬delegated.contains authority then
+        let (g, A') ← StateGas.charge gas A StateGas.AUTH_BASE
+        gas := g
+        A := A'
+      delegated := delegated.insert authority
+      code := delegationDesignation auth.address
+    σ := σ.insert authority { account with nonce := account.nonce + ⟨1⟩, code }
+  return (σ, accessed, gas, A)
+
+/--
+The outcome of a transaction (`Υ`): the state, the substate, whether it
+succeeded, and its gas.
+-/
+structure TransactionOutcome where
+  σ : AccountMap
+  A : Substate
+  status : Bool
+  /-- The gas the sender pays for, which the receipts accumulate. -/
+  gasUsed : ℕ
+  /-- EIP-7778 (Amsterdam): the execution gas the block counts, before
+      refunds. Before Amsterdam, `gasUsed`. -/
+  executionGasUsed : ℕ
+  /-- EIP-7778 (Amsterdam): the state gas the block counts. -/
+  stateGasUsed : ℕ := 0
+
+/--
+The transaction-level state transition from Amsterdam (EIP-8037, with EIP-2780,
+EIP-7778, EIP-7976, EIP-7981 and EIP-8038), as the execution specs'
+`process_transaction`.
+
+- Of the gas left after the intrinsic cost, at most `TX_MAX_GAS_LIMIT` less
+  the intrinsic cost is the top frame's execution gas; the rest is its
+  state-gas reservoir.
+- The sender pays the gas limit up front, and its nonce increases.
+- The authorizations are applied, charging the meter, and their charges stay
+  even if the frame fails (`commit_state_gas`).
+- The top frame runs. `Θ` and `Lambda` charge its costs that depend on the
+  state at depth 0. If the gas does not cover them or the authorizations, the
+  transaction is included but runs nothing: the delegations are undone, the
+  execution gas is spent, and the reservoir is left whole.
+- The sender pays for the gas used before refunds, less the refund, and at
+  least the floor. The block counts execution and state gas separately.
+-/
+def ΥAmsterdam
+  (fork : Fork)
+  (σ : AccountMap)
+  (H_f : ℕ)
+  (H : BlockHeader)
+  (blocks : ProcessedBlocks)
+  (T : Transaction)
+  (S_T : AccountAddress)
+  : TransactionOutcome
+:=
+  let cost := EVM.intrinsicCost T S_T
+  let gasLimit := T.base.gasLimit.toNat
+  let evmGas := gasLimit - cost.execution
+  let executionGrant := min (GasConstants.TX_MAX_GAS_LIMIT - cost.execution) evmGas
+  let reservoir := evmGas - executionGrant
+  let senderAccount := (σ.get? S_T).get!
+  -- The priority fee and the effective gas price
+  let f :=
+    match T with
+      | .legacy t | .access t => t.gasPrice - .ofNat H_f
+      | .dynamic t | .blob t | .setCode t => min t.maxPriorityFeePerGas (t.maxFeePerGas - .ofNat H_f)
+  let p :=
+    match T with
+      | .legacy t | .access t => t.gasPrice
+      | .dynamic _ | .blob _ | .setCode _ => f + .ofNat H_f
+  let senderAccount :=
+    { senderAccount with
+        balance := senderAccount.balance - T.base.gasLimit * p - .ofNat (calcBlobFee fork H T)
+        nonce := senderAccount.nonce + ⟨1⟩ }
+  let σ₀ := σ.insert S_T senderAccount
+  let meter : Substate := { (default : Substate) with stateGasReservoir := reservoir }
+  let paidWrites : Batteries.RBSet AccountAddress compare :=
+    match T.base.recipient with
+    | some t =>
+      if T.base.value != ⟨0⟩ then (∅ : Batteries.RBSet AccountAddress compare).insert S_T |>.insert t
+      else (∅ : Batteries.RBSet AccountAddress compare).insert S_T
+    | none => (∅ : Batteries.RBSet AccountAddress compare).insert S_T
+  let authorized :=
+    if T.authorizationList.isEmpty then some (σ₀, ∅, executionGrant, meter)
+    else applyAuthorizationsAmsterdam chainId T.authorizationList σ σ₀ paidWrites executionGrant meter
+  let accessList := T.getAccessList
+  let AStar_K : List (AccountAddress × UInt256) := do
+    let ⟨Eₐ, Eₛ⟩ ← accessList
+    let eₛ ← Eₛ.toList
+    pure (Eₐ, eₛ)
+  -- The prepared top frame: its state, substate and execution gas.
+  let prepared : Option (AccountMap × Substate × ℕ) := do
+    let (σ₁, authorities, gas, meter) ← authorized
+    let accessed :=
+      (A0 fork).accessedAccounts.insert S_T
+        |>.insert H.beneficiary
+        |>.union (Batteries.RBSet.ofList (accessList.map Prod.fst) compare)
+        |>.union authorities
+    let accessed := match T.base.recipient with
+      | some t => accessed.insert t
+      | none => accessed
+    let AStar :=
+      { meter with
+          accessedAccounts := accessed
+          accessedStorageKeys := Batteries.RBSet.ofList AStar_K Substate.storageKeysCmp }
+    -- The top frame's costs that depend on the state must be covered.
+    if let some t := T.base.recipient then
+      let _ ← topFrameCallCharges σ₁ AStar gas t T.base.value
+    pure (σ₁, AStar, gas)
+  let (σ_P, g', A, z) : AccountMap × ℕ × Substate × Bool :=
+    match prepared with
+    | none => (σ₀, 0, meter, false)
+    | some (σ₁, AStar, gas) =>
+      match T.base.recipient with
+      | none =>
+        match
+          Lambda fork σ₁ σ₁ AStar S_T S_T (.ofNat gas) p T.base.value T.base.data 0 none H
+            T.blobVersionedHashes blocks true
+        with
+        | (_, σ_P, g', A, z, _) => (σ_P, g'.toNat, A, z)
+      | some t =>
+        match
+          Θ fork σ₁ σ₁ AStar S_T S_T t (toExecute fork σ₁ t) (.ofNat gas) p T.base.value
+            T.base.value T.base.data 0 H T.blobVersionedHashes blocks true
+        with
+        | (σ_P, g', A, z, _) => (σ_P, g'.toNat, A, z)
+  -- Settlement (`settle_transaction_gas`)
+  let gasUsedBeforeRefund := gasLimit - g' - A.stateGasReservoir
+  let refund := min (gasUsedBeforeRefund / 5) A.refundBalance.toNat
+  let gasUsed := max (gasUsedBeforeRefund - refund) cost.floor
+  let stateGasUsed := reservoir + A.stateGasSpilled - A.stateGasReservoir
+  let executionGasUsed := max (gasUsedBeforeRefund - stateGasUsed) cost.floor
+  let σStar := σ_P.increaseBalance S_T (.ofNat (gasLimit - gasUsed) * p)
+  let beneficiaryFee := .ofNat gasUsed * f
+  let σStar' :=
+    if beneficiaryFee != UInt256.ofNat 0 then σStar.increaseBalance H.beneficiary beneficiaryFee
+    else σStar
+  let σ' := A.selfDestructSet.1.foldl Std.ExtTreeMap.erase σStar'
+  let deadAccounts := A.touchedAccounts.filter (State.dead σStar' ·)
+  let σ' := deadAccounts.foldl Std.ExtTreeMap.erase σ'
+  let σ' := σ'.map λ _ acc ↦ { acc with tstorage := .empty }
+  { σ := σ', A, status := z, gasUsed, executionGasUsed, stateGasUsed }
+
 -- Type Υ using \Upsilon or \GU
 /--
 The transaction-level state transition `Υ` (Yellow Paper, Section 6).
@@ -1242,8 +1608,9 @@ def Υ
   (blocks : ProcessedBlocks)
   (T : Transaction)
   (S_T : AccountAddress)
-  : Except EVM.Exception (AccountMap × Substate × Bool × UInt256)
+  : Except EVM.Exception TransactionOutcome
 := do
+  if fork.spec.eip8037 then return ΥAmsterdam fork σ H_f H blocks T S_T
   let g₀ : ℕ := EVM.intrinsicGas fork T
   -- "here can be no invalid transactions from this point"
   let senderAccount := (σ.get? S_T).get!
@@ -1369,7 +1736,8 @@ def Υ
   let deadAccounts := A.touchedAccounts.filter (State.dead σStar' ·)
   let σ' := deadAccounts.foldl Std.ExtTreeMap.erase σ' -- (88)
   let σ' := σ'.map λ _ acc ↦ { acc with tstorage := .empty }
-  .ok (σ', A, z, T.base.gasLimit - gStar)
+  let gasUsed := (T.base.gasLimit - gStar).toNat
+  .ok { σ := σ', A, status := z, gasUsed, executionGasUsed := gasUsed }
 end EVM
 
 end Ethereum

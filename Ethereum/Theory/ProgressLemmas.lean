@@ -51,7 +51,7 @@ lemma Xstep_X_X_halt_success : ∀ f state state' validJumps o,
 
 lemma Xstep_X_X_halt_revert : ∀ f state state' validJumps o,
   Xstep validJumps state = .ok (state', .some (HaltCause.revert,o))
-  → X (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable.toUInt256 o) := by
+  → X (f + 1) validJumps state = .ok (.revert (revertGas state') o) := by
     intros f state state' validJumps o hstep
     unfold X
     simp [hstep, bind, Except.bind]
@@ -116,7 +116,7 @@ lemma XstepN_X_halt_success {s s' o n f} validJumps :
 
 lemma XstepN_X_halt_revert {s s' o n f} validJumps :
     XstepN validJumps s (.ok (s', .some (.revert, o))) n →
-    X (f + n) validJumps s = .ok (.revert s'.machineState.gasAvailable.toUInt256 o) := by
+    X (f + n) validJumps s = .ok (.revert (revertGas s') o) := by
     intro hstepN
     generalize hxi : (Except.ok (s', Option.some (HaltCause.revert, o))) = xi
     rw [hxi] at hstepN
@@ -149,22 +149,23 @@ lemma XstepN_XstepN_add { s s' n x m} validJumps :
     rw [Nat.add_comm] at hxi
     exact XstepN.trans s is x (m + n) hstep hxi
 
-lemma XstepN_gas_lt_fuel_of_Xstep_ret_none {s s' n f} validJumps :
-    s.machineState.gasAvailable.toNat < f + n →
+/-- Every step that continues decreases the frame's gas (`frameGas`, its
+execution gas plus its own state gas spill), so after `n` such steps from a
+frame with `frameGas` below `f + n` it is below `f`. -/
+lemma XstepN_gas_lt_fuel_of_Xstep_ret_none {s s' n f} validJumps
+    (hb : s.executionEnv.stateGasSpillBaseline ≤ s.substate.stateGasSpilled) :
+    frameGas s < f + n →
     XstepN validJumps s (.ok (s', .none)) n →
-    s'.machineState.gasAvailable.toNat < f := by
+    frameGas s' < f := by
   intro hgas0 hstep
   generalize hxi : (Except.ok (s', Option.none)) = xs'
   rw [hxi] at hstep
   induction hstep with
   | step h _ hstep =>
     rw [←  hxi] at hstep
-    apply Xstep_gas_decreases_of_continues at hstep
+    apply Xstep_gas_decreases_of_continues hb at hstep
     omega
   | trans is is' ixs n' hstep1 hstep' ih =>
-    apply Xstep_gas_decreases_of_continues at hstep1
-    have h := Nat.lt_of_le_of_lt hstep1 hgas0
-    rw [← Nat.add_assoc] at h
-    apply Nat.lt_of_add_lt_add_right at h
-    apply ih h hxi
-
+    have hb' := Xstep_baseline_le hb hstep1
+    have h1 := Xstep_gas_decreases_of_continues hb hstep1
+    exact ih hb' (by omega) hxi

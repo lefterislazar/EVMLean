@@ -139,19 +139,26 @@ def sstore (self : State) (spos sval : UInt256) : State :=
       | some acc => acc.storage.getD spos ⟨0⟩
   let v := σ_Iₐ.getD spos ⟨0⟩
   let v' := sval
+  /- EIP-8038 (Amsterdam): clearing a slot refunds more, and restoring a slot
+     to its value at the start of the transaction refunds the write that moved
+     it away. (Restoring a slot that was zero also credits back the state gas
+     of its set, EIP-8037, which is not a refund: see `SSTORE`.) -/
+  let eip8038 := self.executionEnv.fork.spec.eip8038
+  let Rsclear : ℕ := if eip8038 then GasConstants.RsclearAmsterdam else GasConstants.Rsclear
 
   let r_dirtyclear : ℤ :=
-    if v₀ ≠ .ofNat 0 && v = .ofNat 0 then - GasConstants.Rsclear else
-    if v₀ ≠ .ofNat 0 && v' = .ofNat 0 then GasConstants.Rsclear else
+    if v₀ ≠ .ofNat 0 && v = .ofNat 0 then - Rsclear else
+    if v₀ ≠ .ofNat 0 && v' = .ofNat 0 then Rsclear else
     0
 
   let r_dirtyreset : ℤ :=
+    if v₀ = v' && eip8038 then GasConstants.Gstoragewrite else
     if v₀ = v' && v₀ = .ofNat 0 then GasConstants.Gsset - GasConstants.Gwarmaccess else
     if v₀ = v' && v₀ ≠ .ofNat 0 then GasConstants.Gsreset - GasConstants.Gwarmaccess else
     0
 
   let ΔAᵣ : ℤ :=
-    if v ≠ v' && v₀ = v && v' = .ofNat 0 then GasConstants.Rsclear else
+    if v ≠ v' && v₀ = v && v' = .ofNat 0 then Rsclear else
     if v ≠ v' && v₀ ≠ v then r_dirtyclear + r_dirtyreset else
     0
 

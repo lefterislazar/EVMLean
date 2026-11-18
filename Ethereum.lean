@@ -12,6 +12,7 @@ import Ethereum.Wheels
 import Ethereum.EllipticCurves
 
 import Ethereum.Theory.PrecompileLemmas
+import Ethereum.Theory.StateGasLemmas
 import Ethereum.Theory.ProgressLemmas
 import Ethereum.Theory.GasLemmas
 import Ethereum.Theory.NoOutOfFuel

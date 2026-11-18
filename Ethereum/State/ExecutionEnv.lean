@@ -33,6 +33,9 @@ structure ExecutionEnv where
   blobVersionedHashes : List ByteArray
   blocks : ProcessedBlocks
   fork : Fork
+  /-- EIP-8037 (Amsterdam): the substate's state-gas spill at the frame's
+      entry, so that the frame's own spill is the excess over it. -/
+  stateGasSpillBaseline : ℕ := 0
   deriving Inhabited
 
 def prevRandao (e : ExecutionEnv) : UInt256 :=

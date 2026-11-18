@@ -298,6 +298,121 @@ def validateTransaction
   pure S_T
 
 /--
+Transaction validity from Amsterdam, in the order of the execution specs
+(`process_transaction`, `check_transaction`, `validate_transaction`), so that
+a transaction invalid in several ways reports the first failure:
+
+1. the chain id, and the signature;
+2. the static checks: the nonce bound, the init code size, the gas limit bound
+   `TX_MAX_TOTAL_GAS_LIMIT` (EIP-8037), the fee caps, the blobs, the types
+   that cannot create, the authorization list, and the intrinsic cost
+   (EIP-2780): its execution gas and floor must fit in the gas limit and, from
+   EIP-8037, in `TX_MAX_GAS_LIMIT`, which bounds execution gas only;
+3. the block's capacity: its execution and state gas (EIP-7778) and its blob
+   gas;
+4. the maximum fees per gas and per blob gas;
+5. the nonce, the balance, and that the sender has no code but a delegation.
+
+`executionGasUsedInBlock` and `stateGasUsedInBlock` are the block's gas so
+far, and `blobGasUsedInBlock` its blob gas. Returns the sender.
+-/
+def validateTransactionAmsterdam
+  (fork : Fork)
+  (σ : AccountMap)
+  (chainId : ℕ)
+  (header : BlockHeader)
+  (executionGasUsedInBlock stateGasUsedInBlock blobGasUsedInBlock : ℕ)
+  (T : Transaction)
+  : Except Exception AccountAddress
+:= do
+  let gasLimit := T.base.gasLimit.toNat
+  -- 1.
+  match T with
+    | .legacy t =>
+      let w := t.w.toNat
+      if w ≥ 35 then
+        if (w - 35) / 2 ≥ 2 ^ 64 then
+          throw <| .TransactionException .INVALID_SIGNATURE_VRS
+        if (w - 35) / 2 ≠ chainId then
+          throw <| .TransactionException .INVALID_CHAINID
+    | .access t | .dynamic t | .blob t | .setCode t =>
+      if t.chainId.toNat ≠ chainId then
+        throw <| .TransactionException .INVALID_CHAINID
+  let S_T ← recoverSender chainId T
+  -- 2.
+  if T.base.nonce.toNat ≥ 2 ^ 64 - 1 then
+    throw <| .TransactionException .NONCE_IS_MAX
+  if T.base.recipient.isNone ∧ T.base.data.size > 2 * 24576 then
+    throw <| .TransactionException .INITCODE_SIZE_EXCEEDED
+  if gasLimit > GasConstants.TX_MAX_TOTAL_GAS_LIMIT then
+    throw <| .TransactionException .GAS_LIMIT_EXCEEDS_MAXIMUM
+  match T with
+    | .dynamic t | .blob t | .setCode t =>
+      if t.maxPriorityFeePerGas > t.maxFeePerGas then
+        throw <| .TransactionException .PRIORITY_GREATER_THAN_MAX_FEE_PER_GAS
+    | _ => pure ()
+  match T with
+    | .blob bt =>
+      if bt.blobVersionedHashes.length = 0 then
+        throw <| .TransactionException .TYPE_3_TX_ZERO_BLOBS
+      if bt.blobVersionedHashes.length > 6 then
+        throw <| .TransactionException .TYPE_3_TX_BLOB_COUNT_EXCEEDED
+      if bt.blobVersionedHashes.any (λ h ↦ h[0]? != .some VERSIONED_HASH_VERSION_KZG) then
+        throw <| .TransactionException .TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH
+      if T.base.recipient = none then
+        throw <| .TransactionException .TYPE_3_TX_CONTRACT_CREATION
+    | .setCode t =>
+      if t.recipient.isNone then
+        throw <| .TransactionException .TYPE_4_TX_CONTRACT_CREATION
+      if t.authorizationList.isEmpty then
+        throw <| .TransactionException .TYPE_4_EMPTY_AUTHORIZATION_LIST
+    | _ => pure ()
+  let cost := EVM.intrinsicCost T S_T
+  if cost.execution > gasLimit then
+    throw <| .TransactionException .INTRINSIC_GAS_TOO_LOW
+  if cost.floor > gasLimit then
+    throw <| .TransactionException .INTRINSIC_GAS_BELOW_FLOOR_GAS_COST
+  if cost.execution > GasConstants.TX_MAX_GAS_LIMIT then
+    throw <| .TransactionException .INTRINSIC_GAS_TOO_LOW
+  if cost.floor > GasConstants.TX_MAX_GAS_LIMIT then
+    throw <| .TransactionException .INTRINSIC_GAS_BELOW_FLOOR_GAS_COST
+  -- 3.
+  if min GasConstants.TX_MAX_GAS_LIMIT gasLimit > header.gasLimit - executionGasUsedInBlock then
+    throw <| .TransactionException .GAS_ALLOWANCE_EXCEEDED
+  if gasLimit > header.gasLimit - stateGasUsedInBlock then
+    throw <| .TransactionException .GAS_ALLOWANCE_EXCEEDED
+  if getTotalBlobGas T > fork.spec.blobSchedule.maxBlobGas - blobGasUsedInBlock then
+    throw <| .TransactionException .TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
+  -- 4.
+  let maxFeePerGas :=
+    match T with
+      | .dynamic t | .blob t | .setCode t => t.maxFeePerGas
+      | .legacy t | .access t => t.gasPrice
+  if header.baseFeePerGas > maxFeePerGas.toNat then
+    throw <| .TransactionException .INSUFFICIENT_MAX_FEE_PER_GAS
+  let maxBlobFee ←
+    match T with
+      | .blob bt =>
+        if bt.maxFeePerBlobGas.toNat < header.getBlobGasprice fork then
+          throw <| .TransactionException .INSUFFICIENT_MAX_FEE_PER_BLOB_GAS
+        pure (getTotalBlobGas T * bt.maxFeePerBlobGas.toNat)
+      | _ => pure 0
+  -- 5.
+  let (senderCode, senderNonce, senderBalance) :=
+    match σ.get? S_T with
+      | some sender => (sender.code, sender.nonce, sender.balance)
+      | none => (.empty, ⟨0⟩, ⟨0⟩)
+  if T.base.nonce < senderNonce then
+    throw <| .TransactionException .NONCE_MISMATCH_TOO_LOW
+  if T.base.nonce > senderNonce then
+    throw <| .TransactionException .NONCE_MISMATCH_TOO_HIGH
+  if senderBalance.toNat < gasLimit * maxFeePerGas.toNat + maxBlobFee + T.base.value.toNat then
+    throw <| .TransactionException .INSUFFICIENT_ACCOUNT_FUNDS
+  if senderCode ≠ .empty ∧ ¬isDelegationDesignation senderCode then
+    throw <| .TransactionException .SENDER_NOT_EOA
+  pure S_T
+
+/--
 Executes a valid transaction `T` from `sender` and records it in the block:
 its gas, its receipt, and its logs, which accumulate over the block for the
 bloom filter and the EIP-6110 deposit requests.
@@ -310,13 +425,16 @@ def executeTransaction
   (header : BlockHeader)
   : Except Exception State
 := do
-  let (ypState, substate, statusCode, totalGasUsed) ←
+  let outcome ←
     Υ fork s.accountMap header.baseFeePerGas header s.executionEnv.blocks transaction sender
-  let cumulativeGasUsed := s.totalGasUsedInBlock + totalGasUsed.toNat
+  let (ypState, substate, statusCode) := (outcome.σ, outcome.A, outcome.status)
+  let cumulativeGasUsed := s.totalGasUsedInBlock + outcome.gasUsed
   pure
     { s with
       accountMap := ypState
       totalGasUsedInBlock := cumulativeGasUsed
+      executionGasUsedInBlock := s.executionGasUsedInBlock + outcome.executionGasUsed
+      stateGasUsedInBlock := s.stateGasUsedInBlock + outcome.stateGasUsed
       transactionReceipts :=
         s.transactionReceipts.push
           ⟨ transaction.type
@@ -342,7 +460,11 @@ def applyTransaction
   : Except Exception State
 := do
   let S_T ←
-    validateTransaction fork s.accountMap chainId header s.totalGasUsedInBlock blobGasUsedInBlock T
+    if fork.spec.eip8037 then
+      validateTransactionAmsterdam fork s.accountMap chainId header s.executionGasUsedInBlock
+        s.stateGasUsedInBlock blobGasUsedInBlock T
+    else
+      validateTransaction fork s.accountMap chainId header s.totalGasUsedInBlock blobGasUsedInBlock T
   executeTransaction fork T S_T s header
 
 end EVM

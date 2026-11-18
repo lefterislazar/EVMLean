@@ -38,8 +38,21 @@ lemma pow_two_64_le_maxReturnDataSizeByGas :
     2 ^ 64 ≤ maxReturnDataSizeByGas := by
   norm_num [maxReturnDataSizeByGas, maxReturnDataWordsByGas]
 
+/--
+The memory of a frame is paid for by its gas: the cost of its active memory and its frame gas
+(`frameGas`: its execution gas and its own state-gas spill, which EIP-8037 can give back to it as
+execution gas) fit in a `UInt256`, and its spill is at least its baseline.
+-/
 def memoryPaidByGas (state : State) : Prop :=
-  Cₘ state.machineState.activeWords + state.machineState.gasAvailable.toNat < UInt256.size
+  state.executionEnv.stateGasSpillBaseline ≤ state.substate.stateGasSpilled ∧
+    Cₘ state.machineState.activeWords + frameGas state < UInt256.size
+
+/-- The memory of a frame and its execution gas fit in a `UInt256`. -/
+lemma memoryPaidByGas.gas_lt {state : State} (h : memoryPaidByGas state) :
+    Cₘ state.machineState.activeWords + state.machineState.gasAvailable.toNat < UInt256.size := by
+  have := h.2
+  unfold frameGas at this
+  omega
 
 def memoryExpansionWords (state : State) (instr : Operation) : Nat :=
   match instr with
@@ -348,12 +361,11 @@ lemma memoryExpansionWords_lt_uint256_size (state : State) (w : Operation) :
     | exact (MachineState.M_lt_uint256_size (UInt256.toNat_lt_size _)
         (UInt256.toNat_lt_size _) (UInt256.toNat_lt_size _))
 
-lemma memoryPaidByGas_after_Z_target {validJumps : Array UInt256} {w : Operation}
+lemma memoryPaidByGas_after_Z_target_frameGas {validJumps : Array UInt256} {w : Operation}
     {state stateZ : State} {cost : Nat}
     (hpaid : memoryPaidByGas state)
     (hZ : Z validJumps w state = .ok (stateZ, cost)) :
-    Cₘ (.ofNat (memoryExpansionWords state w)) +
-        stateZ.machineState.gasAvailable.toNat < UInt256.size := by
+    Cₘ (.ofNat (memoryExpansionWords state w)) + frameGas stateZ < UInt256.size := by
   have hwords_lt := memoryExpansionWords_lt_uint256_size state w
   have hactive_le := memoryExpansionWords_ge_active state w
   have hmono : Cₘ state.machineState.activeWords ≤
@@ -363,15 +375,24 @@ lemma memoryPaidByGas_after_Z_target {validJumps : Array UInt256} {w : Operation
   have hmem := Z_memoryExpansionCost_le hZ
   have hgas := Z_gasAvailable_eq hZ
   rw [memoryExpansionCost_eq] at hmem hgas
-  rw [hgas]
-  have hle :
-      Cₘ (.ofNat (memoryExpansionWords state w)) +
-          (state.machineState.gasAvailable.toNat -
-            (Cₘ (.ofNat (memoryExpansionWords state w)) -
-              Cₘ state.machineState.activeWords)) ≤
-        Cₘ state.machineState.activeWords + state.machineState.gasAvailable.toNat := by
-    omega
-  exact Nat.lt_of_le_of_lt hle hpaid
+  have hframe : frameGas stateZ = stateZ.machineState.gasAvailable.toNat +
+      StateGas.ownSpill state.substate state.executionEnv.stateGasSpillBaseline := by
+    unfold frameGas
+    rw [Z_substate hZ, Z_executionEnv hZ]
+  have hp := hpaid.2
+  unfold frameGas at hp
+  rw [hframe, hgas]
+  omega
+
+lemma memoryPaidByGas_after_Z_target {validJumps : Array UInt256} {w : Operation}
+    {state stateZ : State} {cost : Nat}
+    (hpaid : memoryPaidByGas state)
+    (hZ : Z validJumps w state = .ok (stateZ, cost)) :
+    Cₘ (.ofNat (memoryExpansionWords state w)) +
+        stateZ.machineState.gasAvailable.toNat < UInt256.size := by
+  have h := memoryPaidByGas_after_Z_target_frameGas hpaid hZ
+  unfold frameGas at h
+  omega
 
 private lemma UInt256.toNat_ofNat_M (a b c : UInt256) :
     (UInt256.ofNat (MachineState.M a.toNat b.toNat c.toNat)).toNat =
@@ -429,7 +450,8 @@ lemma create_activeWords_le_memoryExpansionWords
     try contradiction
     rcases h with ⟨_, hstate⟩
     rw [← hstate]
-    simp [UInt256.toNat_ofNat_M]
+    have hsb := chargeStateGas_sameButGas ‹chargeStateGas _ _ = .ok _›
+    simp [UInt256.toNat_ofNat_M, hsb.machineState_activeWords]
 
 private lemma Stack.pop7_get!3456_active {s stack : Stack UInt256}
     {x0 x1 x2 x3 x4 x5 x6 : UInt256}
@@ -1297,14 +1319,19 @@ lemma step_stackmemflow_activeWords_le_memoryExpansionWords {gasCost : Nat}
       try simp [memoryExpansionWords]
   · unfold step at h
     simp [memoryExpansionWords, binaryStateOp, Ethereum.State.replaceStackAndIncrPC,
-      Ethereum.State.incrPC] at h
-    repeat' (split at h <;> try simp at h)
-    all_goals
-      try contradiction
-      try injection h with hstate
-      try subst state'
-      try cases h
-      try simp [memoryExpansionWords, State.sstore_activeWords]
+      Ethereum.State.incrPC, bind, Except.bind] at h
+    split at h
+    · cases h
+    · rename_i s₁ hs₁
+      have hsb := sstoreStateGas_sameButGas hs₁
+      simp only at hsb
+      repeat' (split at h <;> try simp at h)
+      all_goals
+        try contradiction
+        try injection h with hstate
+        try subst state'
+        try cases h
+        try simp [memoryExpansionWords, State.sstore_activeWords, hsb.machineState_activeWords]
   · exact step_mstore8_activeWords_le_memoryExpansionWords h
   · unfold step at h
     simp [memoryExpansionWords] at h
@@ -1459,14 +1486,20 @@ lemma step_selfdestruct_activeWords_le_memoryExpansionWords {gasCost : Nat}
     (h : step gasCost (Operation.SELFDESTRUCT, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.SELFDESTRUCT := by
   unfold step at h
-  simp [memoryExpansionWords, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
-  repeat' (split at h <;> try simp at h)
-  all_goals
-    try contradiction
-    try injection h with hstate
-    try subst state'
-    try cases h
-    try simp [memoryExpansionWords]
+  simp [memoryExpansionWords, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC,
+    bind, Except.bind] at h
+  split at h
+  · cases h
+  · rename_i s₁ hs₁
+    have hsb := chargeStateGas_sameButGas hs₁
+    simp only at hsb
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords, hsb.machineState_activeWords]
 
 lemma step_system_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.SOp} {arg : Option (UInt256 × Nat)} {state state' : State}
@@ -1615,7 +1648,7 @@ lemma return_words_le_maxReturnDataWordsByGas_of_Z
             (Cₘ (.ofNat words) - Cₘ state.machineState.activeWords) := by
       omega
     rw [hadd]
-    exact Nat.lt_of_le_of_lt (Nat.add_le_add_left hmem' _ ) hpaid
+    exact Nat.lt_of_le_of_lt (Nat.add_le_add_left hmem' _ ) hpaid.gas_lt
   exact maxReturnDataWordsByGas_ge_of_Cₘ_lt hwords_lt hcost_lt
 
 lemma revert_words_le_maxReturnDataWordsByGas_of_Z
@@ -1649,7 +1682,7 @@ lemma revert_words_le_maxReturnDataWordsByGas_of_Z
             (Cₘ (.ofNat words) - Cₘ state.machineState.activeWords) := by
       omega
     rw [hadd]
-    exact Nat.lt_of_le_of_lt (Nat.add_le_add_left hmem' _ ) hpaid
+    exact Nat.lt_of_le_of_lt (Nat.add_le_add_left hmem' _ ) hpaid.gas_lt
   exact maxReturnDataWordsByGas_ge_of_Cₘ_lt hwords_lt hcost_lt
 
 lemma ByteArray.readWithoutPadding_size_le (b : ByteArray) (addr len : Nat) :
@@ -2248,17 +2281,26 @@ lemma Xstep_memoryPaidByGas_of_none {validJumps : Array UInt256} {state state' :
             Cₘ (.ofNat (memoryExpansionWords state w)) := by
         rw [← UInt256.ofNat_toNat stateStep.machineState.activeWords]
         exact Cₘ_monotone_of_lt hactive hwords_lt
-      have hgas :=
-        step_gas_le (w := w) (arg := arg)
-          (s := { stateZ with executionEnv.depth := state.executionEnv.depth }) hstep
-      unfold memoryPaidByGas
-      have hle :
-          Cₘ stateStep.machineState.activeWords +
-              stateStep.machineState.gasAvailable.toNat ≤
-            Cₘ (.ofNat (memoryExpansionWords state w)) +
-              stateZ.machineState.gasAvailable.toNat := by
-        exact Nat.add_le_add hmono hgas
-      exact Nat.lt_of_le_of_lt hle htarget
+      have hZ' : Z validJumps w state = .ok (stateZ, cost₂) := by simpa using hZ
+      have htargetF := memoryPaidByGas_after_Z_target_frameGas hpaid hZ'
+      have hZsub := Z_substate hZ'
+      have hZenv := Z_executionEnv hZ'
+      have hb := hpaid.1
+      -- the step keeps the frame's spill above its baseline, and does not add to its
+      -- execution gas and spill
+      have hspill := step_gas_spill_le (w := w) (arg := arg)
+          (s := { stateZ with executionEnv.depth := state.executionEnv.depth })
+          (by simpa [hZsub, hZenv] using hb)
+          (by simpa using Z_cost_le hZ')
+          (by rw [C'_set_depth]; exact Z_cost_eq_C' hZ')
+          hstep
+      simp only [hZsub, hZenv] at hspill
+      unfold frameGas StateGas.ownSpill at htargetF
+      rw [hZsub, hZenv] at htargetF
+      unfold memoryPaidByGas frameGas StateGas.ownSpill
+      simp only
+      refine ⟨hspill.1, ?_⟩
+      omega
 
 lemma X_success_output_size_le_maxReturnDataSizeByGas
     {fuel : Nat} {validJumps : Array UInt256}
@@ -2282,7 +2324,7 @@ lemma X_success_output_size_le_maxReturnDataSizeByGas
               let stateCont : State :=
                 { state₁ with executionEnv.depth := state.executionEnv.depth }
               have hpaidCont : memoryPaidByGas stateCont := by
-                simpa [stateCont, memoryPaidByGas] using
+                simpa [stateCont, memoryPaidByGas, frameGas] using
                   Xstep_memoryPaidByGas_of_none hpaid hstep
               have hcont :
                   X fuel validJumps stateCont = .ok (.success state' out) := by
@@ -2326,7 +2368,7 @@ lemma X_revert_output_size_le_maxReturnDataSizeByGas
               let stateCont : State :=
                 { state₁ with executionEnv.depth := state.executionEnv.depth }
               have hpaidCont : memoryPaidByGas stateCont := by
-                simpa [stateCont, memoryPaidByGas] using
+                simpa [stateCont, memoryPaidByGas, frameGas] using
                   Xstep_memoryPaidByGas_of_none hpaid hstep
               have hcont :
                   X fuel validJumps stateCont = .ok (.revert g out) := by
@@ -2352,11 +2394,13 @@ lemma Xi_success_output_size_le_maxReturnDataSizeByGas
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
+    (hb : I.stateGasSpillBaseline ≤ A.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline < UInt256.size)
     (h : Ξ σ σ₀ g A I = .ok (.success res out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
-  cases hx : X (g.toNat + 1) (D_J I.code 0)
+  cases hx : X (g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (D_J I.code 0)
       { (default : State) with
         accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
         machineState.gasAvailable := .ofUInt256 g } with
@@ -2369,11 +2413,12 @@ lemma Xi_success_output_size_le_maxReturnDataSizeByGas
                 { (default : State) with
                   accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
                   machineState.gasAvailable := .ofUInt256 g } := by
-            simp only [memoryPaidByGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
+            simp only [memoryPaidByGas, frameGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
             have h0 : (default : State).machineState.activeWords.toNat = 0 := by rfl
-            rw [h0]
-            simpa only [Nat.mul_zero, Nat.zero_mul, Nat.zero_add, Nat.add_zero, Nat.zero_div]
-              using g.val.isLt
+            have hg : (Sat256.ofUInt256 g).toNat = g.toNat := Sat256.ofUInt256_toNat g
+            rw [h0, hg]
+            exact ⟨hb, by simpa only [Nat.mul_zero, Nat.zero_mul, Nat.zero_add, Nat.add_zero,
+              Nat.zero_div] using hfit⟩
           have hout := X_success_output_size_le_maxReturnDataSizeByGas hpaid₀ hx
           simp [hx] at h
           rcases h with ⟨_, houtEq⟩
@@ -2386,20 +2431,24 @@ lemma Xi_success_output_size_lt_uint256
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
+    (hb : I.stateGasSpillBaseline ≤ A.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline < UInt256.size)
     (h : Ξ σ σ₀ g A I = .ok (.success res out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (Xi_success_output_size_le_maxReturnDataSizeByGas h)
+    (Xi_success_output_size_le_maxReturnDataSizeByGas hb hfit h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
+    (hb : I.stateGasSpillBaseline ≤ A.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline < UInt256.size)
     (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
-  cases hx : X (g.toNat + 1) (D_J I.code 0)
+  cases hx : X (g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline + 1) (D_J I.code 0)
       { (default : State) with
         accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A, machineState.gasAvailable := .ofUInt256 g } with
   | error e => simp [hx] at h
@@ -2413,11 +2462,12 @@ lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
                 { (default : State) with
                   accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
                   machineState.gasAvailable := .ofUInt256 g } := by
-            simp only [memoryPaidByGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
+            simp only [memoryPaidByGas, frameGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
             have h0 : (default : State).machineState.activeWords.toNat = 0 := by rfl
-            rw [h0]
-            simpa only [Nat.mul_zero, Nat.zero_mul, Nat.zero_add, Nat.add_zero, Nat.zero_div]
-              using g.val.isLt
+            have hg : (Sat256.ofUInt256 g).toNat = g.toNat := Sat256.ofUInt256_toNat g
+            rw [h0, hg]
+            exact ⟨hb, by simpa only [Nat.mul_zero, Nat.zero_mul, Nat.zero_add, Nat.add_zero,
+              Nat.zero_div] using hfit⟩
           have hout := X_revert_output_size_le_maxReturnDataSizeByGas hpaid₀ hx
           simp [hx] at h
           rcases h with ⟨_, houtEq⟩
@@ -2427,56 +2477,72 @@ lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
 lemma Xi_revert_output_size_lt_uint256
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
+    (hb : I.stateGasSpillBaseline ≤ A.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill A I.stateGasSpillBaseline < UInt256.size)
     (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
-    (Xi_revert_output_size_le_maxReturnDataSizeByGas h)
+    (Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit h)
     maxReturnDataSizeByGas_lt_uint256
 
 lemma Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-    (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match Ξ σ σ₀ g A I with
+    (σ σ₀ : AccountMap) (g : UInt256) (A Aₜ : Substate) (I : ExecutionEnv)
+    (hb : I.stateGasSpillBaseline ≤ Aₜ.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill Aₜ I.stateGasSpillBaseline < UInt256.size) :
+    (match Ξ σ σ₀ g Aₜ I with
       | .error _ => (∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
       | .ok (.revert g' out) => (∅, g', A, out)
       | .ok (.success (σ', g', A') out) =>
           (σ', g', A', out)).2.2.2.size ≤ maxReturnDataSizeByGas := by
-  cases hxi : Ξ σ σ₀ g A I with
+  cases hxi : Ξ σ σ₀ g Aₜ I with
   | error err =>
       simp [maxReturnDataSizeByGas]
   | ok xres =>
       cases xres with
       | revert g' out =>
-          exact Xi_revert_output_size_le_maxReturnDataSizeByGas hxi
+          exact Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit hxi
       | success res out =>
           rcases res with ⟨σ', g', A'⟩
-          exact Xi_success_output_size_le_maxReturnDataSizeByGas hxi
+          exact Xi_success_output_size_le_maxReturnDataSizeByGas hb hfit hxi
 
 lemma Xi_tuple_match_output_size_lt_uint256
-    (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match Ξ σ σ₀ g A I with
+    (σ σ₀ : AccountMap) (g : UInt256) (A Aₜ : Substate) (I : ExecutionEnv)
+    (hb : I.stateGasSpillBaseline ≤ Aₜ.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill Aₜ I.stateGasSpillBaseline < UInt256.size) :
+    (match Ξ σ σ₀ g Aₜ I with
       | .error _ => (∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
       | .ok (.revert g' out) => (∅, g', A, out)
       | .ok (.success (σ', g', A') out) =>
           (σ', g', A', out)).2.2.2.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-      σ σ₀ g A I)
+      σ σ₀ g A Aₜ I hb hfit)
     maxReturnDataSizeByGas_lt_uint256
 
+/-- The output of a creation from the result of its init code (the tail of `Lambda` after its
+    state charge, EIP-8037): `Ξ` runs on the charged gas `g` and substate `AStarₜ`. -/
 lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
     (a : AccountAddress)
-    (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar : Substate) (I : ExecutionEnv) :
-    (match Ξ σStar σ₀ g AStar I with
+    (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar AStarₜ : Substate) (I : ExecutionEnv)
+    (hb : I.stateGasSpillBaseline ≤ AStarₜ.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill AStarₜ I.stateGasSpillBaseline < UInt256.size) :
+    (match Ξ σStar σ₀ g AStarₜ I with
       | .error _ => (a, σ, (⟨0⟩ : UInt256), {AStar with createdAccounts := A.createdAccounts}, false, ByteArray.empty)
       | .ok (.revert g' out) => (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, out)
       | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
           let c := GasConstants.Gcodedeposit * returnedData.size
+          let deposit : Option (ℕ × Substate) :=
+            let hashing := GasConstants.Gkeccak256word * ((returnedData.size + 31) / 32)
+            if gStarStar.toNat < hashing then none
+            else
+              StateGas.charge (gStarStar.toNat - hashing) AStarStar
+                (StateGas.COST_PER_STATE_BYTE * returnedData.size)
           let F : Bool := Id.run do
             let F₀ : Bool :=
               match σ.get? a with
               | .some ac => ac.code ≠ ByteArray.empty ∨ ac.nonce ≠ (⟨0⟩ : UInt256)
               | .none => false
-            let F₂ : Bool := gStarStar.toNat < c
+            let F₂ : Bool := if fork.spec.eip8037 then deposit.isNone else gStarStar.toNat < c
             let MAX_CODE_SIZE := 24576
             let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
             let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
@@ -2485,36 +2551,46 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
             if F then σ else
               let newAccount' := σStarStar.getD a default
               σStarStar.insert a {newAccount' with code := returnedData}
-          let g' := if F then 0 else gStarStar.toNat - c
-          let A' := if F then AStar else AStarStar
+          let g' := if F then 0 else
+            if fork.spec.eip8037 then deposit.option 0 (fun q : ℕ × Substate => q.1) else gStarStar.toNat - c
+          let A' := if F then AStar else
+            if fork.spec.eip8037 then deposit.option AStarStar (fun q : ℕ × Substate => q.2) else AStarStar
           let z := not F
           (a, σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
-  cases hxi : Ξ σStar σ₀ g AStar I with
+  cases hxi : Ξ σStar σ₀ g AStarₜ I with
   | error err =>
       simp [maxReturnDataSizeByGas]
   | ok xres =>
       cases xres with
       | revert g' out =>
-          exact Xi_revert_output_size_le_maxReturnDataSizeByGas hxi
+          exact Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit hxi
       | success res returnedData =>
           rcases res with ⟨σStarStar, gStarStar, AStarStar⟩
           simp [maxReturnDataSizeByGas]
 
 lemma Lambda_Xi_tuple_match_output_size_lt_uint256
     (a : AccountAddress)
-    (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar : Substate) (I : ExecutionEnv) :
-    (match Ξ σStar σ₀ g AStar I with
+    (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar AStarₜ : Substate) (I : ExecutionEnv)
+    (hb : I.stateGasSpillBaseline ≤ AStarₜ.stateGasSpilled)
+    (hfit : g.toNat + StateGas.ownSpill AStarₜ I.stateGasSpillBaseline < UInt256.size) :
+    (match Ξ σStar σ₀ g AStarₜ I with
       | .error _ => (a, σ, (⟨0⟩ : UInt256), {AStar with createdAccounts := A.createdAccounts}, false, ByteArray.empty)
       | .ok (.revert g' out) => (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, out)
       | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
           let c := GasConstants.Gcodedeposit * returnedData.size
+          let deposit : Option (ℕ × Substate) :=
+            let hashing := GasConstants.Gkeccak256word * ((returnedData.size + 31) / 32)
+            if gStarStar.toNat < hashing then none
+            else
+              StateGas.charge (gStarStar.toNat - hashing) AStarStar
+                (StateGas.COST_PER_STATE_BYTE * returnedData.size)
           let F : Bool := Id.run do
             let F₀ : Bool :=
               match σ.get? a with
               | .some ac => ac.code ≠ ByteArray.empty ∨ ac.nonce ≠ (⟨0⟩ : UInt256)
               | .none => false
-            let F₂ : Bool := gStarStar.toNat < c
+            let F₂ : Bool := if fork.spec.eip8037 then deposit.isNone else gStarStar.toNat < c
             let MAX_CODE_SIZE := 24576
             let F₃ : Bool := returnedData.size > MAX_CODE_SIZE
             let F₄ : Bool := ¬F₃ && returnedData[0]? = some 0xef
@@ -2523,14 +2599,44 @@ lemma Lambda_Xi_tuple_match_output_size_lt_uint256
             if F then σ else
               let newAccount' := σStarStar.getD a default
               σStarStar.insert a {newAccount' with code := returnedData}
-          let g' := if F then 0 else gStarStar.toNat - c
-          let A' := if F then AStar else AStarStar
+          let g' := if F then 0 else
+            if fork.spec.eip8037 then deposit.option 0 (fun q : ℕ × Substate => q.1) else gStarStar.toNat - c
+          let A' := if F then AStar else
+            if fork.spec.eip8037 then deposit.option AStarStar (fun q : ℕ × Substate => q.2) else AStarStar
           let z := not F
           (a, σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.size <
       UInt256.size := by
-  have hle := Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
-    a σ σStar σ₀ g A AStar I
+  have hle := Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas (fork := fork)
+    a σ σStar σ₀ g A AStar AStarₜ I hb hfit
   exact Nat.lt_of_le_of_lt hle maxReturnDataSizeByGas_lt_uint256
+
+/-- The state charge at the start of a creation (EIP-8037) keeps the gas and the spill within
+    those it was given. -/
+lemma lambda_charged_bound {g : UInt256} {A AStar : Substate} {c : Prop} [Decidable c]
+    {gₜ : UInt256} {AStarₜ : Substate}
+    (h : (if c then
+            (StateGas.charge g.toNat AStar StateGas.NEW_ACCOUNT).map
+              (fun (p : ℕ × Substate) => ((.ofNat p.1 : UInt256), p.2))
+          else some (g, AStar)) = some (gₜ, AStarₜ))
+    (hA : AStar.stateGasSpilled = A.stateGasSpilled) :
+    A.stateGasSpilled ≤ AStarₜ.stateGasSpilled ∧
+      gₜ.toNat + StateGas.ownSpill AStarₜ A.stateGasSpilled < UInt256.size := by
+  have hg := g.val.isLt
+  unfold StateGas.ownSpill
+  split at h
+  · rw [Option.map_eq_some_iff] at h
+    obtain ⟨⟨g₁, A₁⟩, h1, h2⟩ := h
+    simp only [Prod.mk.injEq] at h2
+    obtain ⟨rfl, rfl⟩ := h2
+    obtain ⟨h3, h4, _⟩ := StateGas.charge_spill h1
+    have := UInt256.toNat_ofNat_le g₁
+    change g.val.val < UInt256.size at hg
+    have hgv : g.toNat = g.val.val := rfl
+    constructor <;> omega
+  · simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hgv : g.toNat = g.val.val := rfl
+    constructor <;> omega
 
 lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
@@ -2541,39 +2647,17 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
     (w : Bool) :
     (Lambda fork σ σ₀ A
       s o g p v i e ζ H blobVersionedHashes blocks w).2.2.2.2.2.size ≤ maxReturnDataSizeByGas := by
-  let n : UInt256 := (σ.get? s |>.option ⟨0⟩ (·.nonce)) - ⟨1⟩
-  let lₐ := Lambda.L_A s n ζ i
-  let a : AccountAddress := (KEC lₐ).extract 12 32 |> fromByteArrayBigEndian |> Fin.ofNat _
-  let AStar := A.addAccessedAccount a
-  let existentAccount := σ.getD a default
-  let collision : ByteArray × Batteries.RBSet AccountAddress compare :=
-    if existentAccount.nonce ≠ ⟨0⟩ || existentAccount.code.size ≠ 0 ||
-        existentAccount.storage != default then
-      (⟨#[0xfe]⟩, A.createdAccounts)
-    else
-      (i, A.createdAccounts.insert a)
-  let initCode := collision.1
-  let createdAccountsStar := collision.2
-  let AStar := { AStar with createdAccounts := createdAccountsStar }
-  let newAccount : Account :=
-    { existentAccount with
-      nonce := existentAccount.nonce + ⟨1⟩
-      balance := v + existentAccount.balance }
-  let σStar :=
-    match σ.get? s with
-    | none => σ
-    | some ac => σ.insert s {ac with balance := ac.balance - v} |>.insert a newAccount
-  let exEnv : ExecutionEnv :=
-    { codeOwner := a, sender := o, source := s, weiValue := v, calldata := default,
-      code := initCode, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
   unfold Lambda
   simp only
-  exact (by
-    simpa only [n, lₐ, a, AStar, existentAccount, collision, initCode, createdAccountsStar,
-      newAccount, σStar, exEnv] using
-      (Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas a
-        σ σStar σ₀ g A AStar exEnv))
+  split
+  · simp [maxReturnDataSizeByGas]
+  · rename_i gₜ AStarₜ hch
+    obtain ⟨hb, hfit⟩ := lambda_charged_bound (A := A) hch (by simp)
+    split
+    · simp [maxReturnDataSizeByGas]
+    · rename_i g' o hxi
+      exact Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit hxi
+    · simp [maxReturnDataSizeByGas]
 
 lemma lambda_projection_output_size_lt_uint256
     (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress)
@@ -2605,11 +2689,13 @@ lemma lambda_output_size_eq_zero_of_success
   simp only at h
   split at h
   · simp at h
-  · simp at h
-  · simp at h
-    rcases h with ⟨_, _, _, _, _, hout⟩
-    cases hout
-    rfl
+  · split at h
+    · simp at h
+    · simp at h
+    · simp at h
+      rcases h with ⟨_, _, _, _, _, hout⟩
+      cases hout
+      rfl
 
 lemma lambda_output_size_le_zero_of_success
     {σ σ₀ : AccountMap} {A : Substate} {s o : AccountAddress}
@@ -2696,6 +2782,32 @@ lemma lambda_output_size_lt_uint256
     (lambda_output_size_le_maxReturnDataSizeByGas h)
     maxReturnDataSizeByGas_lt_uint256
 
+/-- The state charges at the start of a message call (EIP-8037) keep the gas and the spill
+    within those it was given. -/
+lemma theta_charged_bound {σ : AccountMap} {A : Substate} {g : UInt256} {r : AccountAddress}
+    {v : UInt256} {c : Prop} [Decidable c] {gₜ : UInt256} {Aₜ : Substate}
+    (h : (if c then
+            (topFrameCallCharges σ A g.toNat r v).map
+              (fun (p : ℕ × Substate) => ((.ofNat p.1 : UInt256), p.2))
+          else some (g, A)) = some (gₜ, Aₜ)) :
+    A.stateGasSpilled ≤ Aₜ.stateGasSpilled ∧
+      gₜ.toNat + StateGas.ownSpill Aₜ A.stateGasSpilled < UInt256.size := by
+  have hg := g.val.isLt
+  have hgv : g.toNat = g.val.val := rfl
+  unfold StateGas.ownSpill
+  split at h
+  · rw [Option.map_eq_some_iff] at h
+    obtain ⟨⟨g₁, A₁⟩, h1, h2⟩ := h
+    simp only [Prod.mk.injEq] at h2
+    obtain ⟨rfl, rfl⟩ := h2
+    obtain ⟨h3, h4⟩ := topFrameCallCharges_spill h1
+    have := UInt256.toNat_ofNat_le g₁
+    change g.val.val < UInt256.size at hg
+    constructor <;> omega
+  · simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    constructor <;> omega
+
 lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
     (code d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
@@ -2706,29 +2818,18 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
     (Θ fork σ σ₀ A s o r
         (ToExecute.Code code) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
-  let σ'₁ :=
-    match σ.get? r with
-      | none =>
-        if v != UInt256.ofNat 0 then
-          σ.insert r { (default : Account) with balance := v}
-        else
-          σ
-      | some acc =>
-        σ.insert r { acc with balance := acc.balance + v}
-  let σ₁ :=
-    match σ'₁.get? s with
-      | none => σ'₁
-      | some acc =>
-        σ'₁.insert s { acc with balance := acc.balance - v}
-  let I : ExecutionEnv :=
-    { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
-      source := s, weiValue := v', depth := e, perm := w, code := code,
-      header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
   unfold Θ
   simp only
-  exact (by
-    simpa only [σ'₁, σ₁, I] using
-      (Xi_tuple_match_output_size_le_maxReturnDataSizeByGas σ₁ σ₀ g A I))
+  split
+  · simp [maxReturnDataSizeByGas]
+  · rename_i gₜ Aₜ hch
+    obtain ⟨hb, hfit⟩ := theta_charged_bound hch
+    split
+    · simp [maxReturnDataSizeByGas]
+    · rename_i g' o hxi
+      exact Xi_revert_output_size_le_maxReturnDataSizeByGas hb hfit hxi
+    · rename_i hxi
+      exact Xi_success_output_size_le_maxReturnDataSizeByGas hb hfit hxi
 
 lemma theta_code_projection_output_size_lt_uint256
     (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
@@ -2965,22 +3066,6 @@ lemma precompile_EXPMOD_output_size_le_modulus_length
           simp only [ByteArray.size_append, ByteArray_zeroes_size,
             Nat.zero_add] <;> omega
 
-private def thetaValueTransferAccountMap
-    (σ : AccountMap) (s r : AccountAddress) (v : UInt256) : AccountMap :=
-  let σ'₁ :=
-    match σ.get? r with
-    | none =>
-        if v != UInt256.ofNat 0 then
-          σ.insert r { (default : Account) with balance := v}
-        else
-          σ
-    | some acc =>
-        σ.insert r { acc with balance := acc.balance + v}
-  match σ'₁.get? s with
-  | none => σ'₁
-  | some acc =>
-      σ'₁.insert s { acc with balance := acc.balance - v}
-
 private def precompileDispatchResult
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
@@ -3210,26 +3295,6 @@ lemma precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata
     precompile_P256VERIFY_output_size_le_maxReturnDataSizeByGas_or_calldata
     (Nat.zero_le _)
 
-private lemma theta_precompiled_output_eq
-    (σ σ₀ : AccountMap) (A : Substate) (s o r pc : AccountAddress)
-    (d : ByteArray) (g p v v' : UInt256) (e : Fin 1025)
-    (H : BlockHeader)
-    (blobVersionedHashes : List ByteArray)
-    (blocks : ProcessedBlocks)
-    (w : Bool) :
-    (Θ fork σ σ₀ A s o r
-        (.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2 =
-      (let σ₁ := thetaValueTransferAccountMap σ s r v
-       let I : ExecutionEnv :=
-        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
-          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-       let result := precompileDispatchResult pc σ₁ g A I
-       result.2.2.2) := by
-  unfold Θ thetaValueTransferAccountMap
-  simp
-  rfl
-
 lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
     {d : ByteArray} {g p v v' : UInt256} {e : Fin 1025}
@@ -3252,14 +3317,11 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
   change (Θ fork σ σ₀ A s o r
       (ToExecute.Precompiled pc) g p v v' d e H blobVersionedHashes blocks w).2.2.2.2.size ≤
     max maxReturnDataSizeByGas d.size
-  rw [theta_precompiled_output_eq σ σ₀ A s o r pc d g p v v' e H blobVersionedHashes blocks w]
-  let I : ExecutionEnv :=
-    { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
-      code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-  have hdispatch := precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata pc
-    (thetaValueTransferAccountMap σ s r v) g A I
-  simpa [I] using hdispatch
+  unfold Θ
+  simp only
+  split
+  · simp
+  · exact precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata pc _ _ _ _
 
 lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas
     {σ σ₀ : AccountMap} {A : Substate} {s o r pc : AccountAddress}
@@ -3483,26 +3545,16 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
     Ethereum.State.incrPC] at h
   repeat split at h
   all_goals
-    try contradiction
-    rcases h with ⟨_, hstate⟩
-    rw [← hstate]
-    simp
-    try
-      simpa using
-        (theta_projection_output_size_le_maxReturnDataSizeByGas
-          evmState.accountMap evmState.σ₀
-          (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
-          (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
-          (AccountAddress.ofUInt256 recipient)
-          (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
-          (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
-          (.ofNat
-            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
-              evmState.accountMap evmState.machineState evmState.substate))
-          (.ofNat evmState.executionEnv.gasPrice) value value'
-          (evmState.executionEnv.depth + 1) evmState.executionEnv.header
-          evmState.executionEnv.blobVersionedHashes evmState.executionEnv.blocks permission
-          hin)
+    first
+    | contradiction
+    | (simp only [Except.ok.injEq, Prod.mk.injEq] at h
+       obtain ⟨_, hstate⟩ := h
+       rw [← hstate]
+       simp only [settleChildStateGas_machineState_returnData]
+       split
+       · exact theta_projection_output_size_le_maxReturnDataSizeByGas
+           _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hin
+       · simp [maxReturnDataSizeByGas])
 
 set_option linter.unusedSimpArgs false in
 lemma call_returnData_size_lt_uint256 {gasCost : Nat}
