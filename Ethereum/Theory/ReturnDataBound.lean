@@ -1418,6 +1418,23 @@ lemma step_exchange_activeWords_le_memoryExpansionWords {gasCost : Nat}
       try cases h
       try simp [memoryExpansionWords]
 
+lemma step_stackaccess_activeWords_le_memoryExpansionWords {gasCost : Nat}
+    {op : Operation.SAccOp} {arg : Option (UInt256 × Nat)} {state state' : State}
+    (h : step gasCost (Operation.StackAccess op, arg) state = .ok state') :
+    state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.StackAccess op) := by
+  cases op <;>
+    unfold step at h <;>
+    simp [memoryExpansionWords, stackAccess, exchange, Ethereum.State.replaceStackAndIncrPC,
+      Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try injection h with hstate
+      try subst state'
+      try cases h
+      try simp [memoryExpansionWords]
+
 lemma step_keccak_group_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.KOp} {arg : Option (UInt256 × Nat)} {state state' : State}
     (h : step gasCost (Operation.Keccak op, arg) state = .ok state') :
@@ -1482,6 +1499,7 @@ lemma step_activeWords_le_memoryExpansionWords {gasCost : Nat}
   | Push op => exact step_push_activeWords_le_memoryExpansionWords h
   | Dup op => exact step_dup_activeWords_le_memoryExpansionWords h
   | Exchange op => exact step_exchange_activeWords_le_memoryExpansionWords h
+  | StackAccess op => exact step_stackaccess_activeWords_le_memoryExpansionWords h
   | Log op => exact step_log_group_activeWords_le_memoryExpansionWords h
   | System op => exact step_system_activeWords_le_memoryExpansionWords h
 
@@ -2023,6 +2041,7 @@ lemma Xstep_halt_output_size_le_maxReturnDataSizeByGas
       | Push op => cases op <;> simp at h
       | Dup op => cases op <;> simp at h
       | Exchange op => cases op <;> simp at h
+      | StackAccess op => cases op <;> simp at h
       | Log op => cases op <;> simp at h
       | System sop =>
           cases sop <;> simp at h

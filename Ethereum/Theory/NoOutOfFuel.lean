@@ -238,6 +238,9 @@ lemma step_no_OutOfFuel {g state} instr :
       cases op <;> intro h <;> simp [step] at h
   | Exchange op =>
       cases op <;> intro h <;> simp [step] at h
+  | StackAccess op =>
+      cases op <;> intro h <;> simp [step, stackAccess, exchange] at h
+      all_goals repeat' (split at h <;> try simp at h)
   | Log op =>
       cases op <;> intro h <;> simp [step] at h
   | System op =>

@@ -28,6 +28,8 @@ def Wverylow : List (Operation) := [
   ] ++ pushInstrsWithoutZero
     ++ dupInstrs
     ++ swapInstrs
+    -- EIP-8024 (Amsterdam)
+    ++ [.DUPN, .SWAPN, .EXCHANGE]
   where
     pushInstrsWithoutZero : List (Operation) := [
       .PUSH1, .PUSH2, .PUSH3, .PUSH4, .PUSH5,

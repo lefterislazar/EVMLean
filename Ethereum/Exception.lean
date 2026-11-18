@@ -13,6 +13,8 @@ inductive ExecutionException where
   | StackUnderflow
   | InvalidMemoryAccess
   | StaticModeViolation
+  /-- An instruction's immediate is out of its range (EIP-8024). -/
+  | InvalidParameter
 deriving BEq
 
 instance : Repr ExecutionException where
@@ -26,6 +28,7 @@ instance : Repr ExecutionException where
       | .StackUnderflow => "StackUnderflow"
       | .InvalidMemoryAccess => "InvalidMemoryAccess"
       | .StaticModeViolation => "StaticModeViolation"
+      | .InvalidParameter => "InvalidParameter"
 
 inductive BlockException where
   | INCORRECT_EXCESS_BLOB_GAS

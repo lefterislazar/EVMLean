@@ -932,6 +932,20 @@ lemma static_step_exchange_accountMap_eq
   cases op <;> simp [step] at h <;>
     first | simpa using static_swap_accountMap_eq h
 
+lemma static_step_stackaccess_accountMap_eq
+    {op : Operation.SAccOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (.StackAccess op, arg) state = .ok state') :
+    state'.accountMap = state.accountMap := by
+  cases op <;> simp [step, stackAccess, exchange, Ethereum.State.replaceStackAndIncrPC,
+    Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try (injection h with hs; rw [← hs])
+      try (cases h; rfl)
+
 lemma static_step_block_accountMap_eq
     {op : Operation.BOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
@@ -1389,7 +1403,7 @@ theorem step_static_stateStorageStateEq_of_Z_max_depth
     stateStorageStateEq
       ({stateZ with executionEnv.depth := state.executionEnv.depth} : State) stepped := by
   intro hperm hdepth hZ hstep
-  rcases op with op | op | op | op | op | op | op | op | op | op
+  rcases op with op | op | op | op | op | op | op | op | op | op | op
   · exact stateStorageStateEq_of_accountMap_eq
       (static_step_stoparith_accountMap_eq hstep)
   · exact stateStorageStateEq_of_accountMap_eq
@@ -1407,6 +1421,8 @@ theorem step_static_stateStorageStateEq_of_Z_max_depth
       (static_step_dup_accountMap_eq hstep)
   · exact stateStorageStateEq_of_accountMap_eq
       (static_step_exchange_accountMap_eq hstep)
+  · exact stateStorageStateEq_of_accountMap_eq
+      (static_step_stackaccess_accountMap_eq hstep)
   · exact stateStorageStateEq_of_accountMap_eq
       (static_step_log_accountMap_eq hstep)
   · exact step_system_static_stateStorageStateEq_of_Z_max_depth hperm hdepth hZ hstep
@@ -1430,7 +1446,7 @@ theorem step_static_stateStorageStateEq_of_Z_succ_depth
     stateStorageStateEq
       ({stateZ with executionEnv.depth := state.executionEnv.depth} : State) stepped := by
   intro hperm hdepth ihTheta hZ hstep
-  rcases op with op | op | op | op | op | op | op | op | op | op
+  rcases op with op | op | op | op | op | op | op | op | op | op | op
   · exact stateStorageStateEq_of_accountMap_eq
       (static_step_stoparith_accountMap_eq hstep)
   · exact stateStorageStateEq_of_accountMap_eq
@@ -1448,6 +1464,8 @@ theorem step_static_stateStorageStateEq_of_Z_succ_depth
       (static_step_dup_accountMap_eq hstep)
   · exact stateStorageStateEq_of_accountMap_eq
       (static_step_exchange_accountMap_eq hstep)
+  · exact stateStorageStateEq_of_accountMap_eq
+      (static_step_stackaccess_accountMap_eq hstep)
   · exact stateStorageStateEq_of_accountMap_eq
       (static_step_log_accountMap_eq hstep)
   · exact step_system_static_stateStorageStateEq_of_Z_succ_depth
@@ -2357,7 +2375,7 @@ theorem step_static_stateStaticStateEq_of_Z_max_depth
     stateStaticStateEq
       ({stateZ with executionEnv.depth := state.executionEnv.depth} : State) stepped := by
   intro hperm hdepth hZ hstep
-  rcases op with op | op | op | op | op | op | op | op | op | op
+  rcases op with op | op | op | op | op | op | op | op | op | op | op
   · exact stateStaticStateEq_of_accountMap_eq
       (static_step_stoparith_accountMap_eq hstep)
   · exact stateStaticStateEq_of_accountMap_eq
@@ -2375,6 +2393,8 @@ theorem step_static_stateStaticStateEq_of_Z_max_depth
       (static_step_dup_accountMap_eq hstep)
   · exact stateStaticStateEq_of_accountMap_eq
       (static_step_exchange_accountMap_eq hstep)
+  · exact stateStaticStateEq_of_accountMap_eq
+      (static_step_stackaccess_accountMap_eq hstep)
   · exact stateStaticStateEq_of_accountMap_eq
       (static_step_log_accountMap_eq hstep)
   · exact step_system_static_stateStaticStateEq_of_Z_max_depth hperm hdepth hZ hstep
@@ -2398,7 +2418,7 @@ theorem step_static_stateStaticStateEq_of_Z_succ_depth
     stateStaticStateEq
       ({stateZ with executionEnv.depth := state.executionEnv.depth} : State) stepped := by
   intro hperm hdepth ihTheta hZ hstep
-  rcases op with op | op | op | op | op | op | op | op | op | op
+  rcases op with op | op | op | op | op | op | op | op | op | op | op
   · exact stateStaticStateEq_of_accountMap_eq
       (static_step_stoparith_accountMap_eq hstep)
   · exact stateStaticStateEq_of_accountMap_eq
@@ -2416,6 +2436,8 @@ theorem step_static_stateStaticStateEq_of_Z_succ_depth
       (static_step_dup_accountMap_eq hstep)
   · exact stateStaticStateEq_of_accountMap_eq
       (static_step_exchange_accountMap_eq hstep)
+  · exact stateStaticStateEq_of_accountMap_eq
+      (static_step_stackaccess_accountMap_eq hstep)
   · exact stateStaticStateEq_of_accountMap_eq
       (static_step_log_accountMap_eq hstep)
   · exact step_system_static_stateStaticStateEq_of_Z_succ_depth

@@ -138,6 +138,8 @@ structure ForkSpec where
   eip7843 : Bool := false
   /-- EIP-7928: block-level access lists, committed to in the header. -/
   eip7928 : Bool := false
+  /-- EIP-8024: the `DUPN`, `SWAPN` and `EXCHANGE` instructions. -/
+  eip8024 : Bool := false
   /-- The blob schedule. Its changes (EIP-7691 in Prague, the BPO forks of
       EIP-7892) need no flag. -/
   blobSchedule : BlobSchedule
@@ -149,7 +151,7 @@ namespace ForkSpec
 def flags (s : ForkSpec) : List Bool :=
   [ s.eip2537, s.eip2935, s.eip7623, s.eip7685, s.eip7702
   , s.eip7594, s.eip7823, s.eip7825, s.eip7883, s.eip7918, s.eip7934, s.eip7939, s.eip7951
-  , s.eip7843, s.eip7928 ]
+  , s.eip7843, s.eip7928, s.eip8024 ]
 
 /-- Every EIP enabled in `a` is enabled in `b`. -/
 def Extends (b a : ForkSpec) : Prop :=
@@ -187,7 +189,9 @@ def bpo2 : ForkSpec := { osaka with blobSchedule := ⟨14, 21, 11684671⟩ }
 
 /-- Amsterdam (EIP-7773), with the EIPs implemented so far. It keeps the
     BPO2 blob schedule. -/
-def amsterdam : ForkSpec := bpo2
+def amsterdam : ForkSpec :=
+  { bpo2 with
+    eip8024 := true }
 
 end ForkSpec
 

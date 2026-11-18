@@ -1029,6 +1029,20 @@ private lemma step_dup_accountMap_eq
   · have hm := dup_accountMap_eq h; simpa using hm
   · have hm := dup_accountMap_eq h; simpa using hm
 
+private lemma step_stackaccess_accountMap_eq
+    {op : Operation.SAccOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
+    {state state' : State}
+    (h : step gasCost (.StackAccess op, arg) state = .ok state') :
+    state'.accountMap = state.accountMap := by
+  cases op <;> simp [step, stackAccess, exchange, Ethereum.State.replaceStackAndIncrPC,
+    Ethereum.State.incrPC] at h
+  all_goals
+    repeat' (split at h <;> try simp at h)
+    all_goals
+      try contradiction
+      try (injection h with hs; rw [← hs])
+      try (cases h; rfl)
+
 private lemma step_exchange_accountMap_eq
     {op : Operation.ExOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
@@ -1751,6 +1765,9 @@ theorem account_changes_consistent_except_owner_of_step_max_depth :
   | Exchange op =>
       exact account_changes_consistent_of_accountMap_eq acc
         (step_exchange_accountMap_eq (op := op) (gasCost := gasCost) (arg := arg) hstep)
+  | StackAccess op =>
+      exact account_changes_consistent_of_accountMap_eq acc
+        (step_stackaccess_accountMap_eq (op := op) (gasCost := gasCost) (arg := arg) hstep)
   | Log op =>
       exact account_changes_consistent_of_accountMap_eq acc
         (step_log_accountMap_eq (op := op) (gasCost := gasCost) (arg := arg) hstep)
@@ -1810,6 +1827,9 @@ theorem account_changes_consistent_except_owner_of_step_succ_depth :
   | Exchange op =>
       exact account_changes_consistent_of_accountMap_eq acc
         (step_exchange_accountMap_eq (op := op) (gasCost := gasCost) (arg := arg) hstep)
+  | StackAccess op =>
+      exact account_changes_consistent_of_accountMap_eq acc
+        (step_stackaccess_accountMap_eq (op := op) (gasCost := gasCost) (arg := arg) hstep)
   | Log op =>
       exact account_changes_consistent_of_accountMap_eq acc
         (step_log_accountMap_eq (op := op) (gasCost := gasCost) (arg := arg) hstep)

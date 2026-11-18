@@ -70,9 +70,21 @@ def argOnNBytesOfInstr : Operation → ℕ
   | .Push .PUSH30 => 30
   | .Push .PUSH31 => 31
   | .Push .PUSH32 => 32
+  -- EIP-8024 (Amsterdam)
+  | .StackAccess _ => 1
   | _ => 0
 
-def N (pc : ℕ) (instr : Operation) := pc + 1 + (argOnNBytesOfInstr instr)
+/--
+The bytes of code that the jump destination analysis skips after an
+instruction: the data of a `PUSH`. As in the execution specs, the immediate of
+the EIP-8024 instructions is not skipped: EIP-8024 leaves the analysis
+unchanged.
+-/
+def pushDataWidth : Operation → ℕ
+  | .Push p => argOnNBytesOfInstr (.Push p)
+  | _ => 0
+
+def N (pc : ℕ) (instr : Operation) := pc + 1 + (pushDataWidth instr)
 
 /--
 Returns the instruction from `arr` at `pc` assuming it is valid.
@@ -140,6 +152,64 @@ def swap (n : ℕ) : Transformer :=
     .ok <| s.replaceStackAndIncrPC (top.getLast! :: top.tail!.dropLast ++ [top.head!] ++ bottom)
   else
     .error .StackUnderflow
+
+/-! ### EIP-8024 (Amsterdam): `DUPN`, `SWAPN` and `EXCHANGE` -/
+
+/--
+The stack depth `n`, `17 ≤ n ≤ 235`, that the immediate `x` of `DUPN` and
+`SWAPN` encodes. The immediates `91` to `127`, which include `JUMPDEST` and
+the `PUSH` instructions, encode none.
+-/
+def decodeSingle (x : ℕ) : Option ℕ :=
+  if x ≤ 90 ∨ 128 ≤ x ∧ x ≤ 255 then some ((x + 145) % 256) else none
+
+/--
+The stack depths `(n, m)`, `1 ≤ n ≤ 14` and `n < m ≤ 30 - n`, that the
+immediate `x` of `EXCHANGE` encodes. The immediates `82` to `127` encode none.
+-/
+def decodePair (x : ℕ) : Option (ℕ × ℕ) :=
+  if x ≤ 81 ∨ 128 ≤ x ∧ x ≤ 255 then
+    let k := x ^^^ 143
+    let q := k / 16
+    let r := k % 16
+    some (if q < r then (q + 1, r + 1) else (r + 1, 29 - q))
+  else none
+
+/--
+Swaps the stack items at depths `n` and `m`, the top being at depth `0`, and
+moves past the instruction and its immediate.
+-/
+def exchange (n m : ℕ) : Transformer :=
+  λ s ↦
+  let stack := s.machineState.stack
+  match stack[n]?, stack[m]? with
+  | some a, some b => .ok <| s.replaceStackAndIncrPC ((stack.set n b).set m a) 2
+  | _, _ => .error .StackUnderflow
+
+/--
+`DUPN`, `SWAPN` and `EXCHANGE` with the immediate `x`. `DUPN` duplicates the
+item at depth `n - 1`, `SWAPN` swaps the top with the item at depth `n`, and
+`EXCHANGE` the items at depths `n` and `m`. An immediate out of range is an
+exceptional halt, and so is a stack too shallow for the depths.
+-/
+def stackAccess (op : Operation.SAccOp) (x : ℕ) : Transformer :=
+  λ s ↦
+  match op with
+  | .DUPN =>
+    match decodeSingle x with
+    | some n =>
+      match s.machineState.stack[n - 1]? with
+      | some a => .ok <| s.replaceStackAndIncrPC (a :: s.machineState.stack) 2
+      | none => .error .StackUnderflow
+    | none => .error .InvalidParameter
+  | .SWAPN =>
+    match decodeSingle x with
+    | some n => exchange 0 n s
+    | none => .error .InvalidParameter
+  | .EXCHANGE =>
+    match decodePair x with
+    | some (n, m) => exchange n m s
+    | none => .error .InvalidParameter
 
 instance instMonadLiftOptionExceptExecutionException : MonadLift Option (Except EVM.ExecutionException) :=
   ⟨Option.option (.error .StackUnderflow) .ok⟩
@@ -664,6 +734,14 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
       | .SWAP14 => swap 14 evmStateCharged
       | .SWAP15 => swap 15 evmStateCharged
       | .SWAP16 => swap 16 evmStateCharged
+      | .StackAccess op =>
+        /- EIP-8024 (Amsterdam). Before Amsterdam `0xe6` to `0xe8` are invalid
+           instructions. Rejecting them here rather than in `Z` is
+           observationally the same, as for `CLZ`. -/
+        if evmStateCharged.executionEnv.fork.spec.eip8024 then
+          stackAccess op (arg.option 0 (·.1.toNat)) evmStateCharged
+        else
+          .error .InvalidInstruction
     termination_by evmState => (1024 - evmState.executionEnv.depth.val, 1, 0)
     decreasing_by
       all_goals

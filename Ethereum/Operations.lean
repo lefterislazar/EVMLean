@@ -489,6 +489,23 @@ inductive ExOp : Type where
   deriving DecidableEq, Repr
 
 /--
+  Stack access operations (EIP-8024, Amsterdam). A one-byte immediate encodes
+  the stack depths, beyond those of `DUP16` and `SWAP16`:
+
+  DUPN: duplicates the nth item on the stack, 17 ≤ n ≤ 235.
+  SWAPN: swaps the 1st and the (n + 1)th item, 17 ≤ n ≤ 235.
+  EXCHANGE: swaps the (n + 1)th and the (m + 1)th item, 1 ≤ n < m ≤ 30 - n.
+
+  The depths depend on the immediate, so `δ` and `α` only give the growth of
+  the stack, and `step` checks the depths.
+-/
+inductive SAccOp : Type where
+  | protected DUPN     : SAccOp
+  | protected SWAPN    : SAccOp
+  | protected EXCHANGE : SAccOp
+  deriving DecidableEq, Repr
+
+/--
   Logging Operations.
 
   LOGn: append log record with n topics.
@@ -576,6 +593,7 @@ inductive Operation : Type where
   | protected Push         : POp → Operation
   | protected Dup          : DOp → Operation
   | protected Exchange     : ExOp → Operation
+  | protected StackAccess  : SAccOp → Operation
   | protected Log          : LOp → Operation
   | protected System       : SOp → Operation
   deriving DecidableEq, Repr
@@ -725,6 +743,10 @@ abbrev SWAP13 : Operation := .Exchange .SWAP13
 abbrev SWAP14 : Operation := .Exchange .SWAP14
 abbrev SWAP15 : Operation := .Exchange .SWAP15
 abbrev SWAP16 : Operation := .Exchange .SWAP16
+
+abbrev DUPN     : Operation := .StackAccess .DUPN
+abbrev SWAPN    : Operation := .StackAccess .SWAPN
+abbrev EXCHANGE : Operation := .StackAccess .EXCHANGE
 
 abbrev LOG0  : Operation := .Log .LOG0
 abbrev LOG1  : Operation := .Log .LOG1

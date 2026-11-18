@@ -178,6 +178,11 @@ def serializeSysInstr : SOp → UInt8
   | .INVALID      => 0xfe
   | .SELFDESTRUCT => 0xff
 
+def serializeStackAccessInstr : SAccOp → UInt8
+  | .DUPN     => 0xe6
+  | .SWAPN    => 0xe7
+  | .EXCHANGE => 0xe8
+
 def serializeInstr : Operation → UInt8
   | .StopArith a    => serializeStopArithInstr a
   | .CompBit e      => serializeCompBitInstr e
@@ -188,6 +193,7 @@ def serializeInstr : Operation → UInt8
   | .Push p         => serializePushInstr p
   | .Dup d          => serializeDupInstr d
   | .Exchange e     => serializeSwapInstr e
+  | .StackAccess a  => serializeStackAccessInstr a
   | .Log l          => serializeLogInstr l
   | .System s       => serializeSysInstr s
 
@@ -289,6 +295,10 @@ def δ : Operation → Option ℕ
   | .SWAP14         => some 15
   | .SWAP15         => some 16
   | .SWAP16         => some 17
+  -- EIP-8024: the depths come from the immediate, and `step` checks them.
+  | .DUPN           => some 0
+  | .SWAPN          => some 0
+  | .EXCHANGE       => some 0
   | .LOG0           => some 2
   | .LOG1           => some 3
   | .LOG2           => some 4
@@ -415,6 +425,9 @@ def α : Operation → Option ℕ
   | .SWAP14 => some 15
   | .SWAP15 => some 16
   | .SWAP16 => some 17
+  | .DUPN => some 1
+  | .SWAPN => some 0
+  | .EXCHANGE => some 0
   | .Log _ => some 0
   | .CREATE => some 1
   | .CALL => some 1
@@ -578,6 +591,9 @@ def parseInstr : UInt8 → Option (Operation)
   | 0xa3 => some .LOG3
   | 0xa4 => some .LOG4
 
+  | 0xe6 => some .DUPN
+  | 0xe7 => some .SWAPN
+  | 0xe8 => some .EXCHANGE
   | 0xf0 => some .CREATE
   | 0xf1 => some .CALL
   | 0xf2 => some .CALLCODE

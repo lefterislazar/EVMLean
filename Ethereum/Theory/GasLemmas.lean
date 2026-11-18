@@ -492,6 +492,22 @@ lemma step_exchange_gas {gasCost : Nat} {op : Operation.ExOp}
     all_goals try (injection h with hs; subst s'; rfl)
 
 set_option linter.unusedSimpArgs false in
+lemma step_stackaccess_gas {gasCost : Nat} {op : Operation.SAccOp}
+    {arg : Option (UInt256 × Nat)} {s s' : State}
+    (h : step gasCost (Operation.StackAccess op, arg) s = .ok s') :
+    s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
+  cases op <;> rw [step.eq_1] at h <;>
+    simp [Id.run, bind, Except.bind, pure, Except.pure, stackAccess, exchange,
+      Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
+  all_goals
+    repeat split at h
+    all_goals try contradiction
+    all_goals try (rw [← h]; simp)
+    all_goals try (subst s'; rfl)
+    all_goals try (injection h with hs; rw [← hs]; simp)
+    all_goals try (injection h with hs; subst s'; rfl)
+
+set_option linter.unusedSimpArgs false in
 lemma step_log_gas {gasCost : Nat} {op : Operation.LOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (h : step gasCost (Operation.Log op, arg) s = .ok s') :
@@ -704,6 +720,7 @@ lemma step_nonrecursive_gas {gasCost : Nat} {w : Operation}
   | Push op => exact step_push_gas h
   | Dup op => exact step_dup_gas h
   | Exchange op => exact step_exchange_gas h
+  | StackAccess op => exact step_stackaccess_gas h
   | Log op => exact step_log_gas h
   | System op =>
       apply step_system_nonrecursive_gas
@@ -725,6 +742,7 @@ lemma step_gas_le {gasCost : Nat} {w : Operation}
     | Push op => simp [RecursiveSystemStep] at hnrec
     | Dup op => simp [RecursiveSystemStep] at hnrec
     | Exchange op => simp [RecursiveSystemStep] at hnrec
+    | StackAccess op => simp [RecursiveSystemStep] at hnrec
     | Log op => simp [RecursiveSystemStep] at hnrec
     | System op =>
         cases op with
@@ -1441,6 +1459,7 @@ lemma step_gas_decreases_of_cost_eq_C'
     | Push op => simp [RecursiveSystemStep] at hnrec
     | Dup op => simp [RecursiveSystemStep] at hnrec
     | Exchange op => simp [RecursiveSystemStep] at hnrec
+    | StackAccess op => simp [RecursiveSystemStep] at hnrec
     | Log op => simp [RecursiveSystemStep] at hnrec
     | System op =>
         cases op with
@@ -1627,6 +1646,13 @@ lemma Xstep_continues_of_halt_none
       | simp [ContinuesAfterXStep, δ]
     · rename_i op
       cases op <;> 
+      first 
+      | split at h
+        · simp at h
+        · simp at h
+      | simp [ContinuesAfterXStep, δ]
+    · rename_i op
+      cases op <;>
       first 
       | split at h
         · simp at h
