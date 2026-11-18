@@ -168,6 +168,20 @@ def StateTestEnv.header (env : StateTestEnv) (fork : Fork) : BlockHeader :=
     slotNumber    := if fork.spec.eip7843 then UInt64.ofNat <$> env.slotNumber else none }
 
 /--
+The chain history before a state test's block `number`. State tests give no
+earlier blocks: by their convention, the hash of an earlier block `i` that
+`BLOCKHASH` can reach, one of the last 256, is `keccak256` of `i` in decimal.
+The model's history is indexed by block number, and the blocks out of reach
+are never read.
+-/
+def stateTestHistory (number : ℕ) : ProcessedBlocks := Id.run do
+  let mut blocks : ProcessedBlocks := .replicate number default
+  for i in [number - min number 256 : number] do
+    let hash : UInt256 := .ofNat <| fromByteArrayBigEndian <| KEC (toString i).toUTF8
+    blocks := blocks.set! i { (default : ProcessedBlock) with hash }
+  return blocks
+
+/--
 A transaction from its encoding in a block body: the RLP list of a legacy
 transaction, or the type byte and RLP payload of a typed one.
 -/
@@ -191,7 +205,7 @@ def runStateCase (test : StateTest) (forkName : String) (case : StateTestCase) :
     Except Failure Unit := do
   let config ← chainConfig forkName test.config |>.mapError .unsupportedConfig
   let fork := config.activeFork test.env.timestamp
-  let pre := stateOf test.pre
+  let pre := { stateOf test.pre with executionEnv.blocks := stateTestHistory test.env.number }
   let expected := case.expectException
   let applied :=
     decodeTransaction case.txbytes >>= fun transaction =>

@@ -58,9 +58,9 @@ lake test -- --state-tests --dirs for_amsterdam
 lake test -- --dirs for_amsterdam,for_bpo2toamsterdamattime15k
 ```
 
-The state-test runner (`Conform/Run.lean`, `runStateCase`) passes all 14,665
-Osaka state-test cases. With no Amsterdam gas changes yet, 1,593 of the 16,908
-Amsterdam state-test cases pass. Most failures are
+The state-test runner (`Conform/Run.lean`, `runStateCase`) passes all 40,153
+state-test cases of Cancun, Prague and Osaka. With no Amsterdam gas changes
+yet, 1,593 of the 16,908 Amsterdam state-test cases pass. Most failures are
 `GAS_LIMIT_EXCEEDS_MAXIMUM`: Amsterdam transactions may exceed the EIP-7825
 cap of `2^24` gas, which EIP-8037 applies to execution gas only. Most of the
 others are `INTRINSIC_GAS_TOO_LOW` (EIP-2780, 7976 and 7981) and post-states
