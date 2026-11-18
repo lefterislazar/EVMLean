@@ -18,10 +18,12 @@ For a summary of the main differences from Nethermind's upstream project, see
 # Project structure
 
 ## Forks
-The semantics is parametric in the execution-layer fork, from Cancun to Osaka:
+The semantics is parametric in the execution-layer fork, from Cancun to Osaka
+and its blob-parameter-only forks:
 ```
 Ethereum/Fork.lean
 ```
+Amsterdam (Glamsterdam) is being implemented; `docs/glamsterdam.md` tracks it.
 
 ## EVM
 The model of the EVM state `EVM.State`:
@@ -63,7 +65,9 @@ We recommend redirecting `stderr` into a file to not pollute the output.
 The first run downloads the pinned fixtures.
 The pins and the fetching are in `lakefile.lean`.
 
-This runs every fixture network from Cancun on.
+This runs every fixture network from Cancun on, apart from Amsterdam, whose
+fixtures run only when `--dirs` names them. `--state-tests` runs the state
+tests instead of the blockchain tests.
 
 `lake test -- --help` lists conformance parameters.
 
