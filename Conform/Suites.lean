@@ -46,8 +46,9 @@ def eestInProgressDirectories : Array System.FilePath :=
   #["for_bpo2toamsterdamattime15k", "for_amsterdam"]
 
 /--
-Run the `execution-spec-tests` blockchain fixtures with `options`, in the
-directories `--dirs`, by default all those of `eestDirectories`.
+Run the `execution-spec-tests` blockchain tests, or with `--state-tests` the
+state tests, with `options`, in the directories `--dirs`, by default all those
+of `eestDirectories`.
 -/
 def runEEST (options : Options) : IO UInt32 := do
   let some fixtures ← fixturesDirectory options | return 1
@@ -57,11 +58,12 @@ def runEEST (options : Options) : IO UInt32 := do
       IO.eprintln s!"--dirs: {dir} is not one of {", ".intercalate (known.map toString).toList}"
       return 2
   let candidates := if options.dirs.isSome then known else eestDirectories
+  let kind := if options.stateTests then "state_tests" else "blockchain_tests"
   let roots ← candidates.filterMapM λ d ↦ do
-    let root := fixtures / d
+    let root := fixtures / kind / d
     let wanted := options.dirs.all (·.contains d.toString)
     pure <| if wanted ∧ (← root.pathExists) then some root else none
-  IO.println s!"EEST fixtures in {fixtures}: {roots.size} directories."
+  IO.println s!"EEST {kind} in {fixtures}: {roots.size} directories."
   (← IO.getStdout).flush
   report (← runTests roots options)
 

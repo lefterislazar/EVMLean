@@ -65,7 +65,7 @@ def cachedDirectory (directory : FilePath) (fill : FilePath → IO Unit) : IO Fi
   IO.FS.rename scratch directory
   return directory
 
-/-- The `blockchain_tests` fixtures of the pinned `execution-spec-tests` release, fetched into `cache`. -/
+/-- The `fixtures` directory of the pinned `execution-spec-tests` release, fetched into `cache`. -/
 def fetchEEST (cache : FilePath) : IO FilePath := do
   IO.FS.createDirAll cache
   let archive := cache / s!"fixtures-tests-v{eestVersion}.tar.gz"
@@ -82,7 +82,7 @@ def fetchEEST (cache : FilePath) : IO FilePath := do
       throw <| .userError s!"{archive} has SHA-256 {sha256}, not {eestSha256}; removed it"
     IO.println s!"Extracting {archive}."
     runCommand "tar" #["-xzf", archive.toString, "-C", scratch.toString]
-  return release / "fixtures" / "blockchain_tests"
+  return release / "fixtures"
 
 /-- The directory `directory` of the repository `repo` at `commit`, checked out as `destination`. -/
 def fetchGitDirectory (repo commit directory : String) (destination : FilePath) : IO Unit := do

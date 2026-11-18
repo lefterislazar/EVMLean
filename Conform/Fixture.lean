@@ -3,15 +3,21 @@ import Ethereum.State
 import Conform.Json
 
 /-!
-# Blockchain test fixtures
+# Test fixtures
 
-The blockchain test format of `ethereum/tests` (`BlockchainTests`), which
-`execution-spec-tests` emits as the `blockchain_test` fixture format. A fixture
-file is a JSON object from test names to tests.
+Two fixture formats, which `_info.fixture-format` names:
 
-Only the fields that the runner reads are decoded. `config` and
-`postStateHash` are optional: the older fixtures filled by retesteth have no
-`config`, and some give the hash of the post state instead of the state.
+- `blockchain_test`: the blockchain test format of `ethereum/tests`
+  (`BlockchainTests`), which `execution-spec-tests` emits as well. A test is a
+  chain of blocks from a genesis block, and the expected state after them.
+- `state_test`: a single transaction, run in a block environment on a
+  pre-state, and for each fork the expected state root and logs, or the
+  exception that rejects the transaction.
+
+A fixture file is a JSON object from test names to tests. Only the fields that
+the runner reads are decoded. `config` and `postStateHash` are optional: the
+older blockchain tests filled by retesteth have no `config`, and some give the
+hash of the post state instead of the state.
 -/
 
 namespace Ethereum
@@ -47,6 +53,44 @@ structure BlockchainTest where
   postState     : PostState
   deriving Inhabited
 
+/-- The block environment in which a state test runs its transaction. -/
+structure StateTestEnv where
+  coinbase      : AccountAddress
+  gasLimit      : ℕ
+  number        : ℕ
+  timestamp     : ℕ
+  difficulty    : ℕ
+  /-- `currentRandom`, the `PREVRANDAO` of the block. -/
+  prevRandao    : UInt256
+  baseFee       : ℕ
+  excessBlobGas : ℕ
+  /-- EIP-7843 (Amsterdam). -/
+  slotNumber    : Option ℕ
+  deriving Inhabited
+
+/--
+An expected outcome of a state test on a fork: the transaction, encoded as in
+a block body, and the state root, logs hash and post-state after it. When
+`expectException` is not empty, the transaction is invalid, and the state is
+the pre-state.
+-/
+structure StateTestCase where
+  txbytes         : ByteArray
+  stateRoot       : ByteArray
+  logsHash        : ByteArray
+  postState       : Option PersistentAccountMap
+  expectException : List String
+  deriving Inhabited
+
+structure StateTest where
+  env    : StateTestEnv
+  /-- The `config` object; `{}` when absent. -/
+  config : Json
+  pre    : PersistentAccountMap
+  /-- The cases of each fork, by fork name, such as `Amsterdam`. -/
+  post   : List (String × Array StateTestCase)
+  deriving Inhabited
+
 section FromJson
 
 /-
@@ -73,14 +117,20 @@ instance : FromJson FixtureBlock where
       expectException := exception.option [] (·.splitOn "|")
     }
 
-/-- The format that `_info.fixture-format` names, when present. -/
+/-- The fixture formats that `_info.fixture-format` names. -/
 def blockchainTestFormat : String := "blockchain_test"
+def stateTestFormat : String := "state_test"
+
+/-- The format of the fixture test `json`: a blockchain test when it names none. -/
+def fixtureFormat (json : Json) : String :=
+  (json.getObjVal? "_info" >>= (·.getObjValAs? String "fixture-format")).toOption.getD
+    blockchainTestFormat
 
 instance : FromJson BlockchainTest where
   fromJson? json := do
-    if let .ok format := json.getObjVal? "_info" >>= (·.getObjValAs? String "fixture-format") then
-      if format ≠ blockchainTestFormat then
-        throw s!"fixture format {format}, not {blockchainTestFormat}"
+    let format := fixtureFormat json
+    if format ≠ blockchainTestFormat then
+      throw s!"fixture format {format}, not {blockchainTestFormat}"
     let postState ←
       match json.getObjVal? "postStateHash" with
       | .ok hash => .Hash <$> FromJson.fromJson? hash
@@ -93,6 +143,50 @@ instance : FromJson BlockchainTest where
       blocks        := ← json.getObjValAs? (Array FixtureBlock) "blocks"
       lastblockhash := ← json.getObjValAs? UInt256 "lastblockhash"
       postState
+    }
+
+instance : FromJson StateTestEnv where
+  fromJson? json := do
+    pure {
+      coinbase      := ← json.getObjValAs? String "currentCoinbase" >>= hexAddress?
+      gasLimit      := ← getHexNat? json "currentGasLimit"
+      number        := ← getHexNat? json "currentNumber"
+      timestamp     := ← getHexNat? json "currentTimestamp"
+      difficulty    := ← (·.getD 0) <$> optionalHexNat json "currentDifficulty"
+      prevRandao    := ← (·.getD ⟨0⟩) <$> json.getObjValAs? (Option UInt256) "currentRandom"
+      baseFee       := ← getHexNat? json "currentBaseFee"
+      excessBlobGas := ← (·.getD 0) <$> optionalHexNat json "currentExcessBlobGas"
+      slotNumber    := ← optionalHexNat json "slotNumber"
+    }
+  where
+    optionalHexNat (json : Json) (k : String) : Except String (Option ℕ) := do
+      match ← json.getObjValAs? (Option String) k with
+      | some s => some <$> hexNat? s
+      | none => pure none
+
+instance : FromJson StateTestCase where
+  fromJson? json := do
+    let exception ← json.getObjValAs? (Option String) "expectException"
+    pure {
+      txbytes         := ← json.getObjValAs? ByteArray "txbytes"
+      stateRoot       := ← json.getObjValAs? ByteArray "hash"
+      logsHash        := ← json.getObjValAs? ByteArray "logs"
+      postState       := ← json.getObjValAs? (Option PersistentAccountMap) "state"
+      expectException := exception.option [] (·.splitOn "|")
+    }
+
+instance : FromJson StateTest where
+  fromJson? json := do
+    let format := fixtureFormat json
+    if format ≠ stateTestFormat then
+      throw s!"fixture format {format}, not {stateTestFormat}"
+    let post ← (← json.getObjValAs? Json "post").getObj?
+    pure {
+      env    := ← json.getObjValAs? StateTestEnv "env"
+      config := (·.getD (.obj {})) (← json.getObjValAs? (Option Json) "config")
+      pre    := ← json.getObjValAs? PersistentAccountMap "pre"
+      post   := ← post.toList.mapM fun (fork, cases) => do
+        pure (fork, ← Lean.fromJson? cases)
     }
 
 end FromJson

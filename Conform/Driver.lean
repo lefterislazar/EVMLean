@@ -18,8 +18,12 @@ namespace Conform
 structure Options where
   /-- Run the legacy suite instead of the `execution-spec-tests` fixtures. -/
   legacy   : Bool := false
-  /-- The fixtures of the suite. `lake test` fetches the pinned ones and sets this. -/
+  /-- The fixtures of the suite: the `fixtures` directory of an
+      `execution-spec-tests` release, or the legacy suite. `lake test` fetches
+      the pinned ones and sets this. -/
   fixtures : Option System.FilePath := none
+  /-- Run the `execution-spec-tests` state tests instead of the blockchain tests. -/
+  stateTests : Bool := false
   /-- The number of threads; by default, one per processor. -/
   threads  : Option ℕ := none
   /-- Run only these fixture directories of `execution-spec-tests`, such as `for_osaka`. -/
@@ -65,36 +69,52 @@ def progressLog : System.FilePath := logDirectory / "progress.txt"
 
 /--
 Run the tests of the fixture file `path` whose names `isSelected` selects,
-parsing the file once, and log them to `progressLog` when `progress` holds.
-Every result comes with the test's running time in milliseconds.
+parsing the file once, and log them to `progressLog` when `progress` holds. A
+blockchain test is one test; each case of a state test, on a fork and with an
+index, is one test, named `test/Fork/index`. Every result comes with the
+test's running time in milliseconds.
 -/
 def runFile (path : System.FilePath) (isSelected : String → Bool) (progress : Bool) :
     IO (Array (TestId × TestResult × ℕ)) := do
   let tests ← match (← readJsonFile path).getObj? with
     | .ok tests => pure tests
     | .error err => throw <| .userError s!"{path}: {err}"
-  let mut results := #[]
-  for (testName, test) in tests.toArray do
-    unless isSelected testName do continue
-    if let .ok network := test.getObjValAs? String "network" then
-      if (parseNetwork? network).isNone then
-        results := results.push ((path, testName), .unsupportedNetwork network, 0)
-        continue
+  let results ← IO.mkRef #[]
+  let skip (name network : String) : IO Unit :=
+    results.modify (·.push ((path, name), .unsupportedNetwork network, 0))
+  let runTimed (name : String) (run : Unit → Except Failure Unit) : IO Unit := do
     let start ← IO.monoMsNow
     if progress then
-      IO.FS.withFile progressLog .append (·.putStrLn s!"start {testName} FROM {path}")
+      IO.FS.withFile progressLog .append (·.putStrLn s!"start {name} FROM {path}")
     let result : TestResult :=
-      match (Lean.fromJson? test : Except String BlockchainTest) with
-      | .error err => .failed s!"Cannot decode: {err}"
-      | .ok test =>
-        match run test with
-        | .error failure => .failed (toString failure)
-        | .ok () => .passed
+      match run () with
+      | .error failure => .failed (toString failure)
+      | .ok () => .passed
     let elapsed := (← IO.monoMsNow) - start
     if progress then
-      IO.FS.withFile progressLog .append (·.putStrLn s!"done {elapsed}ms {testName}")
-    results := results.push ((path, testName), result, elapsed)
-  return results
+      IO.FS.withFile progressLog .append (·.putStrLn s!"done {elapsed}ms {name}")
+    results.modify (·.push ((path, name), result, elapsed))
+  for (testName, test) in tests.toArray do
+    unless isSelected testName do continue
+    if fixtureFormat test == stateTestFormat then
+      match (Lean.fromJson? test : Except String StateTest) with
+      | .error err => runTimed testName fun () => throw <| .undecodable err
+      | .ok stateTest =>
+        for (forkName, cases) in stateTest.post do
+          for h : i in [0:cases.size] do
+            let name := s!"{testName}/{forkName}/{i}"
+            if (parseNetwork? forkName).isNone then skip name forkName
+            else runTimed name fun () => runStateCase stateTest forkName cases[i]
+    else
+      if let .ok network := test.getObjValAs? String "network" then
+        if (parseNetwork? network).isNone then
+          skip testName network
+          continue
+      runTimed testName fun () => do
+        match (Lean.fromJson? test : Except String BlockchainTest) with
+        | .error err => throw <| .undecodable err
+        | .ok test => run test
+  results.get
 
 /-- Whether `path` lies in the directory `dir`, comparing path components. -/
 def isUnder (dir path : System.FilePath) : Bool :=

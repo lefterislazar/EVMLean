@@ -60,6 +60,8 @@ instance (priority := high) : Repr (PersistentAccountMap) := ⟨λ m _ ↦
 
 /-- Why a test failed. -/
 inductive Failure where
+  /-- The fixture of the test does not decode. -/
+  | undecodable : String → Failure
   /-- The model does not support the test's chain configuration. -/
   | unsupportedConfig : String → Failure
   /-- The state root of the genesis block is not the root of the pre-state. -/
@@ -72,9 +74,12 @@ inductive Failure where
   | lastBlockMismatch (expected actual : UInt256) : Failure
   /-- The resulting state differs from the expected one, as described. -/
   | postStateMismatch : String → Failure
+  /-- The hash of the logs differs from the expected one. -/
+  | logsMismatch (expected : ByteArray) (actual : Option ByteArray) : Failure
 
 instance : ToString Failure where
   toString
+    | .undecodable reason => s!"Cannot decode: {reason}"
     | .unsupportedConfig reason => reason
     | .genesisStateRootMismatch expected actual =>
       s!"genesis state root: {hex expected}, root of the pre-state: {hex actual}"
@@ -84,6 +89,8 @@ instance : ToString Failure where
     | .lastBlockMismatch expected actual =>
       s!"last block: {hex expected}, last block applied: {hex actual}"
     | .postStateMismatch description => description
+    | .logsMismatch expected actual =>
+      s!"logs hash: {Ethereum.toHex expected}, actual: {Ethereum.toHex <$> actual}"
   where hex (n : UInt256) : String := Ethereum.toHex n.toByteArray
 
 /--
@@ -140,6 +147,77 @@ def run (test : BlockchainTest) : Except Failure Unit := do
     let root := stateTrieRoot actual
     unless root == some h do
       throw <| .postStateMismatch s!"\npost: {Ethereum.toHex h} \nactual: {Ethereum.toHex <$> root}"
+
+/-! ## State tests -/
+
+/--
+The header of the block in which a state test runs its transaction. The fields
+that the environment does not give, such as the roots and the parent hash, are
+not read by transaction execution.
+-/
+def StateTestEnv.header (env : StateTestEnv) (fork : Fork) : BlockHeader :=
+  { (default : BlockHeader) with
+    beneficiary   := env.coinbase
+    gasLimit      := env.gasLimit
+    number        := env.number
+    timestamp     := env.timestamp
+    difficulty    := env.difficulty
+    prevRandao    := env.prevRandao
+    baseFeePerGas := env.baseFee
+    excessBlobGas := .ofNat env.excessBlobGas
+    slotNumber    := if fork.spec.eip7843 then UInt64.ofNat <$> env.slotNumber else none }
+
+/--
+A transaction from its encoding in a block body: the RLP list of a legacy
+transaction, or the type byte and RLP payload of a typed one.
+-/
+def decodeTransaction (bytes : ByteArray) : Except EVM.Exception Transaction := do
+  let malformed : EVM.Exception := .TransactionException .RLP_INVALID_VALUE
+  let item ←
+    if bytes.size > 0 ∧ bytes[0]! ≥ 0xc0 then
+      (deserializeRLP bytes).elim (throw malformed) pure
+    else pure (.𝔹 bytes)
+  match ← deserializeBlock.parseTransactions (.𝕃 [item]) with
+  | [transaction] => pure transaction
+  | _ => throw malformed
+
+/--
+Runs a case of a state test on the fork `forkName`: applies its transaction
+to the pre-state in the test's block environment, or checks that it is
+rejected with one of the expected exceptions, and compares the resulting
+state and logs with the expected ones.
+-/
+def runStateCase (test : StateTest) (forkName : String) (case : StateTestCase) :
+    Except Failure Unit := do
+  let config ← chainConfig forkName test.config |>.mapError .unsupportedConfig
+  let fork := config.activeFork test.env.timestamp
+  let pre := stateOf test.pre
+  let expected := case.expectException
+  let applied :=
+    decodeTransaction case.txbytes >>= fun transaction =>
+      EVM.applyTransaction fork config.chainId (test.env.header fork) 0 transaction pre
+  let state ←
+    match applied with
+    | .ok state =>
+      if expected.isEmpty then pure state else throw <| .missedExpectedException expected
+    | .error e =>
+      let e := selectReportedException expected e
+      if acceptsExpectedException expected e then pure pre else throw <| .unexpectedException e
+  let actual := state.accountMap.toPersistentAccountMap
+  if let some post := case.postState then
+    unless post == actual do
+      let (postSubActual, actualSubPost) := storageΔ post actual
+      throw <| .postStateMismatch
+        s!"\npost / actual: {repr postSubActual} \nactual / post: {repr actualSubPost}"
+  let root := stateTrieRoot actual
+  unless root == some case.stateRoot do
+    throw <| .postStateMismatch
+      s!"\nstate root: {Ethereum.toHex case.stateRoot} \nactual: {Ethereum.toHex <$> root}"
+  let logs := if state.transactionReceipts.isEmpty then #[] else
+    state.transactionReceipts.back!.logSeries
+  let logsHash := KEC <$> RLP (LogSeries.to𝕋 logs)
+  unless logsHash == some case.logsHash do
+    throw <| .logsMismatch case.logsHash logsHash
 
 end Conform
 

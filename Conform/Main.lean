@@ -16,6 +16,7 @@ Run the conformance tests: the execution-spec-tests fixtures, or the legacy suit
 
   --legacy            run the legacy suite instead of the execution-spec-tests fixtures
   --fixtures PATH     run the fixtures in PATH instead of fetching the pinned ones
+  --state-tests       run the execution-spec-tests state tests, not the blockchain tests
   --threads N         run on N threads (default: one per processor)
   --dirs D1,D2,...    run only these execution-spec-tests directories, such as for_osaka
   --filter S1|S2|...  run only the tests whose name contains one of these substrings
@@ -45,6 +46,7 @@ def Options.parse (options : Options) : List String → Except String Options
   | "--filter" :: filter :: args => do
     checkValue "--filter" filter
     parse { options with filter := filter.splitOn "|" } args
+  | "--state-tests" :: args => parse { options with stateTests := true } args
   | "--perf" :: args => parse { options with perf := true } args
   | "--timed" :: args => parse { options with timed := true } args
   | "--progress" :: args => parse { options with progress := true } args
@@ -61,6 +63,8 @@ def parseOptions (args : List String) : Except String Options := do
   let options ← Options.parse {} args
   if options.legacy ∧ options.dirs.isSome then
     throw "--dirs selects execution-spec-tests directories; it does not apply to --legacy"
+  if options.legacy ∧ options.stateTests then
+    throw "--state-tests selects execution-spec-tests state tests; it does not apply to --legacy"
   if ¬options.legacy ∧ options.perf then
     throw "--perf includes the performance tests of the legacy suite; it needs --legacy"
   return options
