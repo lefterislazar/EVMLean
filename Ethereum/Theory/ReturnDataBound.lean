@@ -137,7 +137,7 @@ lemma MachineState.M_M_lt_uint256_size {s f l f' l' : Nat}
 
 lemma Z_memoryExpansionCost_le {validJumps : Array UInt256} {w : Operation}
     {state state' : State} {cost : Nat}
-    (h : Z validJumps w state = .ok (state', cost)) :
+    (h : Z fork validJumps w state = .ok (state', cost)) :
     memoryExpansionCost state w ≤ state.machineState.gasAvailable.toNat := by
   unfold Z at h
   by_cases hδ : δ w = none
@@ -155,7 +155,7 @@ lemma Z_memoryExpansionCost_le {validJumps : Array UInt256} {w : Operation}
 
 lemma Z_stack_active_eq {validJumps : Array UInt256} {w : Operation}
     {state stateZ : State} {cost : Nat}
-    (h : Z validJumps w state = .ok (stateZ, cost)) :
+    (h : Z fork validJumps w state = .ok (stateZ, cost)) :
     stateZ.machineState.stack = state.machineState.stack ∧
       stateZ.machineState.activeWords = state.machineState.activeWords ∧
       stateZ.machineState.memory = state.machineState.memory := by
@@ -174,7 +174,7 @@ lemma Z_stack_active_eq {validJumps : Array UInt256} {w : Operation}
   rw [if_neg hcost₁] at h
   by_cases hcost₂ :
       (state.subtractGas (memoryExpansionCost state w)).machineState.gasAvailable.toNat <
-        C' (state.subtractGas (memoryExpansionCost state w)) w
+        C' fork (state.subtractGas (memoryExpansionCost state w)) w
   · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
     contradiction
   rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
@@ -229,7 +229,7 @@ lemma Z_stack_active_eq {validJumps : Array UInt256} {w : Operation}
 
 lemma Z_gasAvailable_eq {validJumps : Array UInt256} {w : Operation}
     {state stateZ : State} {cost : Nat}
-    (h : Z validJumps w state = .ok (stateZ, cost)) :
+    (h : Z fork validJumps w state = .ok (stateZ, cost)) :
     stateZ.machineState.gasAvailable.toNat =
       state.machineState.gasAvailable.toNat - memoryExpansionCost state w := by
   unfold Z at h
@@ -247,7 +247,7 @@ lemma Z_gasAvailable_eq {validJumps : Array UInt256} {w : Operation}
   rw [if_neg hcost₁] at h
   by_cases hcost₂ :
       (state.subtractGas (memoryExpansionCost state w)).machineState.gasAvailable.toNat <
-        C' (state.subtractGas (memoryExpansionCost state w)) w
+        C' fork (state.subtractGas (memoryExpansionCost state w)) w
   · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
     contradiction
   rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
@@ -351,7 +351,7 @@ lemma memoryExpansionWords_lt_uint256_size (state : State) (w : Operation) :
 lemma memoryPaidByGas_after_Z_target {validJumps : Array UInt256} {w : Operation}
     {state stateZ : State} {cost : Nat}
     (hpaid : memoryPaidByGas state)
-    (hZ : Z validJumps w state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps w state = .ok (stateZ, cost)) :
     Cₘ (.ofNat (memoryExpansionWords state w)) +
         stateZ.machineState.gasAvailable.toNat < UInt256.size := by
   have hwords_lt := memoryExpansionWords_lt_uint256_size state w
@@ -401,7 +401,7 @@ set_option linter.unusedSimpArgs false in
 lemma call_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {state : State} {x : UInt256} {state' : State}
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission state = .ok (x, state')) :
     state'.machineState.activeWords.toNat ≤
       MachineState.M
@@ -419,7 +419,7 @@ lemma call_activeWords_le_memoryExpansionWords {gasCost : Nat}
 lemma create_activeWords_le_memoryExpansionWords
     {value offset size : UInt256} {salt : Option ByteArray}
     {state state' : State} {x : UInt256}
-    (h : create value offset size salt state = .ok (x, state')) :
+    (h : create fork value offset size salt state = .ok (x, state')) :
     state'.machineState.activeWords.toNat ≤
       MachineState.M state.machineState.activeWords.toNat offset.toNat size.toNat := by
   unfold create at h
@@ -602,7 +602,7 @@ private lemma step_log_activeWords_norm (state : State) (offset len : UInt256) :
 set_option linter.unusedSimpArgs false in
 lemma step_call_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALL, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CALL := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -620,7 +620,7 @@ lemma step_call_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_callcode_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALLCODE, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CALLCODE := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -638,7 +638,7 @@ lemma step_callcode_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_delegatecall_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.DELEGATECALL := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -656,7 +656,7 @@ lemma step_delegatecall_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_staticcall_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.STATICCALL, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.STATICCALL := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -674,7 +674,7 @@ lemma step_staticcall_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_create_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CREATE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CREATE, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CREATE := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -702,7 +702,7 @@ lemma step_create_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_create2_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CREATE2, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CREATE2, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CREATE2 := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -732,7 +732,7 @@ lemma step_create2_activeWords_le_memoryExpansionWords {gasCost : Nat}
 
 lemma step_return_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.RETURN, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.RETURN, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.RETURN := by
   unfold step at h
   simp [binaryMachineStateOp] at h
@@ -749,7 +749,7 @@ lemma step_return_activeWords_le_memoryExpansionWords {gasCost : Nat}
 
 lemma step_revert_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.REVERT, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.REVERT, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.REVERT := by
   unfold step at h
   simp [binaryMachineStateOp] at h
@@ -767,7 +767,7 @@ lemma step_revert_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_mload_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.MLOAD, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.MLOAD, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MLOAD := by
   unfold step at h
   simp [MachineState.mload, MachineState.lookupMemory, Ethereum.State.replaceStackAndIncrPC,
@@ -787,7 +787,7 @@ lemma step_mload_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_mstore_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.MSTORE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.MSTORE, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MSTORE := by
   unfold step at h
   simp [binaryMachineStateOp] at h
@@ -806,7 +806,7 @@ lemma step_mstore_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_mstore8_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.MSTORE8, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.MSTORE8, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MSTORE8 := by
   unfold step at h
   simp [binaryMachineStateOp] at h
@@ -825,7 +825,7 @@ lemma step_mstore8_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_keccak_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.KECCAK256, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.KECCAK256, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.KECCAK256 := by
   unfold step at h
   simp [binaryMachineStateOp'] at h
@@ -854,7 +854,7 @@ lemma step_keccak_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_calldatacopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CALLDATACOPY, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALLDATACOPY, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CALLDATACOPY := by
   unfold step at h
   simp [ternaryCopyOp] at h
@@ -882,7 +882,7 @@ lemma step_calldatacopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_codecopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CODECOPY, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CODECOPY, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.CODECOPY := by
   unfold step at h
   simp [ternaryCopyOp] at h
@@ -910,7 +910,7 @@ lemma step_codecopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_returndatacopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.RETURNDATACOPY, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.RETURNDATACOPY, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.RETURNDATACOPY := by
   unfold step at h
   cases hpop : state.machineState.stack.pop3 with
@@ -937,7 +937,7 @@ lemma step_returndatacopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_extcodecopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.EXTCODECOPY, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.EXTCODECOPY, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.EXTCODECOPY := by
   unfold step at h
   simp [quaternaryCopyOp] at h
@@ -965,7 +965,7 @@ lemma step_extcodecopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_mcopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.MCOPY, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.MCOPY, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.MCOPY := by
   unfold step at h
   simp [ternaryMachineStateOp] at h
@@ -999,7 +999,7 @@ lemma step_mcopy_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_log0_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.LOG0, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.LOG0, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG0 := by
   unfold step at h
   simp [log0Op] at h
@@ -1021,7 +1021,7 @@ lemma step_log0_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_log1_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.LOG1, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.LOG1, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG1 := by
   unfold step at h
   simp [log1Op] at h
@@ -1043,7 +1043,7 @@ lemma step_log1_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_log2_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.LOG2, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.LOG2, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG2 := by
   unfold step at h
   simp [log2Op] at h
@@ -1065,7 +1065,7 @@ lemma step_log2_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_log3_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.LOG3, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.LOG3, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG3 := by
   unfold step at h
   simp [log3Op] at h
@@ -1087,7 +1087,7 @@ lemma step_log3_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_log4_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.LOG4, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.LOG4, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.LOG4 := by
   unfold step at h
   simp [log4Op] at h
@@ -1121,7 +1121,7 @@ private lemma State.tstore_activeWords (state : State) (spos sval : UInt256) :
 set_option linter.unusedSimpArgs false in
 lemma step_stoparith_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.SAOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.StopArith op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.StopArith op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.StopArith op) := by
   cases op <;>
     unfold step at h <;>
@@ -1139,7 +1139,7 @@ lemma step_stoparith_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_compbit_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.CBLOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.CompBit op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CompBit op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.CompBit op) := by
   cases op <;>
     unfold step at h <;>
@@ -1157,7 +1157,7 @@ lemma step_compbit_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_env_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.EOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Env op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Env op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Env op) := by
   cases op
   · unfold step at h
@@ -1254,7 +1254,7 @@ lemma step_env_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_block_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.BOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Block op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Block op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Block op) := by
   cases op <;>
     unfold step at h <;>
@@ -1272,7 +1272,7 @@ lemma step_block_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_stackmemflow_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.SMSFOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.StackMemFlow op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.StackMemFlow op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.StackMemFlow op) := by
   cases op
   · unfold step at h
@@ -1367,7 +1367,7 @@ lemma step_stackmemflow_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_push_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.POp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Push op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Push op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Push op) := by
   cases op <;>
     unfold step at h <;>
@@ -1385,7 +1385,7 @@ lemma step_push_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_dup_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.DOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Dup op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Dup op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Dup op) := by
   cases op <;>
     unfold step at h <;>
@@ -1403,7 +1403,7 @@ lemma step_dup_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_exchange_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.ExOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Exchange op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Exchange op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Exchange op) := by
   cases op <;>
     unfold step at h <;>
@@ -1420,14 +1420,14 @@ lemma step_exchange_activeWords_le_memoryExpansionWords {gasCost : Nat}
 
 lemma step_keccak_group_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.KOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Keccak op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Keccak op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Keccak op) := by
   cases op
   exact step_keccak_activeWords_le_memoryExpansionWords h
 
 lemma step_log_group_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.LOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.Log op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.Log op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.Log op) := by
   cases op
   · exact step_log0_activeWords_le_memoryExpansionWords h
@@ -1439,7 +1439,7 @@ lemma step_log_group_activeWords_le_memoryExpansionWords {gasCost : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_selfdestruct_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.SELFDESTRUCT, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.SELFDESTRUCT, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state Operation.SELFDESTRUCT := by
   unfold step at h
   simp [memoryExpansionWords, Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC] at h
@@ -1453,7 +1453,7 @@ lemma step_selfdestruct_activeWords_le_memoryExpansionWords {gasCost : Nat}
 
 lemma step_system_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {op : Operation.SOp} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (Operation.System op, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.System op, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state (Operation.System op) := by
   cases op
   · exact step_create_activeWords_le_memoryExpansionWords h
@@ -1470,7 +1470,7 @@ lemma step_system_activeWords_le_memoryExpansionWords {gasCost : Nat}
 
 lemma step_activeWords_le_memoryExpansionWords {gasCost : Nat}
     {w : Operation} {arg : Option (UInt256 × Nat)} {state state' : State}
-    (h : step gasCost (w, arg) state = .ok state') :
+    (h : step fork gasCost (w, arg) state = .ok state') :
     state'.machineState.activeWords.toNat ≤ memoryExpansionWords state w := by
   cases w with
   | StopArith op => exact step_stoparith_activeWords_le_memoryExpansionWords h
@@ -1571,7 +1571,7 @@ lemma return_words_le_maxReturnDataWordsByGas_of_Z
     {stack : Stack UInt256} {offset len : UInt256}
     (hpaid : memoryPaidByGas state)
     (hpop : state.machineState.stack.pop2 = some (stack, offset, len))
-    (hZ : Z validJumps Operation.RETURN state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps Operation.RETURN state = .ok (stateZ, cost)) :
     MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
       maxReturnDataWordsByGas := by
   let words := MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat
@@ -1605,7 +1605,7 @@ lemma revert_words_le_maxReturnDataWordsByGas_of_Z
     {stack : Stack UInt256} {offset len : UInt256}
     (hpaid : memoryPaidByGas state)
     (hpop : state.machineState.stack.pop2 = some (stack, offset, len))
-    (hZ : Z validJumps Operation.REVERT state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps Operation.REVERT state = .ok (stateZ, cost)) :
     MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
       maxReturnDataWordsByGas := by
   let words := MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat
@@ -1771,7 +1771,7 @@ private lemma call_input_size_le_maxReturnDataSizeByGas_of_Z
     (hpaid : memoryPaidByGas state)
     (hpop : state.machineState.stack.pop7 =
       some (stack, gas, target, value, inOffset, inSize, outOffset, outSize))
-    (hZ : Z validJumps op state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps op state = .ok (stateZ, cost)) :
     (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
       maxReturnDataSizeByGas := by
   have htarget := memoryPaidByGas_after_Z_target hpaid hZ
@@ -1808,7 +1808,7 @@ private lemma delegate_input_size_le_maxReturnDataSizeByGas_of_Z
     (hpaid : memoryPaidByGas state)
     (hpop : state.machineState.stack.pop6 =
       some (stack, gas, target, inOffset, inSize, outOffset, outSize))
-    (hZ : Z validJumps op state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps op state = .ok (stateZ, cost)) :
     (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
       maxReturnDataSizeByGas := by
   have htarget := memoryPaidByGas_after_Z_target hpaid hZ
@@ -1902,7 +1902,7 @@ lemma step_return_H_return_size_le_maxReturnDataSizeByGas {cost : Nat}
       state.machineState.stack.pop2 = some (stack, offset, len) →
         MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
           maxReturnDataWordsByGas)
-    (h : step cost (.RETURN, arg) state = .ok state') :
+    (h : step fork cost (.RETURN, arg) state = .ok state') :
     state'.machineState.H_return.size ≤ maxReturnDataSizeByGas := by
   unfold step at h
   simp [binaryMachineStateOp] at h
@@ -1927,7 +1927,7 @@ lemma step_revert_H_return_size_le_maxReturnDataSizeByGas {cost : Nat}
       state.machineState.stack.pop2 = some (stack, offset, len) →
         MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
           maxReturnDataWordsByGas)
-    (h : step cost (.REVERT, arg) state = .ok state') :
+    (h : step fork cost (.REVERT, arg) state = .ok state') :
     state'.machineState.H_return.size ≤ maxReturnDataSizeByGas := by
   unfold step at h
   simp [binaryMachineStateOp] at h
@@ -1972,7 +1972,7 @@ lemma step_return_H_return_size_lt_uint256 {cost : Nat} {arg : Option (UInt256 �
       state.machineState.stack.pop2 = some (stack, offset, len) →
         MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
           maxReturnDataWordsByGas)
-    (h : step cost (.RETURN, arg) state = .ok state') :
+    (h : step fork cost (.RETURN, arg) state = .ok state') :
     state'.machineState.H_return.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_return_H_return_size_le_maxReturnDataSizeByGas hwords h)
@@ -1984,7 +1984,7 @@ lemma step_revert_H_return_size_lt_uint256 {cost : Nat} {arg : Option (UInt256 �
       state.machineState.stack.pop2 = some (stack, offset, len) →
         MachineState.M state.machineState.activeWords.toNat offset.toNat len.toNat ≤
           maxReturnDataWordsByGas)
-    (h : step cost (.REVERT, arg) state = .ok state') :
+    (h : step fork cost (.REVERT, arg) state = .ok state') :
     state'.machineState.H_return.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_revert_H_return_size_le_maxReturnDataSizeByGas hwords h)
@@ -1994,7 +1994,7 @@ lemma Xstep_halt_output_size_le_maxReturnDataSizeByGas
     {validJumps : Array UInt256} {state state' : State}
     {cause : HaltCause} {out : ByteArray}
     (hpaid : memoryPaidByGas state)
-    (h : Xstep validJumps state = .ok (state', some (cause, out))) :
+    (h : Xstep fork validJumps state = .ok (state', some (cause, out))) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Xstep at h
   simp [bind, Except.bind] at h
@@ -2057,7 +2057,7 @@ lemma Xstep_halt_output_size_le_maxReturnDataSizeByGas
 lemma Xstep_halt_output_size_lt_uint256 {validJumps : Array UInt256} {state state' : State}
     {cause : HaltCause} {out : ByteArray}
     (hpaid : memoryPaidByGas state)
-    (h : Xstep validJumps state = .ok (state', some (cause, out))) :
+    (h : Xstep fork validJumps state = .ok (state', some (cause, out))) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xstep_halt_output_size_le_maxReturnDataSizeByGas hpaid h)
@@ -2065,17 +2065,17 @@ lemma Xstep_halt_output_size_lt_uint256 {validJumps : Array UInt256} {state stat
 
 lemma Xstep_memoryPaidByGas_of_none {validJumps : Array UInt256} {state state' : State}
     (hpaid : memoryPaidByGas state)
-    (h : Xstep validJumps state = .ok (state', none)) :
+    (h : Xstep fork validJumps state = .ok (state', none)) :
     memoryPaidByGas state' := by
   unfold Xstep at h
   cases hinstr : (decode state.executionEnv.code state.machineState.pc).getD (Operation.STOP, none) with
   | mk w arg =>
       simp [hinstr, bind, Except.bind] at h
-      cases hZ : Z validJumps w state <;> simp [hZ] at h
+      cases hZ : Z fork validJumps w state <;> simp [hZ] at h
       rename_i z
       rcases z with ⟨stateZ, cost₂⟩
       cases hstep :
-          step cost₂ (w, arg) { stateZ with executionEnv.depth := state.executionEnv.depth } <;>
+          step fork cost₂ (w, arg) { stateZ with executionEnv.depth := state.executionEnv.depth } <;>
         simp [hstep] at h
       rename_i stateStep
       repeat (first | split at h | cases h)
@@ -2245,7 +2245,7 @@ lemma X_success_output_size_le_maxReturnDataSizeByGas
     {fuel : Nat} {validJumps : Array UInt256}
     {state state' : State} {out : ByteArray}
     (hpaid : memoryPaidByGas state)
-    (h : X fuel validJumps state = .ok (.success state' out)) :
+    (h : X fork fuel validJumps state = .ok (.success state' out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   induction fuel generalizing state with
   | zero =>
@@ -2253,7 +2253,7 @@ lemma X_success_output_size_le_maxReturnDataSizeByGas
   | succ fuel ih =>
       unfold X at h
       simp [bind, Except.bind] at h
-      cases hstep : Xstep validJumps state with
+      cases hstep : Xstep fork validJumps state with
       | error e => simp [hstep] at h
       | ok res =>
           rcases res with ⟨state₁, ret⟩
@@ -2266,7 +2266,7 @@ lemma X_success_output_size_le_maxReturnDataSizeByGas
                 simpa [stateCont, memoryPaidByGas] using
                   Xstep_memoryPaidByGas_of_none hpaid hstep
               have hcont :
-                  X fuel validJumps stateCont = .ok (.success state' out) := by
+                  X fork fuel validJumps stateCont = .ok (.success state' out) := by
                 simpa [stateCont] using h
               exact ih hpaidCont hcont
           | some halted =>
@@ -2279,7 +2279,7 @@ lemma X_success_output_size_le_maxReturnDataSizeByGas
 lemma X_success_output_size_lt_uint256 {fuel : Nat} {validJumps : Array UInt256}
     {state state' : State} {out : ByteArray}
     (hpaid : memoryPaidByGas state)
-    (h : X fuel validJumps state = .ok (.success state' out)) :
+    (h : X fork fuel validJumps state = .ok (.success state' out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (X_success_output_size_le_maxReturnDataSizeByGas hpaid h)
@@ -2289,7 +2289,7 @@ lemma X_revert_output_size_le_maxReturnDataSizeByGas
     {fuel : Nat} {validJumps : Array UInt256}
     {state : State} {g : UInt256} {out : ByteArray}
     (hpaid : memoryPaidByGas state)
-    (h : X fuel validJumps state = .ok (.revert g out)) :
+    (h : X fork fuel validJumps state = .ok (.revert g out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   induction fuel generalizing state with
   | zero =>
@@ -2297,7 +2297,7 @@ lemma X_revert_output_size_le_maxReturnDataSizeByGas
   | succ fuel ih =>
       unfold X at h
       simp [bind, Except.bind] at h
-      cases hstep : Xstep validJumps state with
+      cases hstep : Xstep fork validJumps state with
       | error e => simp [hstep] at h
       | ok res =>
           rcases res with ⟨state₁, ret⟩
@@ -2310,7 +2310,7 @@ lemma X_revert_output_size_le_maxReturnDataSizeByGas
                 simpa [stateCont, memoryPaidByGas] using
                   Xstep_memoryPaidByGas_of_none hpaid hstep
               have hcont :
-                  X fuel validJumps stateCont = .ok (.revert g out) := by
+                  X fork fuel validJumps stateCont = .ok (.revert g out) := by
                 simpa [stateCont] using h
               exact ih hpaidCont hcont
           | some halted =>
@@ -2323,7 +2323,7 @@ lemma X_revert_output_size_le_maxReturnDataSizeByGas
 lemma X_revert_output_size_lt_uint256 {fuel : Nat} {validJumps : Array UInt256}
     {state : State} {g : UInt256} {out : ByteArray}
     (hpaid : memoryPaidByGas state)
-    (h : X fuel validJumps state = .ok (.revert g out)) :
+    (h : X fork fuel validJumps state = .ok (.revert g out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (X_revert_output_size_le_maxReturnDataSizeByGas hpaid h)
@@ -2333,11 +2333,11 @@ lemma Xi_success_output_size_le_maxReturnDataSizeByGas
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
-    (h : Ξ σ σ₀ g A I = .ok (.success res out)) :
+    (h : Ξ fork σ σ₀ g A I = .ok (.success res out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
-  cases hx : X (g.toNat + 1) (D_J I.code 0)
+  cases hx : X fork (g.toNat + 1) (D_J I.code 0)
       { (default : State) with
         accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A,
         machineState.gasAvailable := .ofUInt256 g } with
@@ -2367,7 +2367,7 @@ lemma Xi_success_output_size_lt_uint256
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {res : AccountMap × UInt256 × Substate}
     {out : ByteArray}
-    (h : Ξ σ σ₀ g A I = .ok (.success res out)) :
+    (h : Ξ fork σ σ₀ g A I = .ok (.success res out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xi_success_output_size_le_maxReturnDataSizeByGas h)
@@ -2376,11 +2376,11 @@ lemma Xi_success_output_size_lt_uint256
 lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
-    (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
+    (h : Ξ fork σ σ₀ g A I = .ok (.revert g' out)) :
     out.size ≤ maxReturnDataSizeByGas := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
-  cases hx : X (g.toNat + 1) (D_J I.code 0)
+  cases hx : X fork (g.toNat + 1) (D_J I.code 0)
       { (default : State) with
         accountMap := σ, σ₀ := σ₀, executionEnv := I, substate := A, machineState.gasAvailable := .ofUInt256 g } with
   | error e => simp [hx] at h
@@ -2408,7 +2408,7 @@ lemma Xi_revert_output_size_le_maxReturnDataSizeByGas
 lemma Xi_revert_output_size_lt_uint256
     {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     {g' : UInt256} {out : ByteArray}
-    (h : Ξ σ σ₀ g A I = .ok (.revert g' out)) :
+    (h : Ξ fork σ σ₀ g A I = .ok (.revert g' out)) :
     out.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xi_revert_output_size_le_maxReturnDataSizeByGas h)
@@ -2416,12 +2416,12 @@ lemma Xi_revert_output_size_lt_uint256
 
 lemma Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
     (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match Ξ σ σ₀ g A I with
+    (match Ξ fork σ σ₀ g A I with
       | .error _ => (∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
       | .ok (.revert g' out) => (∅, g', A, out)
       | .ok (.success (σ', g', A') out) =>
           (σ', g', A', out)).2.2.2.size ≤ maxReturnDataSizeByGas := by
-  cases hxi : Ξ σ σ₀ g A I with
+  cases hxi : Ξ fork σ σ₀ g A I with
   | error err =>
       simp [maxReturnDataSizeByGas]
   | ok xres =>
@@ -2434,7 +2434,7 @@ lemma Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
 
 lemma Xi_tuple_match_output_size_lt_uint256
     (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (match Ξ σ σ₀ g A I with
+    (match Ξ fork σ σ₀ g A I with
       | .error _ => (∅, (⟨0⟩ : UInt256), A, ByteArray.empty)
       | .ok (.revert g' out) => (∅, g', A, out)
       | .ok (.success (σ', g', A') out) =>
@@ -2447,7 +2447,7 @@ lemma Xi_tuple_match_output_size_lt_uint256
 lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
     (a : AccountAddress)
     (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar : Substate) (I : ExecutionEnv) :
-    (match Ξ σStar σ₀ g AStar I with
+    (match Ξ fork σStar σ₀ g AStar I with
       | .error _ => (a, σ, (⟨0⟩ : UInt256), {AStar with createdAccounts := A.createdAccounts}, false, ByteArray.empty)
       | .ok (.revert g' out) => (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, out)
       | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
@@ -2471,7 +2471,7 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
           let z := not F
           (a, σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.size ≤
       maxReturnDataSizeByGas := by
-  cases hxi : Ξ σStar σ₀ g AStar I with
+  cases hxi : Ξ fork σStar σ₀ g AStar I with
   | error err =>
       simp [maxReturnDataSizeByGas]
   | ok xres =>
@@ -2485,7 +2485,7 @@ lemma Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
 lemma Lambda_Xi_tuple_match_output_size_lt_uint256
     (a : AccountAddress)
     (σ σStar σ₀ : AccountMap) (g : UInt256) (A AStar : Substate) (I : ExecutionEnv) :
-    (match Ξ σStar σ₀ g AStar I with
+    (match Ξ fork σStar σ₀ g AStar I with
       | .error _ => (a, σ, (⟨0⟩ : UInt256), {AStar with createdAccounts := A.createdAccounts}, false, ByteArray.empty)
       | .ok (.revert g' out) => (a, σ, g', {AStar with createdAccounts := A.createdAccounts}, false, out)
       | .ok (.success (σStarStar, gStarStar, AStarStar) returnedData) =>
@@ -2509,7 +2509,7 @@ lemma Lambda_Xi_tuple_match_output_size_lt_uint256
           let z := not F
           (a, σ', .ofNat g', A', z, ByteArray.empty)).2.2.2.2.2.size <
       UInt256.size := by
-  have hle := Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas
+  have hle := Lambda_Xi_tuple_match_output_size_le_maxReturnDataSizeByGas (fork := fork)
     a σ σStar σ₀ g A AStar I
   exact Nat.lt_of_le_of_lt hle maxReturnDataSizeByGas_lt_uint256
 
@@ -2547,7 +2547,7 @@ lemma lambda_projection_output_size_le_maxReturnDataSizeByGas
   let exEnv : ExecutionEnv :=
     { codeOwner := a, sender := o, source := s, weiValue := v, calldata := default,
       code := initCode, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   unfold Lambda
   simp only
   exact (by
@@ -2704,7 +2704,7 @@ lemma theta_code_projection_output_size_le_maxReturnDataSizeByGas
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d,
       source := s, weiValue := v', depth := e, perm := w, code := code,
-      header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
+      header := H, blobVersionedHashes := blobVersionedHashes, blocks := blocks }
   unfold Θ
   simp only
   exact (by
@@ -2909,10 +2909,10 @@ private lemma EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_required
 
 lemma precompile_EXPMOD_output_size_le_modulus_length
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
-    (Ξ_EXPMOD σ g A I).2.2.2.size ≤ nat_of_slice I.calldata 64 32 := by
+    (Ξ_EXPMOD fork σ g A I).2.2.2.size ≤ nat_of_slice I.calldata 64 32 := by
   unfold Ξ_EXPMOD
   dsimp only
-  cases hreq : expmodRequiredGas I.fork I.calldata with
+  cases hreq : expmodRequiredGas fork I.calldata with
   | none => simp
   | some gᵣ =>
     by_cases hgas : g.toNat < gᵣ
@@ -2962,11 +2962,11 @@ private def thetaValueTransferAccountMap
   | some acc =>
       σ'₁.insert s { acc with balance := acc.balance - v}
 
-private def precompileDispatchResult
+private def precompileDispatchResult (fork : Fork)
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
     AccountMap × UInt256 × Substate × ByteArray :=
-  Ξ_PRECOMPILE pc σ g A I
+  Ξ_PRECOMPILE fork pc σ g A I
 
 lemma precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
@@ -3034,14 +3034,14 @@ lemma precompile_ID_output_size_le_maxReturnDataSizeByGas_or_calldata
 
 lemma precompile_EXPMOD_output_size_le_maxReturnDataSizeByGas_or_calldata
     {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv} :
-    (Ξ_EXPMOD σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
-  cases hreq : expmodRequiredGas I.fork I.calldata with
+    (Ξ_EXPMOD fork σ g A I).2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size := by
+  cases hreq : expmodRequiredGas fork I.calldata with
   | none => simp [Ξ_EXPMOD, hreq]
   | some gᵣ =>
     by_cases hgas : g.toNat < gᵣ
     · simp [Ξ_EXPMOD, hreq, hgas]
     · have hmod :=
-        EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_required I.fork I.calldata gᵣ hreq
+        EXPMOD_modulus_length_le_maxReturnDataSizeByGas_of_required fork I.calldata gᵣ hreq
           (Nat.lt_of_le_of_lt (Nat.le_of_not_gt hgas) g.val.isLt)
       exact Nat.le_trans precompile_EXPMOD_output_size_le_modulus_length
         (Nat.le_trans hmod (le_max_left _ _))
@@ -3174,9 +3174,9 @@ lemma precompile_P256VERIFY_output_size_le_maxReturnDataSizeByGas_or_calldata
 lemma precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate)
     (I : ExecutionEnv) :
-    (precompileDispatchResult pc σ g A I).2.2.2.size ≤
+    (precompileDispatchResult fork pc σ g A I).2.2.2.size ≤
       max maxReturnDataSizeByGas I.calldata.size :=
-  Ξ_PRECOMPILE_induction (fun r => r.2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size)
+  Ξ_PRECOMPILE_induction fork (fun r => r.2.2.2.size ≤ max maxReturnDataSizeByGas I.calldata.size)
     precompile_ECREC_output_size_le_maxReturnDataSizeByGas_or_calldata
     precompile_SHA256_output_size_le_maxReturnDataSizeByGas_or_calldata
     precompile_RIP160_output_size_le_maxReturnDataSizeByGas_or_calldata
@@ -3204,8 +3204,8 @@ private lemma theta_precompiled_output_eq
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-       let result := precompileDispatchResult pc σ₁ g A I
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+       let result := precompileDispatchResult fork pc σ₁ g A I
        result.2.2.2) := by
   unfold Θ thetaValueTransferAccountMap
   simp
@@ -3237,8 +3237,8 @@ lemma theta_precompiled_output_size_le_maxReturnDataSizeByGas_or_calldata
   let I : ExecutionEnv :=
     { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
       code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-      blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
-  have hdispatch := precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata pc
+      blobVersionedHashes := blobVersionedHashes, blocks := blocks }
+  have hdispatch := precompile_dispatch_output_size_le_maxReturnDataSizeByGas_or_calldata (fork := fork) pc
     (thetaValueTransferAccountMap σ s r v) g A I
   simpa [I] using hdispatch
 
@@ -3455,7 +3455,7 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
     (hin :
       (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   unfold call at h
@@ -3472,13 +3472,13 @@ lemma call_returnData_size_le_maxReturnDataSizeByGas
       simpa using
         (theta_projection_output_size_le_maxReturnDataSizeByGas
           evmState.accountMap evmState.σ₀
-          (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+          (callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
           (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
           (AccountAddress.ofUInt256 recipient)
-          (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+          (toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
           (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (.ofNat
-            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
+            (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value gas
               evmState.accountMap evmState.machineState evmState.substate))
           (.ofNat evmState.executionEnv.gasPrice) value value'
           (evmState.executionEnv.depth + 1) evmState.executionEnv.header
@@ -3492,7 +3492,7 @@ lemma call_returnData_size_lt_uint256 {gasCost : Nat}
     (hin :
       (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
@@ -3509,7 +3509,7 @@ lemma step_call_returnData_size_le_maxReturnDataSizeByGas
         some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.CALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALL, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -3537,7 +3537,7 @@ lemma step_call_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt25
         some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.CALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALL, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_call_returnData_size_le_maxReturnDataSizeByGas hin h)
@@ -3553,7 +3553,7 @@ lemma step_callcode_returnData_size_le_maxReturnDataSizeByGas
         some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALLCODE, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -3581,7 +3581,7 @@ lemma step_callcode_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UI
         some (stack, gas, target, value, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.CALLCODE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CALLCODE, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_callcode_returnData_size_le_maxReturnDataSizeByGas hin h)
@@ -3597,7 +3597,7 @@ lemma step_delegatecall_returnData_size_le_maxReturnDataSizeByGas
         some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -3625,7 +3625,7 @@ lemma step_delegatecall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option
         some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.DELEGATECALL, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_delegatecall_returnData_size_le_maxReturnDataSizeByGas hin h)
@@ -3641,7 +3641,7 @@ lemma step_staticcall_returnData_size_le_maxReturnDataSizeByGas
         some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.STATICCALL, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -3669,7 +3669,7 @@ lemma step_staticcall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (
         some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (Operation.STATICCALL, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.STATICCALL, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_staticcall_returnData_size_le_maxReturnDataSizeByGas hin h)
@@ -3678,7 +3678,7 @@ lemma step_staticcall_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (
 lemma create_returnData_size_le_maxReturnDataSizeByGas
     {value offset size : UInt256} {salt : Option ByteArray}
     {evmState state' : State} {x : UInt256}
-    (h : create value offset size salt evmState = .ok (x, state')) :
+    (h : create fork value offset size salt evmState = .ok (x, state')) :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   unfold create at h
   simp [bind, Except.bind, pure, Except.pure] at h
@@ -3695,7 +3695,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_create_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (Operation.CREATE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CREATE, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -3710,7 +3710,7 @@ lemma step_create_returnData_size_le_maxReturnDataSizeByGas
 set_option linter.unusedSimpArgs false in
 lemma step_create_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (Operation.CREATE, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CREATE, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_create_returnData_size_le_maxReturnDataSizeByGas h)
@@ -3720,7 +3720,7 @@ set_option linter.unusedSimpArgs false in
 lemma step_create2_returnData_size_le_maxReturnDataSizeByGas
     {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (Operation.CREATE2, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CREATE2, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -3735,7 +3735,7 @@ lemma step_create2_returnData_size_le_maxReturnDataSizeByGas
 set_option linter.unusedSimpArgs false in
 lemma step_create2_returnData_size_lt_uint256 {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (Operation.CREATE2, arg) state = .ok state') :
+    (h : step fork gasCost (Operation.CREATE2, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_create2_returnData_size_le_maxReturnDataSizeByGas h)
@@ -3758,7 +3758,7 @@ lemma step_recursive_returnData_size_le_maxReturnDataSizeByGas {gasCost : Nat}
         some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (op, arg) state = .ok state') :
+    (h : step fork gasCost (op, arg) state = .ok state') :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   simp at hop
   rcases hop with hcall | hcallcode | hdelegatecall | hstaticcall | hcreate | hcreate2
@@ -3792,7 +3792,7 @@ lemma step_recursive_returnData_size_lt_uint256 {gasCost : Nat}
         some (stack, gas, target, inOffset, inSize, outOffset, outSize) →
       (state.machineState.memory.readWithPadding inOffset.toNat inSize.toNat).size ≤
         maxReturnDataSizeByGas)
-    (h : step gasCost (op, arg) state = .ok state') :
+    (h : step fork gasCost (op, arg) state = .ok state') :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (step_recursive_returnData_size_le_maxReturnDataSizeByGas hop hin7 hin6 h)
@@ -3807,7 +3807,7 @@ lemma Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas {validJumps : Ar
         (Operation.STOP, (none : Option (UInt256 × Nat)))).1 ∈
       ([Operation.CALL, Operation.CALLCODE, Operation.DELEGATECALL, Operation.STATICCALL,
         Operation.CREATE, Operation.CREATE2] : List Operation))
-    (h : Xstep validJumps state = .ok (state', ret)) :
+    (h : Xstep fork validJumps state = .ok (state', ret)) :
     state'.machineState.returnData.size ≤ maxReturnDataSizeByGas := by
   unfold Xstep at h
   generalize hdecode :
@@ -3978,7 +3978,7 @@ lemma Xstep_recursive_returnData_size_lt_uint256 {validJumps : Array UInt256}
         (Operation.STOP, (none : Option (UInt256 × Nat)))).1 ∈
       ([Operation.CALL, Operation.CALLCODE, Operation.DELEGATECALL, Operation.STATICCALL,
         Operation.CREATE, Operation.CREATE2] : List Operation))
-    (h : Xstep validJumps state = .ok (state', ret)) :
+    (h : Xstep fork validJumps state = .ok (state', ret)) :
     state'.machineState.returnData.size < UInt256.size := by
   exact Nat.lt_of_le_of_lt
     (Xstep_recursive_returnData_size_le_maxReturnDataSizeByGas hpaid hop h)

@@ -8,10 +8,12 @@ namespace Ethereum
 
 namespace EVM
 
+variable {fork : Fork}
+
 set_option maxHeartbeats 2000000 in
 lemma Z_no_OutOfFuel {w s} validJumps :
-  -- Z validJumps w s = .error e → e ≠ .OutOfFuel := by
-  Z validJumps w s ≠ .error .OutOfFuel := by
+  -- Z fork validJumps w s = .error e → e ≠ .OutOfFuel := by
+  Z fork validJumps w s ≠ .error .OutOfFuel := by
     intro h
     simp [Z] at h
     cases hd : δ w
@@ -142,63 +144,63 @@ lemma Z_no_OutOfFuel {w s} validJumps :
     (permission : Bool)
     (evmState : State)
     (e : ExecutionException) :
-    call gasCost gas source recipient t value value' inOffset inSize
+    call fork gasCost gas source recipient t value value' inOffset inSize
         outOffset outSize permission evmState ≠ .error e := by
   unfold call
   simp
 
 @[simp] private lemma create_no_OutOfFuel
     (value offset size : UInt256) (salt : Option ByteArray) (evmState : State) :
-    create value offset size salt evmState ≠ .error .OutOfFuel := by
+    create fork value offset size salt evmState ≠ .error .OutOfFuel := by
   intro h
   unfold create at h
   simp [bind, Except.bind, pure, Except.pure] at h
   repeat' (split at h <;> try simp at h)
 
 private lemma step_create_no_OutOfFuel {g state arg} :
-    step g (.CREATE, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.CREATE, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
   cases hpop : state.machineState.stack.pop3 <;> simp [hpop, Option.option] at h
   split at h <;> simp_all
 
 private lemma step_create2_no_OutOfFuel {g state arg} :
-    step g (.CREATE2, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.CREATE2, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
   cases hpop : state.machineState.stack.pop4 <;> simp [hpop, Option.option] at h
   split at h <;> simp_all
 
 private lemma step_call_no_OutOfFuel {g state arg} :
-    step g (.CALL, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.CALL, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
   cases hpop : state.machineState.stack.pop7 <;> simp [hpop, Option.option] at h
   split at h <;> simp at *
 
 private lemma step_callcode_no_OutOfFuel {g state arg} :
-    step g (.CALLCODE, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.CALLCODE, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
   cases hpop : state.machineState.stack.pop7 <;> simp [hpop, Option.option] at h
   split at h <;> simp at *
 
 private lemma step_delegatecall_no_OutOfFuel {g state arg} :
-    step g (.DELEGATECALL, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.DELEGATECALL, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
   cases hpop : state.machineState.stack.pop6 <;> simp [hpop, Option.option] at h
   split at h <;> simp at *
 
 private lemma step_staticcall_no_OutOfFuel {g state arg} :
-    step g (.STATICCALL, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.STATICCALL, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step, bind, Except.bind, liftM, monadLift, MonadLift.monadLift] at h
   cases hpop : state.machineState.stack.pop6 <;> simp [hpop, Option.option] at h
   split at h <;> simp at *
 
 private lemma step_selfdestruct_no_OutOfFuel {g state arg} :
-    step g (.SELFDESTRUCT, arg) state ≠ .error .OutOfFuel := by
+    step fork g (.SELFDESTRUCT, arg) state ≠ .error .OutOfFuel := by
   intro h
   simp [step] at h
   cases hpop : state.machineState.stack.pop <;> simp [hpop] at h
@@ -206,7 +208,7 @@ private lemma step_selfdestruct_no_OutOfFuel {g state arg} :
 
 set_option maxHeartbeats 2000000 in
 lemma step_no_OutOfFuel {g state} instr :
-  step g instr state ≠ .error .OutOfFuel := by
+  step fork g instr state ≠ .error .OutOfFuel := by
   rcases instr with ⟨instr, arg⟩
   cases instr with
   | StopArith op =>
@@ -258,7 +260,7 @@ lemma step_no_OutOfFuel {g state} instr :
 
 
 lemma Xstep_no_OutOfFuel {state} validJumps :
-  Xstep validJumps state ≠ .error .OutOfFuel := by
+  Xstep fork validJumps state ≠ .error .OutOfFuel := by
     simp [Xstep]
     intro hstep
     split at hstep
@@ -272,7 +274,7 @@ lemma Xstep_no_OutOfFuel {state} validJumps :
 
 lemma X_no_OufOfFuel_of_gas_lt_fuel {f s} validJumps : 
   s.machineState.gasAvailable.toNat < f →
-  X f validJumps s ≠ .error .OutOfFuel := by
+  X fork f validJumps s ≠ .error .OutOfFuel := by
   intro h
   revert s
   induction f with
@@ -284,7 +286,7 @@ lemma X_no_OufOfFuel_of_gas_lt_fuel {f s} validJumps :
     split
     · rename_i hstep;
       simp
-      have h' : Xstep validJumps s ≠ .error .OutOfFuel := Xstep_no_OutOfFuel validJumps
+      have h' : Xstep fork validJumps s ≠ .error .OutOfFuel := Xstep_no_OutOfFuel validJumps
       simp [hstep] at h'
       assumption
     · rename_i is hstep

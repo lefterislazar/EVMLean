@@ -176,6 +176,7 @@ def expmodRequiredGas (fork : Fork) (data : ByteArray) : Option ℕ :=
       some <| max 200 (words ^ 2 * iterations / 3)
 
 def Ξ_EXPMOD
+  (fork : Fork)
   (σ : AccountMap)
   (g : UInt256)
   (A : Substate)
@@ -187,7 +188,7 @@ def Ξ_EXPMOD
   let base_length := nat_of_slice data 0 32
   let exp_length := nat_of_slice data 32 32
   let modulus_length := nat_of_slice data 64 32
-  match expmodRequiredGas I.fork data with
+  match expmodRequiredGas fork data with
   | none => (∅, ⟨0⟩, A, .empty)
   | some gᵣ =>
     if g.toNat < gᵣ then
@@ -208,24 +209,6 @@ def Ξ_EXPMOD
               ByteArray.empty
           expmod_zeroes ++ expmod_base
       (σ, g - .ofNat gᵣ, A, o)
-
-private def expmodOutput :=
-  let (_, _, o) :=
-    Ξ_EXPMOD
-      default
-      ⟨3000⟩
-      default
-      { (default : ExecutionEnv) with
-        calldata := l_B ++ l_E ++ l_M ++ B ++ E ++ M
-      }
-  o
- where
-  l_B : ByteArray := UInt256.toByteArray ⟨2⟩
-  l_E : ByteArray := UInt256.toByteArray ⟨1⟩
-  l_M : ByteArray := UInt256.toByteArray ⟨1⟩
-  B : ByteArray := ⟨#[1, 0]⟩ -- 2^8
-  E : ByteArray := ⟨#[2]⟩
-  M : ByteArray := ⟨#[100]⟩
 
 def Ξ_BN_ADD
   (σ : AccountMap)
@@ -523,6 +506,7 @@ a fork is decided by `π` (see `toExecute`); this dispatch is fork independent.
 Failure is signalled by an empty account map.
 -/
 def Ξ_PRECOMPILE
+  (fork : Fork)
   (p : AccountAddress)
   (σ : AccountMap)
   (g : UInt256)
@@ -535,7 +519,7 @@ def Ξ_PRECOMPILE
   else if p = 2 then Ξ_SHA256 σ g A I
   else if p = 3 then Ξ_RIP160 σ g A I
   else if p = 4 then Ξ_ID σ g A I
-  else if p = 5 then Ξ_EXPMOD σ g A I
+  else if p = 5 then Ξ_EXPMOD fork σ g A I
   else if p = 6 then Ξ_BN_ADD σ g A I
   else if p = 7 then Ξ_BN_MUL σ g A I
   else if p = 8 then Ξ_SNARKV σ g A I
@@ -554,16 +538,17 @@ def Ξ_PRECOMPILE
 /-- A property of every precompile result, and of the default result, holds
     for the dispatch. -/
 theorem Ξ_PRECOMPILE_induction
+    (fork : Fork)
     (P : AccountMap × UInt256 × Substate × ByteArray → Prop)
     {p : AccountAddress} {σ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
     (hECREC : P (Ξ_ECREC σ g A I)) (hSHA256 : P (Ξ_SHA256 σ g A I))
     (hRIP160 : P (Ξ_RIP160 σ g A I)) (hID : P (Ξ_ID σ g A I))
-    (hEXPMOD : P (Ξ_EXPMOD σ g A I)) (hBN_ADD : P (Ξ_BN_ADD σ g A I))
+    (hEXPMOD : P (Ξ_EXPMOD fork σ g A I)) (hBN_ADD : P (Ξ_BN_ADD σ g A I))
     (hBN_MUL : P (Ξ_BN_MUL σ g A I)) (hSNARKV : P (Ξ_SNARKV σ g A I))
     (hBLAKE2_F : P (Ξ_BLAKE2_F σ g A I)) (hPointEval : P (Ξ_PointEval σ g A I))
     (hBLS : ∀ op, P (Ξ_BLS12_381 op σ g A I)) (hP256 : P (Ξ_P256VERIFY σ g A I))
     (hdefault : P default) :
-    P (Ξ_PRECOMPILE p σ g A I) := by
+    P (Ξ_PRECOMPILE fork p σ g A I) := by
   unfold Ξ_PRECOMPILE
   by_cases h1 : p = 1
   · rw [if_pos h1]; exact hECREC

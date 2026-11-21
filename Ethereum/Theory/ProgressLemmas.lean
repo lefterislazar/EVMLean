@@ -8,8 +8,10 @@ namespace Ethereum
 
 namespace EVM
 
+variable {fork : Fork}
+
 lemma Xstep_env_unchanged : ∀ state state' validJumps o,
-  Xstep validJumps state = .ok (state', o)
+  Xstep fork validJumps state = .ok (state', o)
   → state.executionEnv = state'.executionEnv := by
     intro state state' validJumps o hstep
     simp [Xstep] at hstep
@@ -34,55 +36,55 @@ lemma Xstep_env_unchanged : ∀ state state' validJumps o,
               (simp at hstep; apply And.left at hstep ; rw [← hstep])
 
 lemma Xstep_X_X_continue : ∀ f state istate validJumps xres,
-  Xstep validJumps state = .ok (istate, .none)
-  → X f validJumps istate = xres
-  → X (f + 1) validJumps state = xres := by
+  Xstep fork validJumps state = .ok (istate, .none)
+  → X fork f validJumps istate = xres
+  → X fork (f + 1) validJumps state = xres := by
     intros f state istate validJumps xres hstep0 hXf
     simp [X, hstep0, bind, Except.bind]
     rw [← hXf]
     rw [Xstep_env_unchanged state istate validJumps .none hstep0]
 
 lemma Xstep_X_X_halt_success : ∀ f state state' validJumps o,
-  Xstep validJumps state = .ok (state', .some (HaltCause.success, o))
-  → X (f + 1) validJumps state = .ok (.success state' o) := by
+  Xstep fork validJumps state = .ok (state', .some (HaltCause.success, o))
+  → X fork (f + 1) validJumps state = .ok (.success state' o) := by
     intros f state state' validJumps o hstep
     unfold X
     simp [hstep, bind, Except.bind]
 
 lemma Xstep_X_X_halt_revert : ∀ f state state' validJumps o,
-  Xstep validJumps state = .ok (state', .some (HaltCause.revert,o))
-  → X (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable.toUInt256 o) := by
+  Xstep fork validJumps state = .ok (state', .some (HaltCause.revert,o))
+  → X fork (f + 1) validJumps state = .ok (.revert state'.machineState.gasAvailable.toUInt256 o) := by
     intros f state state' validJumps o hstep
     unfold X
     simp [hstep, bind, Except.bind]
 
 lemma Xstep_X_X_except : ∀ f state validJumps e,
-  Xstep validJumps state = .error e
-  → X (f + 1) validJumps state = .error e := by
+  Xstep fork validJumps state = .error e
+  → X fork (f + 1) validJumps state = .error e := by
     intros f state validJumps e hstep
     unfold X
     simp [hstep, bind, Except.bind]
 
 -- inductive Xstep_rel validJumps :  State → Except ExecutionException (State × Option (HaltCause × ByteArray)) → Prop where
 --   | intro {s} :
---     Xstep_rel validJumps s (Xstep validJumps s)
+--     Xstep_rel validJumps s (Xstep fork validJumps s)
 
   
-inductive XstepN validJumps : State → Except ExecutionException (State × Option (HaltCause × ByteArray)) → ℕ → Prop where
+inductive XstepN (fork : Fork) (validJumps : Array UInt256) : State → Except ExecutionException (State × Option (HaltCause × ByteArray)) → ℕ → Prop where
   | step : ∀ s s',
     -- Xstep_rel validJumps s s' →
-    Xstep validJumps s = s' →
-    XstepN validJumps s s' 1
+    Xstep fork validJumps s = s' →
+    XstepN fork validJumps s s' 1
   | trans : ∀ s s' x' n,
     -- Xstep_rel validJumps s (.ok (s', .none)) →
-    Xstep validJumps s = .ok (s', .none) →
-    XstepN validJumps s' x' n →
-    XstepN validJumps s x' (n + 1)
+    Xstep fork validJumps s = .ok (s', .none) →
+    XstepN fork validJumps s' x' n →
+    XstepN fork validJumps s x' (n + 1)
 
 lemma XstepN_X_continue {s s' n f xres} validJumps :
-    XstepN validJumps s (.ok (s', .none)) n →
-    X f validJumps s' = xres →
-    X (f + n) validJumps s = xres := by
+    XstepN fork validJumps s (.ok (s', .none)) n →
+    X fork f validJumps s' = xres →
+    X fork (f + n) validJumps s = xres := by
     intro hstepN hX
     generalize hxi : (Except.ok (s', none)) = xi
     rw [hxi] at hstepN
@@ -98,8 +100,8 @@ lemma XstepN_X_continue {s s' n f xres} validJumps :
       rw [Xstep_env_unchanged s s' validJumps .none hstep]
 
 lemma XstepN_X_halt_success {s s' o n f} validJumps :
-    XstepN validJumps s (.ok (s', .some (.success, o))) n →
-    X (f + n) validJumps s = .ok (.success s' o) := by
+    XstepN fork validJumps s (.ok (s', .some (.success, o))) n →
+    X fork (f + n) validJumps s = .ok (.success s' o) := by
     intro hstepN
     generalize hxi : (Except.ok (s', Option.some (HaltCause.success, o))) = xi
     rw [hxi] at hstepN
@@ -115,8 +117,8 @@ lemma XstepN_X_halt_success {s s' o n f} validJumps :
       rw [Xstep_env_unchanged s s' validJumps .none hstep]
 
 lemma XstepN_X_halt_revert {s s' o n f} validJumps :
-    XstepN validJumps s (.ok (s', .some (.revert, o))) n →
-    X (f + n) validJumps s = .ok (.revert s'.machineState.gasAvailable.toUInt256 o) := by
+    XstepN fork validJumps s (.ok (s', .some (.revert, o))) n →
+    X fork (f + n) validJumps s = .ok (.revert s'.machineState.gasAvailable.toUInt256 o) := by
     intro hstepN
     generalize hxi : (Except.ok (s', Option.some (HaltCause.revert, o))) = xi
     rw [hxi] at hstepN
@@ -132,9 +134,9 @@ lemma XstepN_X_halt_revert {s s' o n f} validJumps :
       rw [Xstep_env_unchanged s s' validJumps .none hstep]
 
 lemma XstepN_XstepN_add { s s' n x m} validJumps :
-    XstepN validJumps s (.ok (s', .none)) n →
-    XstepN validJumps s' x m →
-    XstepN validJumps s x (n + m) := by
+    XstepN fork validJumps s (.ok (s', .none)) n →
+    XstepN fork validJumps s' x m →
+    XstepN fork validJumps s x (n + m) := by
   intro hstepn hstepm
   generalize hxi : (Except.ok (s', none)) = xi
   rw [hxi] at hstepn
@@ -151,7 +153,7 @@ lemma XstepN_XstepN_add { s s' n x m} validJumps :
 
 lemma XstepN_gas_lt_fuel_of_Xstep_ret_none {s s' n f} validJumps :
     s.machineState.gasAvailable.toNat < f + n →
-    XstepN validJumps s (.ok (s', .none)) n →
+    XstepN fork validJumps s (.ok (s', .none)) n →
     s'.machineState.gasAvailable.toNat < f := by
   intro hgas0 hstep
   generalize hxi : (Except.ok (s', Option.none)) = xs'

@@ -21,14 +21,14 @@ lemma extCodeHash_executionEnv_eq (s : State) (env : ExecutionEnv) (v : UInt256)
   simp [Ethereum.State.extCodeHash, Ethereum.State.addAccessedAccount]
   split <;> rfl
 
-@[simp] lemma C'_jump (s : State) : C' s .JUMP = GasConstants.Gmid := by
+@[simp] lemma C'_jump (s : State) : C' fork s .JUMP = GasConstants.Gmid := by
   simp [C', InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
     InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
     InstructionGasGroups.Wverylow, InstructionGasGroups.Wverylow.pushInstrsWithoutZero,
     InstructionGasGroups.Wverylow.dupInstrs, InstructionGasGroups.Wverylow.swapInstrs,
     InstructionGasGroups.Wlow, InstructionGasGroups.Wmid]
 
-@[simp] lemma C'_jumpi (s : State) : C' s .JUMPI = GasConstants.Ghigh := by
+@[simp] lemma C'_jumpi (s : State) : C' fork s .JUMPI = GasConstants.Ghigh := by
   simp [C', InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount,
     InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
     InstructionGasGroups.Wverylow, InstructionGasGroups.Wverylow.pushInstrsWithoutZero,
@@ -63,7 +63,7 @@ lemma extCodeHash_executionEnv_eq (s : State) (env : ExecutionEnv) (v : UInt256)
 theorem step_invalid : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.INVALID, .none)
-  → Xstep (D_J I_b 0) s = .error .InvalidInstruction
+  → Xstep fork (D_J I_b 0) s = .error .InvalidInstruction
 := by
     intros s I_b hinvalid
     simp [Xstep, Z, δ, I_b, hinvalid]
@@ -71,7 +71,7 @@ theorem step_invalid : ∀ (s : State),
 theorem step_stop : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.STOP, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.stack.length - 0 + 0 > 1024 then .error .StackOverflow
       else
       .ok ({s with
@@ -103,7 +103,7 @@ theorem step_stop : ∀ (s : State),
 theorem step_add : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ADD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -156,7 +156,7 @@ theorem step_add : ∀ (s : State),
 theorem step_mul : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MUL, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -210,7 +210,7 @@ theorem step_mul : ∀ (s : State),
 theorem step_exp : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXP, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let gasCost :=
@@ -260,7 +260,7 @@ theorem step_exp : ∀ (s : State),
 theorem step_addmod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ADDMOD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gmid then .error .OutOfGass
@@ -312,7 +312,7 @@ theorem step_addmod : ∀ (s : State),
 theorem step_mulmod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MULMOD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gmid then .error .OutOfGass
@@ -364,7 +364,7 @@ theorem step_mulmod : ∀ (s : State),
 theorem step_sdiv : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SDIV, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -415,7 +415,7 @@ theorem step_sdiv : ∀ (s : State),
 theorem step_mod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MOD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -466,7 +466,7 @@ theorem step_mod : ∀ (s : State),
 theorem step_smod : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SMOD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -517,7 +517,7 @@ theorem step_smod : ∀ (s : State),
 theorem step_signextend : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SIGNEXTEND, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -568,7 +568,7 @@ theorem step_signextend : ∀ (s : State),
 theorem step_sub : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SUB, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -622,7 +622,7 @@ theorem step_sub : ∀ (s : State),
 theorem step_div : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DIV, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
@@ -680,7 +680,7 @@ theorem step_div : ∀ (s : State),
 theorem step_lt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -730,7 +730,7 @@ theorem step_lt : ∀ (s : State),
 theorem step_gt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -780,7 +780,7 @@ theorem step_gt : ∀ (s : State),
 theorem step_slt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SLT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -830,7 +830,7 @@ theorem step_slt : ∀ (s : State),
 theorem step_sgt : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SGT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -880,7 +880,7 @@ theorem step_sgt : ∀ (s : State),
 theorem step_eq : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EQ, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -930,7 +930,7 @@ theorem step_eq : ∀ (s : State),
 theorem step_and : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.AND, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -980,7 +980,7 @@ theorem step_and : ∀ (s : State),
 theorem step_or : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.OR, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1030,7 +1030,7 @@ theorem step_or : ∀ (s : State),
 theorem step_xor : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.XOR, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1080,7 +1080,7 @@ theorem step_xor : ∀ (s : State),
 theorem step_byte : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BYTE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1130,7 +1130,7 @@ theorem step_byte : ∀ (s : State),
 theorem step_shl : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SHL, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1180,7 +1180,7 @@ theorem step_shl : ∀ (s : State),
 theorem step_shr : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SHR, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1230,7 +1230,7 @@ theorem step_shr : ∀ (s : State),
 theorem step_sar : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SAR, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1280,7 +1280,7 @@ theorem step_sar : ∀ (s : State),
 theorem step_iszero : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ISZERO, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1329,7 +1329,7 @@ theorem step_iszero : ∀ (s : State),
 theorem step_not : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.NOT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -1382,14 +1382,14 @@ leading zero bits; before Osaka `0x1e` halts as an invalid instruction.
 theorem step_clz : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CLZ, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
         else
         if s.machineState.stack.length - 1 + 1 > 1024 then .error .StackOverflow
         else
-        if s.executionEnv.fork.spec.eip7939 then
+        if fork.spec.eip7939 then
           .ok ({s with
                     machineState.stack := UInt256.clz a :: t,
                     machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Glow
@@ -1423,7 +1423,7 @@ theorem step_clz : ∀ (s : State),
           simp [hoverflow]
           simp [bind, Except.bind]
           unfold step
-          by_cases hfork : s.executionEnv.fork.spec.eip7939 = true
+          by_cases hfork : fork.spec.eip7939 = true
           · simp [hfork, Id.run, EVM.execUnOp, Stack.pop, Ethereum.State.replaceStackAndIncrPC]
             unfold Ethereum.State.incrPC
             simp
@@ -1439,7 +1439,7 @@ theorem step_clz : ∀ (s : State),
 theorem step_keccak : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.KECCAK256, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .KECCAK256
@@ -1521,7 +1521,7 @@ theorem step_keccak : ∀ (s : State),
 theorem step_address : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ADDRESS, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1558,7 +1558,7 @@ theorem step_address : ∀ (s : State),
 theorem step_origin : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.ORIGIN, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1595,7 +1595,7 @@ theorem step_origin : ∀ (s : State),
 theorem step_caller : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLER, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1632,7 +1632,7 @@ theorem step_caller : ∀ (s : State),
 theorem step_callvalue : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLVALUE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1669,7 +1669,7 @@ theorem step_callvalue : ∀ (s : State),
 theorem step_calldatasize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLDATASIZE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1706,7 +1706,7 @@ theorem step_calldatasize : ∀ (s : State),
 theorem step_codesize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CODESIZE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1743,7 +1743,7 @@ theorem step_codesize : ∀ (s : State),
 theorem step_gasprice : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GASPRICE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1780,7 +1780,7 @@ theorem step_gasprice : ∀ (s : State),
 theorem step_returndatasize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.RETURNDATASIZE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1817,7 +1817,7 @@ theorem step_returndatasize : ∀ (s : State),
 theorem step_coinbase : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.COINBASE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1854,7 +1854,7 @@ theorem step_coinbase : ∀ (s : State),
 theorem step_timestamp : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.TIMESTAMP, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1891,7 +1891,7 @@ theorem step_timestamp : ∀ (s : State),
 theorem step_number : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.NUMBER, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1928,7 +1928,7 @@ theorem step_number : ∀ (s : State),
 theorem step_prevrandao : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PREVRANDAO, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -1965,7 +1965,7 @@ theorem step_prevrandao : ∀ (s : State),
 theorem step_gaslimit : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GASLIMIT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2002,7 +2002,7 @@ theorem step_gaslimit : ∀ (s : State),
 theorem step_chainid : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CHAINID, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2039,7 +2039,7 @@ theorem step_chainid : ∀ (s : State),
 theorem step_basefee : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BASEFEE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2076,13 +2076,13 @@ theorem step_basefee : ∀ (s : State),
 theorem step_blobbasefee : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BLOBBASEFEE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else
       .ok ({s with
-                machineState.stack := UInt256.ofNat (s.executionEnv.header.getBlobGasprice s.executionEnv.fork) :: s.machineState.stack,
+                machineState.stack := UInt256.ofNat (s.executionEnv.header.getBlobGasprice fork) :: s.machineState.stack,
                 machineState.gasAvailable := s.machineState.gasAvailable.subNat GasConstants.Gbase
                 machineState.pc := s.machineState.pc + ⟨1⟩
                 machineState.execLength := s.machineState.execLength + 1
@@ -2113,7 +2113,7 @@ theorem step_blobbasefee : ∀ (s : State),
 theorem step_calldataload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLDATALOAD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -2164,7 +2164,7 @@ theorem step_calldataload : ∀ (s : State),
 theorem step_blockhash : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BLOCKHASH, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gblockhash then .error .OutOfGass
@@ -2212,7 +2212,7 @@ theorem step_blockhash : ∀ (s : State),
 theorem step_blobhash : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BLOBHASH, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.HASH_OPCODE_GAS then .error .OutOfGass
@@ -2258,7 +2258,7 @@ theorem step_blobhash : ∀ (s : State),
 theorem step_selfbalance : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SELFBALANCE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Glow then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -2303,7 +2303,7 @@ theorem step_selfbalance : ∀ (s : State),
 theorem step_balance : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.BALANCE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let addr := AccountAddress.ofUInt256 a
@@ -2356,7 +2356,7 @@ theorem step_balance : ∀ (s : State),
 theorem step_extcodesize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXTCODESIZE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let addr := AccountAddress.ofUInt256 a
@@ -2411,7 +2411,7 @@ theorem step_extcodesize : ∀ (s : State),
 theorem step_extcodehash : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXTCODEHASH, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let addr := AccountAddress.ofUInt256 a
@@ -2475,7 +2475,7 @@ theorem step_extcodehash : ∀ (s : State),
 theorem step_pop : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.POP, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | _ :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
@@ -2518,7 +2518,7 @@ theorem step_pop : ∀ (s : State),
 theorem step_mload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MLOAD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let memoryCost := memoryExpansionCost s .MLOAD
@@ -2600,7 +2600,7 @@ theorem step_mload : ∀ (s : State),
 theorem step_mstore : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MSTORE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .MSTORE
@@ -2676,7 +2676,7 @@ theorem step_mstore : ∀ (s : State),
 theorem step_mstore8 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MSTORE8, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .MSTORE8
@@ -2753,7 +2753,7 @@ theorem step_mstore8 : ∀ (s : State),
 theorem step_sload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SLOAD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         let gasCost := Csload (a :: t) s.substate s.executionEnv
@@ -2805,7 +2805,7 @@ theorem step_sload : ∀ (s : State),
 theorem step_tload : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.TLOAD, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < Ctload then .error .OutOfGass
@@ -2851,7 +2851,7 @@ theorem step_tload : ∀ (s : State),
 theorem step_tstore : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.TSTORE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < Ctstore then .error .OutOfGass
@@ -2921,7 +2921,7 @@ theorem step_tstore : ∀ (s : State),
 theorem step_calldatacopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLDATACOPY, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .CALLDATACOPY
@@ -2996,7 +2996,7 @@ theorem step_calldatacopy : ∀ (s : State),
 theorem step_codecopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CODECOPY, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .CODECOPY
@@ -3071,7 +3071,7 @@ theorem step_codecopy : ∀ (s : State),
 theorem step_returndatacopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.RETURNDATACOPY, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .RETURNDATACOPY
@@ -3152,7 +3152,7 @@ theorem step_returndatacopy : ∀ (s : State),
 theorem step_extcodecopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.EXTCODECOPY, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         let memoryCost := memoryExpansionCost s .EXTCODECOPY
@@ -3234,7 +3234,7 @@ theorem step_extcodecopy : ∀ (s : State),
 theorem step_mcopy : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MCOPY, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .MCOPY
@@ -3309,7 +3309,7 @@ theorem step_mcopy : ∀ (s : State),
 theorem step_return : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.RETURN, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .RETURN
@@ -3371,7 +3371,7 @@ theorem step_return : ∀ (s : State),
 theorem step_revert : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.REVERT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .REVERT
@@ -3434,7 +3434,7 @@ theorem step_revert : ∀ (s : State),
 theorem step_log0 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG0, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let memoryCost := memoryExpansionCost s .LOG0
@@ -3513,7 +3513,7 @@ theorem step_log0 : ∀ (s : State),
 theorem step_log1 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG1, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         let memoryCost := memoryExpansionCost s .LOG1
@@ -3593,7 +3593,7 @@ theorem step_log1 : ∀ (s : State),
 theorem step_log2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG2, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         let memoryCost := memoryExpansionCost s .LOG2
@@ -3674,7 +3674,7 @@ theorem step_log2 : ∀ (s : State),
 theorem step_log3 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG3, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: t =>
         let memoryCost := memoryExpansionCost s .LOG3
@@ -3756,7 +3756,7 @@ theorem step_log3 : ∀ (s : State),
 theorem step_log4 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.LOG4, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: t =>
         let memoryCost := memoryExpansionCost s .LOG4
@@ -3839,7 +3839,7 @@ theorem step_log4 : ∀ (s : State),
 theorem step_sstore : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SSTORE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         let gasCost := Csstore s
@@ -3988,7 +3988,7 @@ theorem step_sstore : ∀ (s : State),
 theorem step_call : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALL, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .CALL
@@ -3997,7 +3997,7 @@ theorem step_call : ∀ (s : State),
           let gasAvailable' := s.machineState.gasAvailable.subNat memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
-            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+            Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 7 + 1 > 1024 then .error .StackOverflow
@@ -4010,15 +4010,15 @@ theorem step_call : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
+            let Astar := callSubstate fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4083,7 +4083,7 @@ theorem step_call : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.subNat (memoryExpansionCost s .CALL)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let gasCost :=
-          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+          Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4094,7 +4094,7 @@ theorem step_call : ∀ (s : State),
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .CALL <
-                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+                Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4136,7 +4136,7 @@ theorem step_call : ∀ (s : State),
 theorem step_call' : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALL, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .CALL
@@ -4145,7 +4145,7 @@ theorem step_call' : ∀ (s : State),
           let gasAvailable' := s.machineState.gasAvailable.subNat memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
-            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+            Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 7 + 1 > 1024 then .error .StackOverflow
@@ -4158,15 +4158,15 @@ theorem step_call' : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
+            let Astar := callSubstate fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4197,7 +4197,7 @@ theorem step_call' : ∀ (s : State),
 theorem step_callcode : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CALLCODE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .CALLCODE
@@ -4206,7 +4206,7 @@ theorem step_callcode : ∀ (s : State),
           let gasAvailable' := s.machineState.gasAvailable.subNat memoryCost
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let gasCost :=
-            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+            Ccall fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 7 + 1 > 1024 then .error .StackOverflow
@@ -4218,15 +4218,15 @@ theorem step_callcode : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
+            let Astar := callSubstate fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4291,7 +4291,7 @@ theorem step_callcode : ∀ (s : State),
         let gasAvailable' := s.machineState.gasAvailable.subNat (memoryExpansionCost s .CALLCODE)
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let gasCost :=
-          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+          Ccall fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4302,7 +4302,7 @@ theorem step_callcode : ∀ (s : State),
           simp [gasAvailable', gasState, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .CALLCODE <
-                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+                Ccall fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: value :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4337,7 +4337,7 @@ theorem step_callcode : ∀ (s : State),
 theorem step_delegatecall : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DELEGATECALL, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .DELEGATECALL
@@ -4347,7 +4347,7 @@ theorem step_delegatecall : ∀ (s : State),
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let value := (⟨0⟩ : UInt256)
           let gasCost :=
-            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+            Ccall fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 6 + 1 > 1024 then .error .StackOverflow
@@ -4360,15 +4360,15 @@ theorem step_delegatecall : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
+            let Astar := callSubstate fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value') (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := s.executionEnv.perm)
               else
@@ -4430,7 +4430,7 @@ theorem step_delegatecall : ∀ (s : State),
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let value := (⟨0⟩ : UInt256)
         let gasCost :=
-          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
+          Ccall fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4441,7 +4441,7 @@ theorem step_delegatecall : ∀ (s : State),
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .DELEGATECALL <
-                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner ({ val := 0 } : UInt256) gas
+                Ccall fork (AccountAddress.ofUInt256 target) s.executionEnv.codeOwner ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4476,7 +4476,7 @@ theorem step_delegatecall : ∀ (s : State),
 theorem step_staticcall : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.STATICCALL, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t =>
         let memoryCost := memoryExpansionCost s .STATICCALL
@@ -4486,7 +4486,7 @@ theorem step_staticcall : ∀ (s : State),
           let gasState := {s with machineState.gasAvailable := gasAvailable'}
           let value := (⟨0⟩ : UInt256)
           let gasCost :=
-            Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+            Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
               s.accountMap gasState.machineState s.substate
           if gasAvailable'.toNat < gasCost then .error .OutOfGass
           else if s.machineState.stack.length - 6 + 1 > 1024 then .error .StackOverflow
@@ -4498,15 +4498,15 @@ theorem step_staticcall : ∀ (s : State),
             let σ := s.accountMap
             let Iₑ := s.executionEnv.depth
             let callMachineState := {gasState.machineState with execLength := s.machineState.execLength + 1}
-            let callgas := Ccallgas s.executionEnv.fork tAddr recipient value gas σ callMachineState s.substate
+            let callgas := Ccallgas fork tAddr recipient value gas σ callMachineState s.substate
             let i := s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat
-            let Astar := callSubstate s.executionEnv.fork σ tAddr s.substate
+            let Astar := callSubstate fork σ tAddr s.substate
             let (σ', g', A', z, o) :=
               if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-                Θ (fork := s.executionEnv.fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
+                Θ (fork := fork) (blobVersionedHashes := s.executionEnv.blobVersionedHashes)
                   (blocks := s.executionEnv.blocks) (σ := σ) (σ₀ := s.σ₀) (A := Astar)
                   (s := source) (o := s.executionEnv.sender) (r := recipient)
-                  (c := toExecute s.executionEnv.fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
+                  (c := toExecute fork σ tAddr) (g := .ofNat callgas) (p := .ofNat s.executionEnv.gasPrice)
                   (v := value) (v' := value) (d := i) (e := Iₑ + 1)
                   (H := s.executionEnv.header) (w := false)
               else
@@ -4568,7 +4568,7 @@ theorem step_staticcall : ∀ (s : State),
         let gasState := {s with machineState.gasAvailable := gasAvailable'}
         let value := (⟨0⟩ : UInt256)
         let gasCost :=
-          Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
+          Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) value gas
             s.accountMap gasState.machineState s.substate
         by_cases hgas : gasAvailable'.toNat < gasCost
         · have hgas_cond := hgas
@@ -4579,7 +4579,7 @@ theorem step_staticcall : ∀ (s : State),
           simp [gasAvailable', gasState, value, gasCost, hstk] at hgas_cond
           have hgas_not :
               ¬ s.machineState.gasAvailable.toNat - memoryExpansionCost s .STATICCALL <
-                Ccall s.executionEnv.fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) ({ val := 0 } : UInt256) gas
+                Ccall fork (AccountAddress.ofUInt256 target) (AccountAddress.ofUInt256 target) ({ val := 0 } : UInt256) gas
                   s.accountMap
                   { pc := s.machineState.pc,
                     stack := gas :: target :: inOffset :: inSize :: outOffset :: outSize :: t,
@@ -4614,7 +4614,7 @@ theorem step_staticcall : ∀ (s : State),
 theorem step_create : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CREATE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | value :: offset :: size :: t =>
         let memoryCost := memoryExpansionCost s .CREATE
@@ -4644,7 +4644,7 @@ theorem step_create : ∀ (s : State),
           else
             if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
               let (a, σ', g', A', z, o) :=
-                Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                Lambda (fork := fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
@@ -4778,7 +4778,7 @@ theorem step_create : ∀ (s : State),
                     if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
                       let (a, σ', g', A', z, o) :=
-                        Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                        Lambda (fork := fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ none
@@ -4925,7 +4925,7 @@ theorem step_create : ∀ (s : State),
 theorem step_create2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.CREATE2, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | value :: offset :: size :: salt :: t =>
         let memoryCost := memoryExpansionCost s .CREATE2
@@ -4956,7 +4956,7 @@ theorem step_create2 : ∀ (s : State),
           else
             if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ initCode.size ≤ 49152 then
               let (a, σ', g', A', z, o) :=
-                Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                Lambda (fork := fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                   Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                   (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                   ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
@@ -5093,7 +5093,7 @@ theorem step_create2 : ∀ (s : State),
                     if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧
                         createState.executionEnv.depth < 1024 ∧ initCode.size ≤ 49152 then
                       let (a, σ', g', A', z, o) :=
-                        Lambda (fork := createState.executionEnv.fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
+                        Lambda (fork := fork) (blobVersionedHashes := createState.executionEnv.blobVersionedHashes) (blocks := createState.executionEnv.blocks) σStar createState.σ₀ createState.substate
                           Iₐ Iₒ (UInt256.ofNat (L createState.machineState.gasAvailable.toNat))
                           (UInt256.ofNat createState.executionEnv.gasPrice) value initCode
                           ⟨createState.executionEnv.depth.val + 1, Nat.succ_lt_succ hDepth.2.1⟩ ζ
@@ -5240,7 +5240,7 @@ theorem step_create2 : ∀ (s : State),
 theorem step_selfdestruct : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SELFDESTRUCT, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | target :: t =>
         let gasCost := Cselfdestruct s
@@ -5419,7 +5419,7 @@ theorem step_selfdestruct : ∀ (s : State),
 theorem step_pc : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PC, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5453,7 +5453,7 @@ theorem step_pc : ∀ (s : State),
 theorem step_msize : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.MSIZE, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5487,7 +5487,7 @@ theorem step_msize : ∀ (s : State),
 theorem step_gas : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.GAS, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5522,7 +5522,7 @@ theorem step_gas : ∀ (s : State),
 theorem step_jumpdest : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.JUMPDEST, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gjumpdest then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 0 > 1024 then .error .StackOverflow
@@ -5552,7 +5552,7 @@ theorem step_jumpdest : ∀ (s : State),
 theorem step_jump : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.JUMP, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gmid then .error .OutOfGass
@@ -5600,7 +5600,7 @@ theorem step_jump : ∀ (s : State),
 theorem step_jumpi : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.JUMPI, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Ghigh then .error .OutOfGass
@@ -5667,7 +5667,7 @@ theorem step_jumpi : ∀ (s : State),
 theorem step_push0 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH0, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gbase then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5703,7 +5703,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
   op ≠ .PUSH0
   → let I_b := s.executionEnv.code
     decode I_b s.machineState.pc = some (.Push op, .some (arg, argWidth))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else
       if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
@@ -5722,7 +5722,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
         machineState :=
           {s.machineState with
             gasAvailable := s.machineState.gasAvailable.subNat 0}}
-    have hcostCharged : C' chargedState (.Push op) = GasConstants.Gverylow := by
+    have hcostCharged : C' fork chargedState (.Push op) = GasConstants.Gverylow := by
       cases op
       · contradiction
       all_goals
@@ -5730,7 +5730,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
           InstructionGasGroups.Wzero, InstructionGasGroups.Wbase,
           InstructionGasGroups.Wverylow, InstructionGasGroups.Wverylow.pushInstrsWithoutZero,
           InstructionGasGroups.Wverylow.dupInstrs, InstructionGasGroups.Wverylow.swapInstrs]
-    have hcost : C' s (.Push op) = GasConstants.Gverylow := by
+    have hcost : C' fork s (.Push op) = GasConstants.Gverylow := by
       cases op
       · contradiction
       all_goals
@@ -5758,7 +5758,7 @@ theorem step_push : ∀ (s : State) (op : Operation.POp) (arg : UInt256) (argWid
 theorem step_push1 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH1, .some (arg, 1))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5773,7 +5773,7 @@ theorem step_push1 : ∀ (s : State) (arg : UInt256),
 theorem step_push2 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH2, .some (arg, 2))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5788,7 +5788,7 @@ theorem step_push2 : ∀ (s : State) (arg : UInt256),
 theorem step_push3 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH3, .some (arg, 3))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5803,7 +5803,7 @@ theorem step_push3 : ∀ (s : State) (arg : UInt256),
 theorem step_push4 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH4, .some (arg, 4))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5818,7 +5818,7 @@ theorem step_push4 : ∀ (s : State) (arg : UInt256),
 theorem step_push5 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH5, .some (arg, 5))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5833,7 +5833,7 @@ theorem step_push5 : ∀ (s : State) (arg : UInt256),
 theorem step_push6 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH6, .some (arg, 6))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5848,7 +5848,7 @@ theorem step_push6 : ∀ (s : State) (arg : UInt256),
 theorem step_push7 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH7, .some (arg, 7))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5863,7 +5863,7 @@ theorem step_push7 : ∀ (s : State) (arg : UInt256),
 theorem step_push8 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH8, .some (arg, 8))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5878,7 +5878,7 @@ theorem step_push8 : ∀ (s : State) (arg : UInt256),
 theorem step_push9 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH9, .some (arg, 9))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5893,7 +5893,7 @@ theorem step_push9 : ∀ (s : State) (arg : UInt256),
 theorem step_push10 : ∀ (s : State) (arg : UInt256),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.PUSH10, .some (arg, 10))
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
       else if s.machineState.stack.length - 0 + 1 > 1024 then .error .StackOverflow
       else .ok ({s with
@@ -5907,7 +5907,7 @@ theorem step_push10 : ∀ (s : State) (arg : UInt256),
 theorem step_dup1 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP1, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -5953,7 +5953,7 @@ theorem step_dup1 : ∀ (s : State),
 theorem step_dup2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP2, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6000,7 +6000,7 @@ theorem step_dup2 : ∀ (s : State),
 theorem step_swap1 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP1, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6046,7 +6046,7 @@ theorem step_swap1 : ∀ (s : State),
 theorem step_swap2 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP2, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6094,7 +6094,7 @@ theorem step_swap2 : ∀ (s : State),
 theorem step_dup3 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP3, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6142,7 +6142,7 @@ theorem step_dup3 : ∀ (s : State),
 theorem step_swap3 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP3, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6191,7 +6191,7 @@ theorem step_swap3 : ∀ (s : State),
 theorem step_dup4 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP4, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6240,7 +6240,7 @@ theorem step_dup4 : ∀ (s : State),
 theorem step_swap4 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP4, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6290,7 +6290,7 @@ theorem step_swap4 : ∀ (s : State),
 theorem step_dup5 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP5, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6340,7 +6340,7 @@ theorem step_dup5 : ∀ (s : State),
 theorem step_swap5 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP5, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6391,7 +6391,7 @@ theorem step_swap5 : ∀ (s : State),
 theorem step_dup6 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP6, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6442,7 +6442,7 @@ theorem step_dup6 : ∀ (s : State),
 theorem step_swap6 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP6, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6494,7 +6494,7 @@ theorem step_swap6 : ∀ (s : State),
 theorem step_dup7 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP7, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6546,7 +6546,7 @@ theorem step_dup7 : ∀ (s : State),
 theorem step_swap7 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP7, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6599,7 +6599,7 @@ theorem step_swap7 : ∀ (s : State),
 theorem step_dup8 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP8, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6652,7 +6652,7 @@ theorem step_dup8 : ∀ (s : State),
 theorem step_swap8 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP8, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6706,7 +6706,7 @@ theorem step_swap8 : ∀ (s : State),
 theorem step_dup9 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP9, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6760,7 +6760,7 @@ theorem step_dup9 : ∀ (s : State),
 theorem step_swap9 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP9, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6815,7 +6815,7 @@ theorem step_swap9 : ∀ (s : State),
 theorem step_dup10 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP10, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6870,7 +6870,7 @@ theorem step_dup10 : ∀ (s : State),
 theorem step_swap10 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP10, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6926,7 +6926,7 @@ theorem step_swap10 : ∀ (s : State),
 theorem step_dup11 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP11, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -6982,7 +6982,7 @@ theorem step_dup11 : ∀ (s : State),
 theorem step_swap11 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP11, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7039,7 +7039,7 @@ theorem step_swap11 : ∀ (s : State),
 theorem step_dup12 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP12, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7096,7 +7096,7 @@ theorem step_dup12 : ∀ (s : State),
 theorem step_swap12 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP12, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7154,7 +7154,7 @@ theorem step_swap12 : ∀ (s : State),
 theorem step_dup13 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP13, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7212,7 +7212,7 @@ theorem step_dup13 : ∀ (s : State),
 theorem step_swap13 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP13, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7271,7 +7271,7 @@ theorem step_swap13 : ∀ (s : State),
 theorem step_dup14 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP14, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7330,7 +7330,7 @@ theorem step_dup14 : ∀ (s : State),
 theorem step_swap14 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP14, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7390,7 +7390,7 @@ theorem step_swap14 : ∀ (s : State),
 theorem step_dup15 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP15, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7450,7 +7450,7 @@ theorem step_dup15 : ∀ (s : State),
 theorem step_swap15 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP15, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7511,7 +7511,7 @@ theorem step_swap15 : ∀ (s : State),
 theorem step_dup16 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.DUP16, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass
@@ -7572,7 +7572,7 @@ theorem step_dup16 : ∀ (s : State),
 theorem step_swap16 : ∀ (s : State),
   let I_b := s.executionEnv.code
   decode I_b s.machineState.pc = some (.SWAP16, .none)
-  → Xstep (D_J I_b 0) s =
+  → Xstep fork (D_J I_b 0) s =
       match s.machineState.stack with
       | a :: b :: c :: d :: e :: f :: g :: h :: i :: j :: k :: l :: m :: n :: o :: p :: q :: t =>
         if s.machineState.gasAvailable.toNat < GasConstants.Gverylow then .error .OutOfGass

@@ -1,10 +1,12 @@
 /-!
 # Execution-layer forks
 
-The semantics is parametric in the active execution-layer fork. A `Fork` is
-carried in the execution environment (`ExecutionEnv.fork`) and passed
-explicitly to the message-call (`Θ`), contract-creation (`Lambda`) and
-transaction (`Υ`) functions.
+The semantics is parametric in the active execution-layer fork. A block's
+fork follows from its timestamp, and is the same for everything the block
+executes, so it is not part of the state or of the execution environment: the
+block, transaction (`Υ`), message-call (`Θ`), contract-creation
+(`Lambda`) and execution (`Ξ`, `X`, `step`) functions take it as an
+argument, and pass it on unchanged.
 
 Fork-dependent rules do not compare forks. Each one tests the flag of the EIP
 that introduced it in `Fork.spec`, the `ForkSpec` of the fork, for example

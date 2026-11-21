@@ -10,6 +10,8 @@ to the dispatch `Ξ_PRECOMPILE` with `Ξ_PRECOMPILE_induction`.
 namespace Ethereum
 namespace EVM
 
+variable {fork : Fork}
+
 lemma precompile_ECREC_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
     (Ξ_ECREC σ g A I).1 = ∅ ∨ (Ξ_ECREC σ g A I).1 = σ := by
@@ -36,7 +38,7 @@ lemma precompile_ID_accountMap_empty_or_self
 
 lemma precompile_EXPMOD_accountMap_empty_or_self
     (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (Ξ_EXPMOD σ g A I).1 = ∅ ∨ (Ξ_EXPMOD σ g A I).1 = σ := by
+    (Ξ_EXPMOD fork σ g A I).1 = ∅ ∨ (Ξ_EXPMOD fork σ g A I).1 = σ := by
   simp only [Ξ_EXPMOD]
   split
   · exact Or.inl rfl
@@ -142,7 +144,7 @@ theorem precompile_BLS12_381_zero_gas
     when called with no gas. -/
 theorem precompile_dispatch_BLS12_381_zero_gas {p : AccountAddress}
     (hp : 11 ≤ p.val ∧ p.val ≤ 17) (σ : AccountMap) (A : Substate) (I : ExecutionEnv) :
-    Ξ_PRECOMPILE p σ ⟨0⟩ A I = (∅, ⟨0⟩, A, .empty) := by
+    Ξ_PRECOMPILE fork p σ ⟨0⟩ A I = (∅, ⟨0⟩, A, .empty) := by
   have hcases : p.val = 11 ∨ p.val = 12 ∨ p.val = 13 ∨ p.val = 14 ∨
       p.val = 15 ∨ p.val = 16 ∨ p.val = 17 := by omega
   rcases hcases with h | h | h | h | h | h | h
@@ -164,8 +166,8 @@ theorem precompile_dispatch_BLS12_381_zero_gas {p : AccountAddress}
 /-- A precompile either fails, with an empty account map, or keeps the state. -/
 theorem precompiled_result_accountMap_empty_or_self
     (pc : AccountAddress) (σ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (Ξ_PRECOMPILE pc σ g A I).1 = ∅ ∨ (Ξ_PRECOMPILE pc σ g A I).1 = σ :=
-  Ξ_PRECOMPILE_induction (fun r => r.1 = ∅ ∨ r.1 = σ)
+    (Ξ_PRECOMPILE fork pc σ g A I).1 = ∅ ∨ (Ξ_PRECOMPILE fork pc σ g A I).1 = σ :=
+  Ξ_PRECOMPILE_induction fork (fun r => r.1 = ∅ ∨ r.1 = σ)
     (precompile_ECREC_accountMap_empty_or_self σ g A I)
     (precompile_SHA256_accountMap_empty_or_self σ g A I)
     (precompile_RIP160_accountMap_empty_or_self σ g A I)

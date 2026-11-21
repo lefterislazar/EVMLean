@@ -152,7 +152,7 @@ lemma Cselfdestruct_pos (s : State) : 0 < Cselfdestruct s := by
 
 set_option maxHeartbeats 800000 in
 lemma C'_pos_of_continuesAfterXStep (s : State) {w : Operation}
-    (h : ContinuesAfterXStep w) : 0 < C' s w := by
+    (h : ContinuesAfterXStep w) : 0 < C' fork s w := by
   cases w <;> rename_i a <;> cases a <;>
     simp [ContinuesAfterXStep, δ, C', Wzero, Wbase, Wverylow, Wlow, Wmid, Whigh,
       Wcopy, Wextaccount, Wverylow.pushInstrsWithoutZero, Wverylow.dupInstrs,
@@ -339,7 +339,7 @@ lemma gas_sub_sub_decreases {available cost extra : Nat}
 set_option linter.unusedSimpArgs false in
 lemma step_stoparith_gas {gasCost : Nat} {op : Operation.SAOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.StopArith op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.StopArith op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, execBinOp, execTriOp,
@@ -355,7 +355,7 @@ lemma step_stoparith_gas {gasCost : Nat} {op : Operation.SAOp}
 set_option linter.unusedSimpArgs false in
 lemma step_compbit_gas {gasCost : Nat} {op : Operation.CBLOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.CompBit op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CompBit op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, execUnOp, execBinOp,
@@ -371,7 +371,7 @@ lemma step_compbit_gas {gasCost : Nat} {op : Operation.CBLOp}
 set_option linter.unusedSimpArgs false in
 lemma step_keccak_gas {gasCost : Nat} {op : Operation.KOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Keccak op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Keccak op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, binaryMachineStateOp',
@@ -388,7 +388,7 @@ lemma step_keccak_gas {gasCost : Nat} {op : Operation.KOp}
 set_option linter.unusedSimpArgs false in
 lemma step_env_gas {gasCost : Nat} {op : Operation.EOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Env op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Env op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, executionEnvOp, unaryExecutionEnvOp,
@@ -407,7 +407,7 @@ lemma step_env_gas {gasCost : Nat} {op : Operation.EOp}
 set_option linter.unusedSimpArgs false in
 lemma step_block_gas {gasCost : Nat} {op : Operation.BOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Block op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Block op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, executionEnvOp, unaryExecutionEnvOp,
@@ -426,7 +426,7 @@ lemma step_block_gas {gasCost : Nat} {op : Operation.BOp}
 set_option linter.unusedSimpArgs false in
 lemma step_stackmemflow_gas {gasCost : Nat} {op : Operation.SMSFOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.StackMemFlow op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.StackMemFlow op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, machineStateOp, binaryMachineStateOp,
@@ -446,7 +446,7 @@ lemma step_stackmemflow_gas {gasCost : Nat} {op : Operation.SMSFOp}
 set_option linter.unusedSimpArgs false in
 lemma step_push_gas {gasCost : Nat} {op : Operation.POp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Push op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Push op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure,
@@ -462,7 +462,7 @@ lemma step_push_gas {gasCost : Nat} {op : Operation.POp}
 set_option linter.unusedSimpArgs false in
 lemma step_dup_gas {gasCost : Nat} {op : Operation.DOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Dup op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Dup op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, dup,
@@ -478,7 +478,7 @@ lemma step_dup_gas {gasCost : Nat} {op : Operation.DOp}
 set_option linter.unusedSimpArgs false in
 lemma step_exchange_gas {gasCost : Nat} {op : Operation.ExOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Exchange op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Exchange op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, swap,
@@ -494,7 +494,7 @@ lemma step_exchange_gas {gasCost : Nat} {op : Operation.ExOp}
 set_option linter.unusedSimpArgs false in
 lemma step_log_gas {gasCost : Nat} {op : Operation.LOp}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (Operation.Log op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.Log op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> rw [step.eq_1] at h <;>
     simp [Id.run, bind, Except.bind, pure, Except.pure, log0Op, log1Op, log2Op, log3Op,
@@ -514,7 +514,7 @@ lemma step_system_nonrecursive_gas {gasCost : Nat} {op : Operation.SOp}
     (hop : Operation.System op ∉
       ([Operation.CREATE, Operation.CREATE2, Operation.CALL, Operation.CALLCODE,
         Operation.DELEGATECALL, Operation.STATICCALL] : List Operation))
-    (h : step gasCost (Operation.System op, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.System op, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases op <;> first | (exfalso; simpa using hop) | skip
   all_goals
@@ -533,7 +533,7 @@ set_option linter.unusedSimpArgs false in
 lemma call_gas_le {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize : UInt256}
     {permission : Bool} {evmState state' : State} {x : UInt256}
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
   unfold call at h
@@ -550,7 +550,7 @@ lemma call_gas_le {gasCost : Nat}
 lemma create_gas_le
     {value offset size : UInt256} {salt : Option ByteArray}
     {evmState state' : State} {x : UInt256}
-    (h : create value offset size salt evmState = .ok (x, state')) :
+    (h : create fork value offset size salt evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
   unfold create at h
   simp [bind, Except.bind, pure, Except.pure] at h
@@ -564,7 +564,7 @@ lemma create_gas_le
 set_option linter.unusedSimpArgs false in
 lemma step_create_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
-    (h : step gasCost (Operation.CREATE, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CREATE, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -582,7 +582,7 @@ lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
     (hpos : 0 < gasCost)
     (hle : gasCost ≤ s.machineState.gasAvailable.toNat)
-    (h : step gasCost (Operation.CREATE, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CREATE, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat + 1 ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -598,7 +598,7 @@ lemma step_create_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
 set_option linter.unusedSimpArgs false in
 lemma step_create2_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
-    (h : step gasCost (Operation.CREATE2, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CREATE2, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -616,7 +616,7 @@ lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
     (hpos : 0 < gasCost)
     (hle : gasCost ≤ s.machineState.gasAvailable.toNat)
-    (h : step gasCost (Operation.CREATE2, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CREATE2, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat + 1 ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -632,7 +632,7 @@ lemma step_create2_gas_decreases {gasCost : Nat} {arg : Option (UInt256 × Nat)}
 set_option linter.unusedSimpArgs false in
 lemma step_call_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
-    (h : step gasCost (Operation.CALL, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CALL, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -647,7 +647,7 @@ lemma step_call_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
 set_option linter.unusedSimpArgs false in
 lemma step_callcode_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
-    (h : step gasCost (Operation.CALLCODE, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.CALLCODE, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -662,7 +662,7 @@ lemma step_callcode_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
 set_option linter.unusedSimpArgs false in
 lemma step_delegatecall_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
-    (h : step gasCost (Operation.DELEGATECALL, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.DELEGATECALL, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -677,7 +677,7 @@ lemma step_delegatecall_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
 set_option linter.unusedSimpArgs false in
 lemma step_staticcall_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {s s' : State}
-    (h : step gasCost (Operation.STATICCALL, arg) s = .ok s') :
+    (h : step fork gasCost (Operation.STATICCALL, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   rw [step.eq_1] at h
   simp [bind, Except.bind, pure, Except.pure,
@@ -692,7 +692,7 @@ lemma step_staticcall_gas_le {gasCost : Nat} {arg : Option (UInt256 × Nat)}
 lemma step_nonrecursive_gas {gasCost : Nat} {w : Operation}
     {arg : Option (UInt256 × Nat)} {s s' : State}
     (hnrec : ¬ RecursiveSystemStep w)
-    (h : step gasCost (w, arg) s = .ok s') :
+    (h : step fork gasCost (w, arg) s = .ok s') :
     s'.machineState.gasAvailable = s.machineState.gasAvailable.subNat gasCost := by
   cases w with
   | StopArith op => exact step_stoparith_gas h
@@ -712,7 +712,7 @@ lemma step_nonrecursive_gas {gasCost : Nat} {w : Operation}
 
 lemma step_gas_le {gasCost : Nat} {w : Operation}
     {arg : Option (UInt256 × Nat)} {s s' : State}
-    (h : step gasCost (w, arg) s = .ok s') :
+    (h : step fork gasCost (w, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat ≤ s.machineState.gasAvailable.toNat := by
   by_cases hnrec : RecursiveSystemStep w
   · cases w with
@@ -743,7 +743,7 @@ lemma step_gas_le {gasCost : Nat} {w : Operation}
 
 theorem Z_cost_le {validJumps : Array UInt256} {w : Operation}
     {evmState evmState' : State} {cost : Nat}
-    (h : Z validJumps w evmState = .ok (evmState', cost)) :
+    (h : Z fork validJumps w evmState = .ok (evmState', cost)) :
     cost ≤ evmState'.machineState.gasAvailable.toNat := by
   unfold Z at h
   by_cases hδ : δ w = none
@@ -760,7 +760,7 @@ theorem Z_cost_le {validJumps : Array UInt256} {w : Operation}
   rw [if_neg hcost₁] at h
   by_cases hcost₂ :
       (evmState.subtractGas (memoryExpansionCost evmState w)).machineState.gasAvailable.toNat <
-        C' (evmState.subtractGas (memoryExpansionCost evmState w)) w
+        C' fork (evmState.subtractGas (memoryExpansionCost evmState w)) w
   · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
     contradiction
   rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
@@ -812,14 +812,14 @@ theorem Z_cost_le {validJumps : Array UInt256} {w : Operation}
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
   injection h with hp
   have hstate : evmState₁ = evmState' := congrArg Prod.fst hp
-  have hcost : C' evmState₁ w = cost := congrArg Prod.snd hp
+  have hcost : C' fork evmState₁ w = cost := congrArg Prod.snd hp
   rw [← hstate, ← hcost]
   exact Nat.le_of_not_gt hcost₂
 
 theorem Z_cost_eq_C' {validJumps : Array UInt256} {w : Operation}
     {evmState evmState' : State} {cost : Nat}
-    (h : Z validJumps w evmState = .ok (evmState', cost)) :
-    cost = C' evmState' w := by
+    (h : Z fork validJumps w evmState = .ok (evmState', cost)) :
+    cost = C' fork evmState' w := by
   unfold Z at h
   by_cases hδ : δ w = none
   · rw [if_pos hδ] at h
@@ -835,7 +835,7 @@ theorem Z_cost_eq_C' {validJumps : Array UInt256} {w : Operation}
   rw [if_neg hcost₁] at h
   by_cases hcost₂ :
       (evmState.subtractGas (memoryExpansionCost evmState w)).machineState.gasAvailable.toNat <
-        C' (evmState.subtractGas (memoryExpansionCost evmState w)) w
+        C' fork (evmState.subtractGas (memoryExpansionCost evmState w)) w
   · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
     contradiction
   rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
@@ -887,14 +887,14 @@ theorem Z_cost_eq_C' {validJumps : Array UInt256} {w : Operation}
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
   injection h with hp
   have hstate : evmState₁ = evmState' := congrArg Prod.fst hp
-  have hcost : C' evmState₁ w = cost := congrArg Prod.snd hp
+  have hcost : C' fork evmState₁ w = cost := congrArg Prod.snd hp
   rw [← hstate]
   exact hcost.symm
 
 theorem Z_cost_pos_of_continues {validJumps : Array UInt256} {w : Operation}
     {evmState evmState' : State} {cost : Nat}
     (hcont : ContinuesAfterXStep w)
-    (h : Z validJumps w evmState = .ok (evmState', cost)) :
+    (h : Z fork validJumps w evmState = .ok (evmState', cost)) :
     0 < cost := by
   unfold Z at h
   by_cases hδ : δ w = none
@@ -911,7 +911,7 @@ theorem Z_cost_pos_of_continues {validJumps : Array UInt256} {w : Operation}
   rw [if_neg hcost₁] at h
   by_cases hcost₂ :
       (evmState.subtractGas (memoryExpansionCost evmState w)).machineState.gasAvailable.toNat <
-        C' (evmState.subtractGas (memoryExpansionCost evmState w)) w
+        C' fork (evmState.subtractGas (memoryExpansionCost evmState w)) w
   · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
     contradiction
   rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
@@ -962,13 +962,13 @@ theorem Z_cost_pos_of_continues {validJumps : Array UInt256} {w : Operation}
     contradiction
   rw [if_neg (by simpa [evmState₁] using hcreate)] at h
   injection h with hp
-  have hcost : C' evmState₁ w = cost := congrArg Prod.snd hp
+  have hcost : C' fork evmState₁ w = cost := congrArg Prod.snd hp
   rw [← hcost]
   exact C'_pos_of_continuesAfterXStep evmState₁ hcont
 
 theorem Z_state_gas_le {validJumps : Array UInt256} {w : Operation}
     {evmState evmState' : State} {cost : Nat}
-    (h : Z validJumps w evmState = .ok (evmState', cost)) :
+    (h : Z fork validJumps w evmState = .ok (evmState', cost)) :
     evmState'.machineState.gasAvailable.toNat ≤ evmState.machineState.gasAvailable.toNat := by
   unfold Z at h
   by_cases hδ : δ w = none
@@ -985,7 +985,7 @@ theorem Z_state_gas_le {validJumps : Array UInt256} {w : Operation}
   rw [if_neg hcost₁] at h
   by_cases hcost₂ :
       (evmState.subtractGas (memoryExpansionCost evmState w)).machineState.gasAvailable.toNat <
-        C' (evmState.subtractGas (memoryExpansionCost evmState w)) w
+        C' fork (evmState.subtractGas (memoryExpansionCost evmState w)) w
   · rw [if_pos (by simpa [State.subtractGas] using hcost₂)] at h
     contradiction
   rw [if_neg (by simpa [State.subtractGas] using hcost₂)] at h
@@ -1043,7 +1043,7 @@ theorem Z_state_gas_le {validJumps : Array UInt256} {w : Operation}
 theorem Xstep_gas_le
     {validJumps : Array UInt256} {state state' : State}
     {ret : Option (HaltCause × ByteArray)}
-    (h : Xstep validJumps state = .ok (state', ret)) :
+    (h : Xstep fork validJumps state = .ok (state', ret)) :
     state'.machineState.gasAvailable.toNat ≤ state.machineState.gasAvailable.toNat := by
   set instr : Operation × Option (UInt256 × Nat) :=
     decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none) with hinstr
@@ -1056,10 +1056,10 @@ theorem Xstep_gas_le
     split at h
     · contradiction
     · rename_i stepped hstep
-      have hZ' : Z validJumps w state = .ok (stateZ, cost) := by
+      have hZ' : Z fork validJumps w state = .ok (stateZ, cost) := by
         simpa [← hinstr] using hZ
       have hstep' :
-          step cost (w, arg)
+          step fork cost (w, arg)
             { stateZ with executionEnv.depth := state.executionEnv.depth } = .ok stepped := by
         simpa [← hinstr] using hstep
       have hstepLe :
@@ -1099,7 +1099,7 @@ def ExecutionResultGas : ExecutionResult State → Nat
 
 theorem X_gas_le {fuel : Nat} {validJumps : Array UInt256} {state : State}
     {result : ExecutionResult State}
-    (h : X fuel validJumps state = .ok result) :
+    (h : X fork fuel validJumps state = .ok result) :
     ExecutionResultGas result ≤ state.machineState.gasAvailable.toNat := by
   induction fuel generalizing state result with
   | zero =>
@@ -1135,7 +1135,7 @@ def XiResultGas :
   | .revert g _ => g.toNat
 
 theorem Xi_gas_le {σ σ₀ g A I result}
-    (h : Ξ σ σ₀ g A I = .ok result) :
+    (h : Ξ fork σ σ₀ g A I = .ok result) :
     XiResultGas result ≤ g.toNat := by
   unfold Ξ at h
   simp [bind, Except.bind] at h
@@ -1184,9 +1184,9 @@ lemma precompile_ID_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
   · simp [hgas, UInt256.toNat_sub_ofNat_le (Nat.le_of_not_gt hgas)]
 
 lemma precompile_EXPMOD_gas_le (σ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) : (Ξ_EXPMOD σ g A I).2.1.toNat ≤ g.toNat := by
+    (I : ExecutionEnv) : (Ξ_EXPMOD fork σ g A I).2.1.toNat ≤ g.toNat := by
   unfold Ξ_EXPMOD
-  cases hreq : expmodRequiredGas I.fork I.calldata with
+  cases hreq : expmodRequiredGas fork I.calldata with
   | none => simp [hreq]
   | some gᵣ =>
     by_cases hgas : g.toNat < gᵣ
@@ -1268,8 +1268,8 @@ lemma precompile_P256VERIFY_gas_le (σ : AccountMap) (g : UInt256) (A : Substate
 
 lemma precompile_dispatch_gas_le (p : AccountAddress) (σ : AccountMap)
     (g : UInt256) (A : Substate) (I : ExecutionEnv) :
-    (Ξ_PRECOMPILE p σ g A I).2.1.toNat ≤ g.toNat :=
-  Ξ_PRECOMPILE_induction (fun r => r.2.1.toNat ≤ g.toNat)
+    (Ξ_PRECOMPILE fork p σ g A I).2.1.toNat ≤ g.toNat :=
+  Ξ_PRECOMPILE_induction fork (fun r => r.2.1.toNat ≤ g.toNat)
     (precompile_ECREC_gas_le σ g A I) (precompile_SHA256_gas_le σ g A I)
     (precompile_RIP160_gas_le σ g A I) (precompile_ID_gas_le σ g A I)
     (precompile_EXPMOD_gas_le σ g A I) (precompile_BN_ADD_gas_le σ g A I)
@@ -1304,9 +1304,9 @@ lemma call_gas_decreases {gasCost : Nat}
     {permission : Bool} {evmState state' : State} {x : UInt256}
     (hgasCost : gasCost ≤ evmState.machineState.gasAvailable.toNat)
     (hcallgasLt :
-      Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+      Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
         value gas evmState.accountMap evmState.machineState evmState.substate < gasCost)
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
       inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     state'.machineState.gasAvailable.toNat + 1 ≤ evmState.machineState.gasAvailable.toNat := by
   unfold call at h
@@ -1317,19 +1317,19 @@ lemma call_gas_decreases {gasCost : Nat}
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
-        (fork := evmState.executionEnv.fork)
+        (fork := fork)
         (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
 
         (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
-        (A := callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+        (A := callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
         (s := AccountAddress.ofUInt256 source)
         (o := evmState.executionEnv.sender)
         (r := AccountAddress.ofUInt256 recipient)
-        (c := toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+        (c := toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
         (g := UInt256.ofNat
-          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate))
         (p := UInt256.ofNat evmState.executionEnv.gasPrice)
         (v := value)
@@ -1339,42 +1339,42 @@ lemma call_gas_decreases {gasCost : Nat}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ (fork := evmState.executionEnv.fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
+          ((Θ (fork := fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
-              (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+              (callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
               (AccountAddress.ofUInt256 recipient)
-              (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+              (toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
               (UInt256.ofNat
-                (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+                (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
                   value gas evmState.accountMap evmState.machineState evmState.substate))
               (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
               (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
               (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1.toNat) ≤
-            Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate := by
         exact Nat.le_trans htheta
           (UInt256.toNat_ofNat_le
-            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate))
       exact gas_sub_refund_decreases (lt_of_le_of_lt hretLe hcallgasLt) hgasCost
     · rcases h with ⟨_, hstate⟩
       rw [← hstate]
       simp
       have htheta := Theta_gas_le
-        (fork := evmState.executionEnv.fork)
+        (fork := fork)
         (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes)
 
         (blocks := evmState.executionEnv.blocks)
         (σ := evmState.accountMap)
         (σ₀ := evmState.σ₀)
-        (A := callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+        (A := callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
         (s := AccountAddress.ofUInt256 source)
         (o := evmState.executionEnv.sender)
         (r := AccountAddress.ofUInt256 recipient)
-        (c := toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+        (c := toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
         (g := UInt256.ofNat
-          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate))
         (p := UInt256.ofNat evmState.executionEnv.gasPrice)
         (v := value)
@@ -1384,23 +1384,23 @@ lemma call_gas_decreases {gasCost : Nat}
         (H := evmState.executionEnv.header)
         (w := permission)
       have hretLe :
-          ((Θ (fork := evmState.executionEnv.fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
+          ((Θ (fork := fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
               evmState.accountMap evmState.σ₀
-              (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+              (callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
               (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
               (AccountAddress.ofUInt256 recipient)
-              (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+              (toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
               (UInt256.ofNat
-                (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+                (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
                   value gas evmState.accountMap evmState.machineState evmState.substate))
               (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
               (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
               (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission).2.1.toNat) ≤
-            Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate := by
         exact Nat.le_trans htheta
           (UInt256.toNat_ofNat_le
-            (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+            (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
               value gas evmState.accountMap evmState.machineState evmState.substate))
       exact gas_sub_refund_decreases (lt_of_le_of_lt hretLe hcallgasLt) hgasCost
   · split at h
@@ -1409,7 +1409,7 @@ lemma call_gas_decreases {gasCost : Nat}
       simp
       have hofNat :=
         UInt256.toNat_ofNat_le
-          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate)
       exact gas_sub_refund_decreases (lt_of_le_of_lt hofNat hcallgasLt) hgasCost
     · rcases h with ⟨_, hstate⟩
@@ -1417,7 +1417,7 @@ lemma call_gas_decreases {gasCost : Nat}
       simp
       have hofNat :=
         UInt256.toNat_ofNat_le
-          (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+          (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
             value gas evmState.accountMap evmState.machineState evmState.substate)
       exact gas_sub_refund_decreases (lt_of_le_of_lt hofNat hcallgasLt) hgasCost
 
@@ -1427,8 +1427,8 @@ lemma step_gas_decreases_of_cost_eq_C'
     {s s' : State}
     (hpos : 0 < gasCost)
     (hle : gasCost ≤ s.machineState.gasAvailable.toNat)
-    (hcost : gasCost = C' s w)
-    (h : step gasCost (w, arg) s = .ok s') :
+    (hcost : gasCost = C' fork s w)
+    (h : step fork gasCost (w, arg) s = .ok s') :
     s'.machineState.gasAvailable.toNat + 1 ≤ s.machineState.gasAvailable.toNat := by
   by_cases hnrec : RecursiveSystemStep w
   · cases w with
@@ -1459,14 +1459,14 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop7_get! hPop'
             rcases hidx with ⟨h0, h1, h2⟩
             have hcallgasLt :
-                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 vPop.2.2.1) vPop.2.2.2.1 vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate :=
                 Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
@@ -1495,15 +1495,15 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop7_get! hPop'
             rcases hidx with ⟨h0, h1, h2⟩
             have hcallgasLt :
-                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 (UInt256.ofNat s.executionEnv.codeOwner.val))
                   vPop.2.2.2.1 vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner vPop.2.2.2.1 vPop.2.1
                     s.accountMap s.machineState s.substate :=
                 Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
@@ -1534,15 +1534,15 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop6_get! hPop'
             rcases hidx with ⟨h0, h1⟩
             have hcallgasLt :
-                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 (UInt256.ofNat s.executionEnv.codeOwner.val))
                   (⟨0⟩ : UInt256) vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     s.executionEnv.codeOwner (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate :=
                 Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
@@ -1573,15 +1573,15 @@ lemma step_gas_decreases_of_cost_eq_C'
             have hidx := Stack.pop6_get! hPop'
             rcases hidx with ⟨h0, h1⟩
             have hcallgasLt :
-                Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                   (AccountAddress.ofUInt256 vPop.2.2.1)
                   (⟨0⟩ : UInt256) vPop.2.1
                   sExec.accountMap sExec.machineState sExec.substate < gasCost := by
               have hbase :
-                  Ccallgas s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccallgas fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate <
-                  Ccall s.executionEnv.fork (AccountAddress.ofUInt256 vPop.2.2.1)
+                  Ccall fork (AccountAddress.ofUInt256 vPop.2.2.1)
                     (AccountAddress.ofUInt256 vPop.2.2.1) (⟨0⟩ : UInt256) vPop.2.1
                     s.accountMap s.machineState s.substate :=
                 Ccallgas_lt_Ccall _ _ _ _ _ _ _ _
@@ -1604,13 +1604,13 @@ lemma step_gas_decreases_of_cost_eq_C'
     omega
 
 lemma C'_set_depth (s : State) (d : Fin 1025) (w : Operation) :
-    C' {s with executionEnv.depth := d} w = C' s w := by
+    C' fork {s with executionEnv.depth := d} w = C' fork s w := by
   cases w <;> rename_i a <;> cases a <;>
     simp [C', Csload, Csstore, Cselfdestruct]
 
 lemma Xstep_continues_of_halt_none
     {validJumps : Array UInt256} {state state' : State}
-    (h : Xstep validJumps state = .ok (state', none)) :
+    (h : Xstep fork validJumps state = .ok (state', none)) :
     ContinuesAfterXStep
       (decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none)).1 := by
   intros
@@ -1700,7 +1700,7 @@ lemma Xstep_continues_of_halt_none
 
 theorem Xstep_gas_decreases_of_continues
     {validJumps : Array UInt256} {state state' : State}
-    (h : Xstep validJumps state = .ok (state', none)) :
+    (h : Xstep fork validJumps state = .ok (state', none)) :
     state'.machineState.gasAvailable.toNat + 1 ≤ state.machineState.gasAvailable.toNat := by
   set instr : Operation × Option (UInt256 × Nat) :=
     decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none) with hinstr
@@ -1718,17 +1718,17 @@ theorem Xstep_gas_decreases_of_continues
     split at h
     · contradiction
     · rename_i stepped hstep
-      have hZ' : Z validJumps w state = .ok (stateZ, cost) := by
+      have hZ' : Z fork validJumps w state = .ok (stateZ, cost) := by
         simpa [← hinstr] using hZ
       have hstep' :
-          step cost (w, arg)
+          step fork cost (w, arg)
             { stateZ with executionEnv.depth := state.executionEnv.depth } = .ok stepped := by
         simpa [← hinstr] using hstep
       have hcostLe : cost ≤ stateZ.machineState.gasAvailable.toNat := Z_cost_le hZ'
       have hcostPos : 0 < cost := Z_cost_pos_of_continues hcont' hZ'
-      have hcostEqStateZ : cost = C' stateZ w := Z_cost_eq_C' hZ'
+      have hcostEqStateZ : cost = C' fork stateZ w := Z_cost_eq_C' hZ'
       have hcostEqStep :
-          cost = C' { stateZ with executionEnv.depth := state.executionEnv.depth } w := by
+          cost = C' fork { stateZ with executionEnv.depth := state.executionEnv.depth } w := by
         rw [hcostEqStateZ]
         exact (C'_set_depth stateZ state.executionEnv.depth w).symm
       have hstepGas :

@@ -160,6 +160,14 @@ def callSubstate (fork : Fork) (σ : AccountMap) (t : AccountAddress) (A : Subst
     | none => A
   else A
 
+section Interpreter
+
+/-
+The fork is fixed for an execution: every function of the interpreter takes it
+as its first argument, and the recursive calls pass it on unchanged.
+-/
+variable (fork : Fork)
+
 mutual
 
 def call
@@ -176,7 +184,6 @@ def call
       let Iₐ := evmState.executionEnv.codeOwner
       let σ := evmState.accountMap
       let Iₑ := evmState.executionEnv.depth
-      let fork := evmState.executionEnv.fork
       let callgas := Ccallgas fork t recipient value gas σ evmState.machineState evmState.substate
       -- let evmState := evmState.subtractGas gasCost -- {evmState with machineState.gasAvailable := evmState.machineState.gasAvailable - gasCost}
       -- m[μs[3] . . . (μs[3] + μs[4] − 1)]
@@ -184,7 +191,7 @@ def call
       let A' := callSubstate fork σ t evmState.substate
       let (σ', g', A', z, o) :=
         if value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 then
-            Θ (fork := fork)
+            Θ
               (σ  := σ)                                     -- σ in  Θ(σ, ..)
               (σ₀ := evmState.σ₀)
               (A  := A')                                    -- A* in Θ(.., A*, ..)
@@ -258,7 +265,6 @@ def create
     else if hDepth : value ≤ (σ.get? Iₐ |>.option ⟨0⟩ (·.balance)) ∧ Iₑ < 1024 ∧ i.size ≤ 49152 then
       let Λ :=
         Lambda
-          I.fork
           σStar
           evmState.σ₀
           evmState.substate
@@ -438,7 +444,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
         /- EIP-7939 (Osaka). Before Osaka `0x1e` is an invalid instruction.
            Rejecting it here rather than in `Z` is observationally the same:
            every exceptional halt reverts the frame and consumes its gas. -/
-        if evmStateCharged.executionEnv.fork.spec.eip7939 then
+        if fork.spec.eip7939 then
           execUnOp UInt256.clz evmStateCharged
         else
           .error .InvalidInstruction
@@ -496,7 +502,7 @@ def step (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat))
       | .SELFBALANCE => stateOp Ethereum.State.selfbalance evmStateCharged
       | .BASEFEE => executionEnvOp Ethereum.basefee evmStateCharged
       | .BLOBHASH => unaryExecutionEnvOp blobhash evmStateCharged
-      | .BLOBBASEFEE => executionEnvOp Ethereum.ExecutionEnv.getBlobGasprice evmStateCharged
+      | .BLOBBASEFEE => executionEnvOp (Ethereum.ExecutionEnv.getBlobGasprice fork) evmStateCharged
       | .POP =>
         match evmStateCharged.machineState.stack.pop with
           | some ⟨ s , _ ⟩ => .ok <| evmStateCharged.replaceStackAndIncrPC s
@@ -691,7 +697,7 @@ def Z (validJumps : Array UInt256) (w : Operation) (evmState : State)
       .error .OutOfGass
     else
       let evmState := { evmState with machineState.gasAvailable := evmState.machineState.gasAvailable.subNat cost₁ }
-      let cost₂ := C' evmState w
+      let cost₂ := C' fork evmState w
       if evmState.machineState.gasAvailable.toNat < cost₂ then
         .error .OutOfGass
       else
@@ -826,7 +832,6 @@ def Ξ -- Type `Ξ` using `\GX` or `\Xi`
       omega
 
 def Lambda
-  (fork : Fork)          -- the active fork
   (σ : AccountMap)
   (σ₀ : AccountMap)
   (A : Substate)
@@ -910,7 +915,6 @@ def Lambda
     , perm      := w
     , blobVersionedHashes := blobVersionedHashes
     , blocks := blocks
-    , fork := fork
     }
   match Ξ σStar σ₀ g AStar exEnv with
     | .error _ =>
@@ -993,7 +997,7 @@ Message cal
 NB - This is implemented using the 'boolean' fragment with ==, <=, ||, etc.
      The 'prop' version will come next once we have the comutable one.
 -/
-def Θ (fork : Fork)
+def Θ
       (σ  : AccountMap)
       (σ₀  : AccountMap)
       (A  : Substate)
@@ -1051,7 +1055,6 @@ def Θ (fork : Fork)
       header    := H
       blobVersionedHashes := blobVersionedHashes
       blocks := blocks
-      fork := fork
     }
 
   -- Equation (131)
@@ -1059,7 +1062,7 @@ def Θ (fork : Fork)
   let (σ'', g', A'', out) :=
     match c with
       | ToExecute.Precompiled p =>
-        Ξ_PRECOMPILE p σ₁ g A I
+        Ξ_PRECOMPILE fork p σ₁ g A I
       | ToExecute.Code _ =>
         match Ξ σ₁ σ₀ g A I with
           | .error _ =>
@@ -1089,6 +1092,8 @@ def Θ (fork : Fork)
     omega
 
 end
+
+end Interpreter
 
 open Batteries (RBMap RBSet)
 

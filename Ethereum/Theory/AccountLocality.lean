@@ -474,7 +474,7 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
           acc ≠ r →
           account_changes_consistent acc σ σ')
     (hacc : acc ≠ AccountAddress.ofUInt256 recipient)
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   unfold call at h
@@ -484,26 +484,26 @@ private lemma account_changes_consistent_of_call_except_recipient_succ_depth
     rcases h with ⟨_, hstate⟩
     rw [← hstate]
     simp
-    let θ := Θ (fork := evmState.executionEnv.fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
+    let θ := Θ (fork := fork) (blobVersionedHashes := evmState.executionEnv.blobVersionedHashes) (blocks := evmState.executionEnv.blocks)
       evmState.accountMap evmState.σ₀
-      (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+      (callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
       (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
       (AccountAddress.ofUInt256 recipient)
-      (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+      (toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
       (UInt256.ofNat
-        (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+        (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
           value gas evmState.accountMap evmState.machineState evmState.substate))
       (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
       (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
       (evmState.executionEnv.depth + 1) evmState.executionEnv.header permission
     exact ihTheta
       _ evmState.accountMap evmState.σ₀
-      (callSubstate evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
+      (callSubstate fork evmState.accountMap (AccountAddress.ofUInt256 t) evmState.substate)
       (AccountAddress.ofUInt256 source) evmState.executionEnv.sender
       (AccountAddress.ofUInt256 recipient)
-      (toExecute evmState.executionEnv.fork evmState.accountMap (AccountAddress.ofUInt256 t))
+      (toExecute fork evmState.accountMap (AccountAddress.ofUInt256 t))
       (UInt256.ofNat
-        (Ccallgas evmState.executionEnv.fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
+        (Ccallgas fork (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient)
           value gas evmState.accountMap evmState.machineState evmState.substate))
       (UInt256.ofNat evmState.executionEnv.gasPrice) value value'
       (evmState.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
@@ -522,7 +522,7 @@ private lemma account_changes_consistent_of_call_recipient_own_code_succ_depth
     {permission : Bool} {evmState state' : State} {acc : AccountAddress}
     (hsame : AccountAddress.ofUInt256 t = AccountAddress.ofUInt256 recipient)
     (hacc : acc = AccountAddress.ofUInt256 recipient)
-    (h : call gasCost gas source recipient t value value'
+    (h : call fork gasCost gas source recipient t value value'
         inOffset inSize outOffset outSize permission evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   subst acc
@@ -545,7 +545,7 @@ private lemma create_accountMap_eq_at_max_depth
     {value offset size : UInt256} {salt : Option ByteArray}
     {evmState result : State} {x : UInt256}
     (hdepth : evmState.executionEnv.depth = 1024)
-    (h : create value offset size salt evmState = .ok (x, result)) :
+    (h : create fork value offset size salt evmState = .ok (x, result)) :
     result.accountMap = evmState.accountMap := by
   unfold create at h
   simp [hdepth, bind, Except.bind, pure, Except.pure] at h
@@ -567,7 +567,7 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
             (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ')
     (hacc : acc ≠ evmState.executionEnv.codeOwner)
-    (h : create value offset size salt evmState = .ok (x, state')) :
+    (h : create fork value offset size salt evmState = .ok (x, state')) :
     account_changes_consistent acc evmState.accountMap state'.accountMap := by
   let owner := (evmState.accountMap.get? evmState.executionEnv.codeOwner).getD default
   let σStar := evmState.accountMap.insert evmState.executionEnv.codeOwner
@@ -587,7 +587,7 @@ private lemma account_changes_consistent_of_create_except_owner_succ_depth
         value ≤ (evmState.accountMap.get? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance)) ∧
           evmState.executionEnv.depth < 1024 ∧
           (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
-    · let lambdaRes := Lambda evmState.executionEnv.fork σStar evmState.σ₀ evmState.substate
+    · let lambdaRes := Lambda fork σStar evmState.σ₀ evmState.substate
         evmState.executionEnv.codeOwner evmState.executionEnv.sender
         (UInt256.ofNat (L evmState.machineState.gasAvailable.toNat))
         (UInt256.ofNat evmState.executionEnv.gasPrice) value
@@ -874,7 +874,7 @@ private lemma evmLogOp_accountMap_eq
 private lemma step_stoparith_accountMap_eq
     {op : Operation.SAOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.StopArith op, arg) state = .ok state') :
+    (h : step fork gasCost (.StopArith op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op with
   | STOP =>
@@ -928,7 +928,7 @@ private lemma step_stoparith_accountMap_eq
 private lemma step_compbit_accountMap_eq
     {op : Operation.CBLOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.CompBit op, arg) state = .ok state') :
+    (h : step fork gasCost (.CompBit op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op <;> simp [step] at h <;> (try split at h) <;>
     first
@@ -939,7 +939,7 @@ private lemma step_compbit_accountMap_eq
 private lemma step_keccak_accountMap_eq
     {op : Operation.KOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Keccak op, arg) state = .ok state') :
+    (h : step fork gasCost (.Keccak op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op
   simp [step] at h
@@ -949,7 +949,7 @@ private lemma step_keccak_accountMap_eq
 private lemma step_env_accountMap_eq
     {op : Operation.EOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Env op, arg) state = .ok state') :
+    (h : step fork gasCost (.Env op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op <;> simp [step] at h
   · have hm := executionEnvOp_accountMap_eq h; simpa using hm
@@ -991,7 +991,7 @@ private lemma step_env_accountMap_eq
 private lemma step_push_accountMap_eq
     {op : Operation.POp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Push op, arg) state = .ok state') :
+    (h : step fork gasCost (.Push op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op with
   | PUSH0 =>
@@ -1009,7 +1009,7 @@ private lemma step_push_accountMap_eq
 private lemma step_dup_accountMap_eq
     {op : Operation.DOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Dup op, arg) state = .ok state') :
+    (h : step fork gasCost (.Dup op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op <;> simp [step] at h
   · have hm := dup_accountMap_eq h; simpa using hm
@@ -1032,7 +1032,7 @@ private lemma step_dup_accountMap_eq
 private lemma step_exchange_accountMap_eq
     {op : Operation.ExOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Exchange op, arg) state = .ok state') :
+    (h : step fork gasCost (.Exchange op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op <;> simp [step] at h
   · have hm := swap_accountMap_eq h; simpa using hm
@@ -1055,7 +1055,7 @@ private lemma step_exchange_accountMap_eq
 private lemma step_block_accountMap_eq
     {op : Operation.BOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Block op, arg) state = .ok state') :
+    (h : step fork gasCost (.Block op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op <;> simp [step] at h
   · have hm := unaryStateOp_sameState_accountMap_eq h; simpa using hm
@@ -1073,7 +1073,7 @@ private lemma step_block_accountMap_eq
 private lemma step_log_accountMap_eq
     {op : Operation.LOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State}
-    (h : step gasCost (.Log op, arg) state = .ok state') :
+    (h : step fork gasCost (.Log op, arg) state = .ok state') :
     state'.accountMap = state.accountMap := by
   cases op <;>
     simp [step, log0Op, log1Op, log2Op, log3Op, log4Op, evmLogOp,
@@ -1088,7 +1088,7 @@ private lemma step_stackmemflow_consistent_except_owner
     {op : Operation.SMSFOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)}
     {state state' : State} {acc : AccountAddress}
     (hacc : acc ≠ state.executionEnv.codeOwner)
-    (h : step gasCost (.StackMemFlow op, arg) state = .ok state') :
+    (h : step fork gasCost (.StackMemFlow op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op <;> simp [step] at h
   · split at h <;> try contradiction
@@ -1152,7 +1152,7 @@ private lemma step_system_consistent_except_owner_max_depth
     {state state' : State} {acc : AccountAddress}
     (hdepth : state.executionEnv.depth = 1024)
     (hacc : acc ≠ state.executionEnv.codeOwner)
-    (h : step gasCost (.System op, arg) state = .ok state') :
+    (h : step fork gasCost (.System op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op
   · simp [step, bind, Except.bind] at h
@@ -1325,7 +1325,7 @@ private lemma step_system_consistent_except_owner_succ_depth
             (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ')
     (hacc : acc ≠ state.executionEnv.codeOwner)
-    (h : step gasCost (.System op, arg) state = .ok state') :
+    (h : step fork gasCost (.System op, arg) state = .ok state') :
     account_changes_consistent acc state.accountMap state'.accountMap := by
   cases op
   · simp [step, bind, Except.bind] at h
@@ -1546,7 +1546,7 @@ private lemma step_system_consistent_except_owner_succ_depth
 theorem account_changes_consistent_of_Z
     {op : Operation}
     {stateZ : State} {cost : Nat}
-    (hZ : Z validJumps op state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps op state = .ok (stateZ, cost)) :
     account_changes_consistent acc state.accountMap stateZ.accountMap := by
   unfold Z at hZ
   by_cases hδ : δ op = none
@@ -1564,7 +1564,7 @@ theorem account_changes_consistent_of_Z
   set state₁ : State :=
     { state with machineState.gasAvailable :=
         state.machineState.gasAvailable.subNat (memoryExpansionCost state op) } with hstate₁
-  by_cases hcost₂ : state₁.machineState.gasAvailable.toNat < C' state₁ op
+  by_cases hcost₂ : state₁.machineState.gasAvailable.toNat < C' fork state₁ op
   · rw [if_pos (by simpa [state₁] using hcost₂)] at hZ
     contradiction
   rw [if_neg (by simpa [state₁] using hcost₂)] at hZ
@@ -1620,7 +1620,7 @@ theorem account_changes_consistent_of_Z
 theorem Z_executionEnv_eq
     {op : Operation}
     {stateZ : State} {cost : Nat}
-    (hZ : Z validJumps op state = .ok (stateZ, cost)) :
+    (hZ : Z fork validJumps op state = .ok (stateZ, cost)) :
     stateZ.executionEnv = state.executionEnv := by
   unfold Z at hZ
   by_cases hδ : δ op = none
@@ -1638,7 +1638,7 @@ theorem Z_executionEnv_eq
   set state₁ : State :=
     { state with machineState.gasAvailable :=
         state.machineState.gasAvailable.subNat (memoryExpansionCost state op) } with hstate₁
-  by_cases hcost₂ : state₁.machineState.gasAvailable.toNat < C' state₁ op
+  by_cases hcost₂ : state₁.machineState.gasAvailable.toNat < C' fork state₁ op
   · rw [if_pos (by simpa [state₁] using hcost₂)] at hZ
     contradiction
   rw [if_neg (by simpa [state₁] using hcost₂)] at hZ
@@ -1691,7 +1691,7 @@ theorem Z_executionEnv_eq
 
 private lemma Xstep_executionEnv_eq
     {state state' : State} {ret : Option (HaltCause × ByteArray)}
-    (hstep : Xstep validJumps state = .ok (state', ret)) :
+    (hstep : Xstep fork validJumps state = .ok (state', ret)) :
     state'.executionEnv = state.executionEnv := by
   have h := hstep
   simp [Xstep] at h
@@ -1717,7 +1717,7 @@ private lemma Xstep_executionEnv_eq
 theorem account_changes_consistent_except_owner_of_step_max_depth :
     ∀ gasCost instr state state',
     state.executionEnv.depth = 1024 →
-    step gasCost instr state = .ok state' →
+    step fork gasCost instr state = .ok state' →
     ∀ acc, acc ≠ state.executionEnv.codeOwner →
       account_changes_consistent acc state.accountMap state'.accountMap
     := by
@@ -1776,7 +1776,7 @@ theorem account_changes_consistent_except_owner_of_step_succ_depth :
           Lambda fork σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
             (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
-    step gasCost instr state = .ok state' →
+    step fork gasCost instr state = .ok state' →
     acc ≠ state.executionEnv.codeOwner →
     account_changes_consistent acc state.accountMap state'.accountMap
     := by
@@ -1821,7 +1821,7 @@ theorem account_changes_consistent_except_owner_of_step_succ_depth :
 theorem account_changes_consistent_except_owner_of_Xstep_max_depth :
     ∀ state state' ret,
     state.executionEnv.depth = 1024 →
-    Xstep validJumps state = .ok (state', ret) →
+    Xstep fork validJumps state = .ok (state', ret) →
     ∀ acc, acc ≠ state.executionEnv.codeOwner →
       account_changes_consistent acc state.accountMap state'.accountMap
     := by
@@ -1837,10 +1837,10 @@ theorem account_changes_consistent_except_owner_of_Xstep_max_depth :
     split at hXstep
     · contradiction
     · rename_i stepped hStep
-      have hZ' : Z validJumps op state = .ok (stateZ, cost) := by
+      have hZ' : Z fork validJumps op state = .ok (stateZ, cost) := by
         simpa [← hinstr] using hZ
       have hStep' :
-          step cost (op, arg)
+          step fork cost (op, arg)
             { stateZ with executionEnv.depth := state.executionEnv.depth } = .ok stepped := by
         simpa [← hinstr] using hStep
       have hZLoc :
@@ -1901,7 +1901,7 @@ theorem account_changes_consistent_except_owner_of_Xstep_succ_depth :
           Lambda fork σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
             (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
-    Xstep validJumps state = .ok (state', ret) →
+    Xstep fork validJumps state = .ok (state', ret) →
     acc ≠ state.executionEnv.codeOwner →
     account_changes_consistent acc state.accountMap state'.accountMap
     := by
@@ -1917,10 +1917,10 @@ theorem account_changes_consistent_except_owner_of_Xstep_succ_depth :
     split at hXstep
     · contradiction
     · rename_i stepped hStep
-      have hZ' : Z validJumps op state = .ok (stateZ, cost) := by
+      have hZ' : Z fork validJumps op state = .ok (stateZ, cost) := by
         simpa [← hinstr] using hZ
       have hStep' :
-          step cost (op, arg)
+          step fork cost (op, arg)
             { stateZ with executionEnv.depth := state.executionEnv.depth } = .ok stepped := by
         simpa [← hinstr] using hStep
       have hZLoc :
@@ -1969,7 +1969,7 @@ theorem account_changes_consistent_except_owner_of_Xstep_succ_depth :
 theorem account_changes_consistent_except_owner_of_X_max_depth :
     ∀ state state' o,
     state.executionEnv.depth = 1024 →
-    X f validJumps state = .ok (.success state' o) →
+    X fork f validJumps state = .ok (.success state' o) →
     ∀ acc, acc ≠ state.executionEnv.codeOwner →
       account_changes_consistent acc state.accountMap state'.accountMap
     := by
@@ -1979,7 +1979,7 @@ theorem account_changes_consistent_except_owner_of_X_max_depth :
       simp [X] at hX
   | succ f ih =>
       simp [X] at hX
-      cases hstep : Xstep validJumps state with
+      cases hstep : Xstep fork validJumps state with
       | error err =>
           rw [hstep] at hX
           change Except.error err = Except.ok (ExecutionResult.success state' o) at hX
@@ -1992,7 +1992,7 @@ theorem account_changes_consistent_except_owner_of_X_max_depth :
           cases ret with
           | none =>
               change
-                X f validJumps
+                X fork f validJumps
                     { state₁ with executionEnv.depth := state.executionEnv.depth } =
                   Except.ok (ExecutionResult.success state' o) at hX
               have henv := Xstep_executionEnv_eq (validJumps := validJumps) hstep
@@ -2041,7 +2041,7 @@ theorem account_changes_consistent_except_owner_of_X_succ_depth :
           Lambda fork σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
             (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
-    X f validJumps state = .ok (.success state' o) →
+    X fork f validJumps state = .ok (.success state' o) →
     acc ≠ state.executionEnv.codeOwner →
     account_changes_consistent acc state.accountMap state'.accountMap
     := by
@@ -2051,7 +2051,7 @@ theorem account_changes_consistent_except_owner_of_X_succ_depth :
       simp [X] at hX
   | succ f ih =>
       simp [X] at hX
-      cases hstep : Xstep validJumps state with
+      cases hstep : Xstep fork validJumps state with
       | error err =>
           rw [hstep] at hX
           change Except.error err = Except.ok (ExecutionResult.success state' o) at hX
@@ -2065,7 +2065,7 @@ theorem account_changes_consistent_except_owner_of_X_succ_depth :
           cases ret with
           | none =>
               change
-                X f validJumps
+                X fork f validJumps
                     { state₁ with executionEnv.depth := state.executionEnv.depth } =
                   Except.ok (ExecutionResult.success state' o) at hX
               have henv := Xstep_executionEnv_eq (validJumps := validJumps) hstep
@@ -2103,7 +2103,7 @@ theorem account_changes_consistent_except_owner_of_X_succ_depth :
 theorem account_changes_consistent_except_owner_of_Xi_max_depth :
     ∀ σ' g' A' o,
     I.depth = 1024 →
-    Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
+    Ξ fork σ σ₀ g A I = .ok (.success (σ', g', A') o) →
     ∀ acc, acc ≠ I.codeOwner →
       account_changes_consistent acc σ σ'
     := by
@@ -2116,7 +2116,7 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
       executionEnv := I,
       substate := A,
       machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g } } with hfresh
-  change Except.bind (X (g.toNat + 1) (D_J I.code 0) freshState)
+  change Except.bind (X fork (g.toNat + 1) (D_J I.code 0) freshState)
       (fun result =>
         match result with
         | ExecutionResult.success evmState' o =>
@@ -2125,7 +2125,7 @@ theorem account_changes_consistent_except_owner_of_Xi_max_depth :
                 evmState'.machineState.gasAvailable.toUInt256, evmState'.substate) o)
         | ExecutionResult.revert g' o => Except.ok (ExecutionResult.revert g' o)) =
         Except.ok (ExecutionResult.success (σ', g', A') o) at hXi
-  cases hX : X (g.toNat + 1) (D_J I.code 0) freshState with
+  cases hX : X fork (g.toNat + 1) (D_J I.code 0) freshState with
   | error err =>
       simp [hX, Except.bind] at hXi
   | ok res =>
@@ -2160,7 +2160,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
           Lambda fork σ σ₀ A s o g p v i e ζ H blobVersionedHashesᵢ blocksᵢ w =
             (a, σ', g', A', z, o') →
           account_changes_consistent acc σ σ') →
-    Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
+    Ξ fork σ σ₀ g A I = .ok (.success (σ', g', A') o) →
     acc ≠ I.codeOwner →
       account_changes_consistent acc σ σ'
     := by
@@ -2173,7 +2173,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
       executionEnv := I,
       substate := A,
       machineState := { (default : State).machineState with gasAvailable := Sat256.ofUInt256 g } } with hfresh
-  change Except.bind (X (g.toNat + 1) (D_J I.code 0) freshState)
+  change Except.bind (X fork (g.toNat + 1) (D_J I.code 0) freshState)
       (fun result =>
         match result with
         | ExecutionResult.success evmState' o =>
@@ -2182,7 +2182,7 @@ theorem account_changes_consistent_except_owner_of_Xi_succ_depth :
                 evmState'.machineState.gasAvailable.toUInt256, evmState'.substate) o)
         | ExecutionResult.revert g' o => Except.ok (ExecutionResult.revert g' o)) =
         Except.ok (ExecutionResult.success (σ', g', A') o) at hXi
-  cases hX : X (g.toNat + 1) (D_J I.code 0) freshState with
+  cases hX : X fork (g.toNat + 1) (D_J I.code 0) freshState with
   | error err =>
       simp [hX, Except.bind] at hXi
   | ok res =>
@@ -2245,9 +2245,9 @@ private lemma precompiled_Theta_accountMap_eq
        let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
        let result : AccountMap × UInt256 × Substate × ByteArray :=
-        Ξ_PRECOMPILE pc σ₁ g A I
+        Ξ_PRECOMPILE fork pc σ₁ g A I
        if result.1 == ∅ then σ else result.1) := by
   unfold Θ sendEth
   simp
@@ -2256,7 +2256,7 @@ private lemma precompiled_Theta_accountMap_eq
 private lemma Xstep_invalid : ∀ (s : State),
     let I_b := s.executionEnv.code
     decode I_b s.machineState.pc = some (.INVALID, .none) →
-    Xstep (D_J I_b 0) s = .error .InvalidInstruction := by
+    Xstep fork (D_J I_b 0) s = .error .InvalidInstruction := by
   intros s I_b hinvalid
   simp [Xstep, Z, δ, I_b, hinvalid]
 
@@ -2268,7 +2268,7 @@ private lemma Xi_invalid_singleton_ne_success
     (I : ExecutionEnv)
     (result : AccountMap × UInt256 × Substate)
     (out : ByteArray) :
-    Ξ σ σ₀ g A { I with code := ⟨#[0xfe]⟩ } ≠
+    Ξ fork σ σ₀ g A { I with code := ⟨#[0xfe]⟩ } ≠
       Except.ok (ExecutionResult.success result out) := by
   intro hXi
   let freshEvmState : State :=
@@ -2280,7 +2280,7 @@ private lemma Xi_invalid_singleton_ne_success
       machineState.gasAvailable := .ofUInt256 g
  }
   have hstep :
-      Xstep (D_J freshEvmState.executionEnv.code 0) freshEvmState =
+      Xstep fork (D_J freshEvmState.executionEnv.code 0) freshEvmState =
         .error .InvalidInstruction := by
     apply Xstep_invalid
     change decode ({ data := #[0xfe] } : ByteArray) ({ val := 0 } : UInt256) = some (.INVALID, .none)
@@ -2310,7 +2310,7 @@ theorem account_changes_consistent_of_precompiled_Theta :
       let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
       simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 theorem account_changes_consistent_except_owner_of_precompiled_Theta :
@@ -2333,7 +2333,7 @@ theorem account_changes_consistent_except_owner_of_precompiled_Theta :
       let I : ExecutionEnv :=
         { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
           code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-          blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork }
+          blobVersionedHashes := blobVersionedHashes, blocks := blocks }
       simpa [σ₁, I] using precompiled_result_accountMap_empty_or_self pc σ₁ g A I)
 
 
@@ -2484,7 +2484,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                               { codeOwner := acc, sender := o, source := s, weiValue := v,
                                 calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
                                 header := H, depth := 1024, perm := w,
-                                blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork })
+                                blobVersionedHashes := blobVersionedHashes, blocks := blocks })
                             (result := (σStarStar, gStarStar, AStarStar))
                             (out := returnedData)
                             (by
@@ -2658,7 +2658,7 @@ theorem account_changes_consistent_except_owner_of_Theta_and_Lambda :
                               { codeOwner := acc, sender := o, source := s, weiValue := v,
                                 calldata := default, code := { data := #[254] }, gasPrice := p.toNat,
                                 header := H, depth := e, perm := w,
-                                blobVersionedHashes := blobVersionedHashes, blocks := blocks, fork := fork })
+                                blobVersionedHashes := blobVersionedHashes, blocks := blocks })
                             (result := (σStarStar, gStarStar, AStarStar))
                             (out := returnedData)
                             (by
